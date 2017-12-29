@@ -9,12 +9,20 @@
 
 class CPhysicsCollision : public IPhysicsCollision {
 public:
+
+	// IPhysicsCollision methods.
+
 	virtual CPhysConvex *ConvexFromVerts(Vector **pVerts, int vertCount);
 	virtual void SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData);
 	virtual void ConvexFree(CPhysConvex *pConvex);
 	virtual CPhysConvex *BBoxToConvex(const Vector &mins, const Vector &maxs);
 	virtual CPhysConvex *ConvexFromConvexPolyhedron(const CPolyhedron &ConvexPolyhedron);
+	virtual int CollideIndex(const CPhysCollide *pCollide);
 	virtual CPhysCollide *BBoxToCollide(const Vector &mins, const Vector &maxs);
+
+	// Internal methods.
+
+	void SetCollideIndex(CPhysCollide *pCollide, int index);
 
 private:
 	// BBoxes need to be offset when added to compound collides.
@@ -29,6 +37,7 @@ private:
 	CUtlVector<BBoxCache_t> m_BBoxCache;
 
 	BBoxCache_t *CreateBBox(const Vector &mins, const Vector &maxs);
+	bool IsCollideCachedBBox(const CPhysCollide *pCollide) const;
 };
 
 #endif

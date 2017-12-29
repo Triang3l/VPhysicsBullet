@@ -7,9 +7,11 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-// User data:
+// CPhysConvex user data:
 // * btConvexHullShape: likely hull created for ICollisionQuery.
 // * btBoxShape: BBoxConvexCache_t pointer.
+// CPhysConvex user index is set externally and can be queried.
+// CPhysCollide user index is the VCollide solid index.
 
 // TODO: Cleanup the bbox cache when shutting down.
 // Not sure what to do with it in thread contexts though.
@@ -106,13 +108,42 @@ CPhysCollide *CPhysicsCollision::BBoxToCollide(const Vector &mins, const Vector 
 	return reinterpret_cast<CPhysCollide *>(bbox->compoundShape);
 }
 
-/********
- * Other
- ********/
+bool CPhysicsCollision::IsCollideCachedBBox(const CPhysCollide *pCollide) const {
+	const btCompoundShape *compoundShape = reinterpret_cast<const btCompoundShape *>(pCollide);
+	if (compoundShape->getNumChildShapes() != 1) {
+		return false;
+	}
+	const btCollisionShape *childShape = compoundShape->getChildShape(0);
+	if (childShape->getShapeType() != BOX_SHAPE_PROXYTYPE) {
+		return false;
+	}
+	void *userData = childShape->getUserPointer();
+	if (userData == nullptr) {
+		return false;
+	}
+	return reinterpret_cast<const BBoxCache_t *>(userData)->compoundShape == compoundShape;
+}
+
+/************
+ * User data
+ ************/
 
 void CPhysicsCollision::SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData) {
 	reinterpret_cast<btCollisionShape *>(pConvex)->setUserIndex((int) gameData);
 }
+
+int CPhysicsCollision::CollideIndex(const CPhysCollide *pCollide) {
+	Assert(!IsCollideCachedBBox(pCollide));
+	return reinterpret_cast<const btCollisionShape *>(pCollide)->getUserIndex();
+}
+
+void CPhysicsCollision::SetCollideIndex(CPhysCollide *pCollide, int index) {
+	reinterpret_cast<btCollisionShape *>(pCollide)->setUserIndex(index);
+}
+
+/**************
+ * Destruction
+ **************/
 
 void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
 	btCollisionShape *shape = reinterpret_cast<btCollisionShape *>(pConvex);
