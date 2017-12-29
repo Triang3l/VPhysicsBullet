@@ -1,5 +1,5 @@
 // Copyright Valve Corporation, All rights reserved.
-// Bullet intergration by Triang3l, derivative work, in public domain if detached from Valve's work.
+// Bullet integration by Triang3l, derivative work, in public domain if detached from Valve's work.
 
 #ifndef PHYSICS_INTERNAL_H
 #define PHYSICS_INTERNAL_H
