@@ -7,11 +7,16 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-// User data of shapes will likely be used for the hull for queries.
+// User data:
+// * btConvexHullShape: likely hull created for ICollisionQuery.
+// * btBoxShape: BBoxConvexCache_t pointer.
 
-/***************
- * Construction
- ***************/
+// TODO: Cleanup the bbox cache when shutting down.
+// Not sure what to do with it in thread contexts though.
+
+/*******************
+ * Convex polyhedra
+ *******************/
 
 CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) {
 	BEGIN_BULLET_ALLOCATION();
@@ -39,13 +44,81 @@ CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &Co
 	return reinterpret_cast<CPhysConvex *>(shape);
 }
 
+/*****************
+ * Bounding boxes
+ *****************/
+
+CPhysicsCollision::BBoxCache_t *CPhysicsCollision::CreateBBox(const Vector &mins, const Vector &maxs) {
+	Vector halfExtents = maxs - mins;
+	halfExtents.x = fabsf(halfExtents.x);
+	halfExtents.y = fabsf(halfExtents.y);
+	halfExtents.z = fabsf(halfExtents.z);
+	Vector origin = (mins + maxs) * 0.5f;
+
+	BBoxCache_t *bbox;
+
+	int bboxIndex, bboxCount = m_BBoxCache.Count();
+	for (bboxIndex = 0; bboxIndex < bboxCount; ++bboxIndex) {
+		bbox = &m_BBoxCache[bboxIndex];
+		for (int component = 0; component < 3; ++component) {
+			if (fabsf(bbox->halfExtents[component] - halfExtents[component]) > 0.1f ||
+					fabsf(bbox->origin[component] - origin[component]) > 0.1f) {
+				bbox = nullptr;
+				break;
+			}
+		}
+		if (bbox != nullptr) {
+			return bbox;
+		}
+	}
+
+	btVector3 bulletHalfExtents, bulletOrigin;
+	ConvertPositionToBullet(halfExtents, bulletHalfExtents);
+	bulletHalfExtents = bulletHalfExtents.absolute(); // Because conversion changes signs.
+	ConvertPositionToBullet(origin, bulletOrigin);
+
+	bbox = &m_BBoxCache[m_BBoxCache.AddToTail()];
+	bbox->halfExtents = halfExtents;
+	bbox->origin = origin;
+	BEGIN_BULLET_ALLOCATION();
+	bbox->boxShape = new btBoxShape(bulletHalfExtents);
+	bbox->boxShape->setUserPointer(bbox);
+	bbox->compoundShape = new btCompoundShape(false);
+	bbox->compoundShape->addChildShape(
+			btTransform(btMatrix3x3::getIdentity(), bulletOrigin), bbox->boxShape);
+	END_BULLET_ALLOCATION();
+	return bbox;
+}
+
+CPhysConvex *CPhysicsCollision::BBoxToConvex(const Vector &mins, const Vector &maxs) {
+	const BBoxCache_t *bbox = CreateBBox(mins, maxs);
+	if (bbox == nullptr) {
+		return nullptr;
+	}
+	return reinterpret_cast<CPhysConvex *>(bbox->boxShape);
+}
+
+CPhysCollide *CPhysicsCollision::BBoxToCollide(const Vector &mins, const Vector &maxs) {
+	const BBoxCache_t *bbox = CreateBBox(mins, maxs);
+	if (bbox == nullptr) {
+		return nullptr;
+	}
+	return reinterpret_cast<CPhysCollide *>(bbox->compoundShape);
+}
+
 /********
  * Other
  ********/
+
 void CPhysicsCollision::SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData) {
 	reinterpret_cast<btCollisionShape *>(pConvex)->setUserIndex((int) gameData);
 }
 
 void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
-	delete reinterpret_cast<btCollisionShape *>(pConvex);
+	btCollisionShape *shape = reinterpret_cast<btCollisionShape *>(pConvex);
+	if (shape->getShapeType() == BOX_SHAPE_PROXYTYPE && shape->getUserPointer() != nullptr) {
+		// All bboxes are cached, but may be shutting down, in this case it's nullptr.
+		return;
+	}
+	delete shape;
 }
