@@ -12,7 +12,10 @@ CPhysicsObject::CPhysicsObject(btCollisionShape *collisionShape, int materialInd
 		objectparams_t *pParams, bool isStatic) :
 		m_Mass(!isStatic ? pParams->mass : 0.0f),
 		m_Inertia(pParams->inertia, pParams->inertia, pParams->inertia),
-		m_GameData(nullptr), m_GameFlags(0), m_GameIndex(0) {
+		m_GameData(nullptr), m_GameFlags(0), m_GameIndex(0),
+		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
+				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
+				CALLBACK_GLOBAL_COLLIDE_STATIC | CALLBACK_DO_FLUID_SIMULATION) {
 	btVector3 inertia;
 	ConvertDirectionToBullet(m_Inertia, inertia);
 
@@ -24,6 +27,10 @@ CPhysicsObject::CPhysicsObject(btCollisionShape *collisionShape, int materialInd
 }
 
 CPhysicsObject::~CPhysicsObject() {
+	// Prevent callbacks to the game code and unlink from this object.
+	m_Callbacks = 0;
+	m_GameData = nullptr;
+
 	// TODO: Delete or add to the deletion queue.
 }
 
@@ -97,4 +104,12 @@ void CPhysicsObject::SetGameIndex(unsigned short gameIndex) {
 
 unsigned short CPhysicsObject::GetGameIndex() const {
 	return m_GameIndex;
+}
+
+void CPhysicsObject::SetCallbackFlags(unsigned short callbackflags) {
+	m_Callbacks = callbackflags;
+}
+
+unsigned short CPhysicsObject::GetCallbackFlags() const {
+	return m_Callbacks;
 }

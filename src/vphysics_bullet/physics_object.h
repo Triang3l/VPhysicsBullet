@@ -24,6 +24,9 @@ public:
 	virtual void SetGameIndex(unsigned short gameIndex);
 	virtual unsigned short GetGameIndex() const;
 
+	virtual void SetCallbackFlags(unsigned short callbackflags);
+	virtual unsigned short GetCallbackFlags() const;
+
 	virtual void SetMass(float mass);
 	virtual float GetMass() const;
 	virtual float GetInvMass() const;
@@ -40,6 +43,8 @@ private:
 	void *m_GameData;
 	unsigned short m_GameFlags;
 	unsigned short m_GameIndex;
+
+	unsigned short m_Callbacks;
 };
 
 #endif
