@@ -27,9 +27,16 @@ public:
 
 	void SetCollideIndex(CPhysCollide *pCollide, int index);
 
-	HullResult *GetConvexHull(btConvexHullShape *shape);
-
 private:
+	struct ConvexHullData_t {
+		HullResult m_Hull;
+		btScalar m_SurfaceArea;
+		btVector3 m_CenterOfMass;
+	};
+	HullLibrary m_HullLibrary;
+	btConvexHullShape *ConvexFromBulletPoints(
+			const btVector3 *points, unsigned int pointCount);
+
 	// BBoxes need to be offset when added to compound collides.
 	// User data of bboxes points to this.
 	struct BBoxCache_t {
@@ -41,8 +48,6 @@ private:
 	CUtlVector<BBoxCache_t> m_BBoxCache;
 	BBoxCache_t *CreateBBox(const Vector &mins, const Vector &maxs);
 	bool IsCollideCachedBBox(const CPhysCollide *pCollide) const;
-
-	HullLibrary m_HullLibrary;
 };
 
 #endif
