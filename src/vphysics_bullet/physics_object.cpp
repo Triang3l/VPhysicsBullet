@@ -78,6 +78,29 @@ void CPhysicsObject::SetInertia(const Vector &inertia) {
 	m_RigidBody->setMassProps(m_Mass, bulletInertia);
 }
 
+/*******************
+ * Activation state
+ *******************/
+
+bool CPhysicsObject::IsAsleep() const {
+	return !m_RigidBody->isActive();
+}
+
+void CPhysicsObject::Wake() {
+	if (!m_RigidBody->isStaticObject()) {
+		// Forcing because it may be used for external forces without contacts.
+		// Also waking up from DISABLE_SIMULATION, which is not possible with setActivationState.
+		m_RigidBody->forceActivationState(ACTIVE_TAG);
+		m_RigidBody->setDeactivationTime(0.0f);
+	}
+}
+
+void CPhysicsObject::Sleep() {
+	if (!m_RigidBody->isStaticObject()) {
+		m_RigidBody->setActivationState(DISABLE_SIMULATION);
+	}
+}
+
 /************
  * Game data
  ************/

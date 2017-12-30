@@ -16,6 +16,7 @@ public:
 	// IPhysicsObject methods.
 
 	virtual bool IsStatic() const;
+	virtual bool IsAsleep() const;
 
 	virtual void SetGameData(void *pGameData);
 	virtual void *GetGameData() const;
@@ -26,6 +27,9 @@ public:
 
 	virtual void SetCallbackFlags(unsigned short callbackflags);
 	virtual unsigned short GetCallbackFlags() const;
+
+	virtual void Wake();
+	virtual void Sleep();
 
 	virtual void SetMass(float mass);
 	virtual float GetMass() const;
