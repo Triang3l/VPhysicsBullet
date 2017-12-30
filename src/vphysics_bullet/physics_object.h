@@ -8,7 +8,8 @@
 
 class CPhysicsObject : public IPhysicsObject {
 public:
-	CPhysicsObject(btCollisionShape *collisionShape, int materialIndex,
+	CPhysicsObject(IPhysicsEnvironment *environment,
+			btCollisionShape *collisionShape, int materialIndex,
 			const Vector &position, const QAngle &angles,
 			objectparams_t *pParams, bool isStatic);
 	virtual ~CPhysicsObject();
@@ -17,6 +18,9 @@ public:
 
 	virtual bool IsStatic() const;
 	virtual bool IsAsleep() const;
+	virtual bool IsGravityEnabled() const;
+
+	virtual void EnableGravity(bool enable);
 
 	virtual void SetGameData(void *pGameData);
 	virtual void *GetGameData() const;
@@ -39,6 +43,8 @@ public:
 	virtual void SetInertia(const Vector &inertia);
 
 private:
+	IPhysicsEnvironment *m_Environment;
+
 	btRigidBody *m_RigidBody;
 
 	float m_Mass;

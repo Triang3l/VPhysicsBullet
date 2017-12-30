@@ -2,14 +2,17 @@
 // Bullet integration by Triang3l, derivative work, in public domain if detached from Valve's work.
 
 #include "physics_object.h"
+#include "physics_environment.h"
 #include "tier0/dbg.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-CPhysicsObject::CPhysicsObject(btCollisionShape *collisionShape, int materialIndex,
+CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
+		btCollisionShape *collisionShape, int materialIndex,
 		const Vector &position, const QAngle &angles,
 		objectparams_t *pParams, bool isStatic) :
+		m_Environment(environment),
 		m_Mass((!isStatic && !collisionShape->isNonMoving()) ? pParams->mass : 0.0f),
 		m_Inertia(pParams->inertia, pParams->inertia, pParams->inertia),
 		m_GameData(nullptr), m_GameFlags(0), m_GameIndex(0),
@@ -87,7 +90,7 @@ bool CPhysicsObject::IsAsleep() const {
 }
 
 void CPhysicsObject::Wake() {
-	if (!m_RigidBody->isStaticObject()) {
+	if (!IsStatic()) {
 		// Forcing because it may be used for external forces without contacts.
 		// Also waking up from DISABLE_SIMULATION, which is not possible with setActivationState.
 		m_RigidBody->forceActivationState(ACTIVE_TAG);
@@ -96,8 +99,36 @@ void CPhysicsObject::Wake() {
 }
 
 void CPhysicsObject::Sleep() {
-	if (!m_RigidBody->isStaticObject()) {
+	if (!IsStatic()) {
 		m_RigidBody->setActivationState(DISABLE_SIMULATION);
+	}
+}
+
+/**********
+ * Gravity
+ **********/
+
+bool CPhysicsObject::IsGravityEnabled() const {
+	return !IsStatic() && !(m_RigidBody->getFlags() & BT_DISABLE_WORLD_GRAVITY);
+}
+
+void CPhysicsObject::EnableGravity(bool enable) {
+	if (IsStatic()) {
+		return;
+	}
+
+	int flags = m_RigidBody->getFlags();
+	if (enable == !(flags & BT_DISABLE_WORLD_GRAVITY)) {
+		return;
+	}
+
+	if (enable) {
+		const CPhysicsEnvironment *environment = static_cast<CPhysicsEnvironment *>(m_Environment);
+		m_RigidBody->setGravity(environment->GetDynamicsWorld()->getGravity());
+		m_RigidBody->setFlags(flags & ~BT_DISABLE_WORLD_GRAVITY);
+	} else {
+		m_RigidBody->setGravity(btVector3(0.0f, 0.0f, 0.0f));
+		m_RigidBody->setFlags(flags | BT_DISABLE_WORLD_GRAVITY);
 	}
 }
 

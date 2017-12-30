@@ -16,6 +16,15 @@ public:
 	virtual void SetGravity(const Vector &gravityVector);
 	virtual void GetGravity(Vector *pGravityVector) const;
 
+	// Internal methods.
+
+	FORCEINLINE btDiscreteDynamicsWorld *GetDynamicsWorld() {
+		return m_DynamicsWorld;
+	}
+	FORCEINLINE const btDiscreteDynamicsWorld *GetDynamicsWorld() const {
+		return m_DynamicsWorld;
+	}
+
 private:
 	btDefaultCollisionConfiguration *m_CollisionConfiguration;
 	btCollisionDispatcher *m_Dispatcher;
