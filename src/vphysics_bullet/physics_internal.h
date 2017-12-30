@@ -17,8 +17,9 @@
 #endif
 
 #define HL2BULLET_FACTOR METERS_PER_INCH
-#define BULLET2HL(x) ((float) ((x) * (1.0f / HL2BULLET_FACTOR)))
+#define BULLET2HL_FACTOR (1.0f / HL2BULLET_FACTOR)
 #define HL2BULLET(x) ((btScalar) ((x) * HL2BULLET_FACTOR))
+#define BULLET2HL(x) ((float) ((x) * BULLET2HL_FACTOR))
 
 inline void ConvertPositionToBullet(const Vector &in, btVector3 &out) {
 	out.setX(HL2BULLET(in.x));

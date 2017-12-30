@@ -10,7 +10,7 @@
 CPhysicsObject::CPhysicsObject(btCollisionShape *collisionShape, int materialIndex,
 		const Vector &position, const QAngle &angles,
 		objectparams_t *pParams, bool isStatic) :
-		m_Mass(!isStatic ? pParams->mass : 0.0f),
+		m_Mass((!isStatic && !collisionShape->isNonMoving()) ? pParams->mass : 0.0f),
 		m_Inertia(pParams->inertia, pParams->inertia, pParams->inertia),
 		m_GameData(nullptr), m_GameFlags(0), m_GameIndex(0),
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |

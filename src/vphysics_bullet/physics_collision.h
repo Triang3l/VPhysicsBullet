@@ -5,6 +5,7 @@
 #define PHYSICS_COLLISION_H
 
 #include "physics_internal.h"
+#include <LinearMath/btConvexHull.h>
 #include "tier1/utlvector.h"
 
 class CPhysicsCollision : public IPhysicsCollision {
@@ -13,6 +14,8 @@ public:
 	// IPhysicsCollision methods.
 
 	virtual CPhysConvex *ConvexFromVerts(Vector **pVerts, int vertCount);
+	virtual float ConvexVolume(CPhysConvex *pConvex);
+	virtual float ConvexSurfaceArea(CPhysConvex *pConvex);
 	virtual void SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData);
 	virtual void ConvexFree(CPhysConvex *pConvex);
 	virtual CPhysConvex *BBoxToConvex(const Vector &mins, const Vector &maxs);
@@ -24,6 +27,8 @@ public:
 
 	void SetCollideIndex(CPhysCollide *pCollide, int index);
 
+	HullResult *GetConvexHull(btConvexHullShape *shape);
+
 private:
 	// BBoxes need to be offset when added to compound collides.
 	// User data of bboxes points to this.
@@ -33,11 +38,11 @@ private:
 		btBoxShape *boxShape; // Returned from BBoxToConvex - zero origin.
 		btCompoundShape *compoundShape; // Returned from BBoxToCollide - correct origin.
 	};
-
 	CUtlVector<BBoxCache_t> m_BBoxCache;
-
 	BBoxCache_t *CreateBBox(const Vector &mins, const Vector &maxs);
 	bool IsCollideCachedBBox(const CPhysCollide *pCollide) const;
+
+	HullLibrary m_HullLibrary;
 };
 
 #endif

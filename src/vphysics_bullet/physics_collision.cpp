@@ -7,14 +7,20 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-// CPhysConvex user data:
-// * btConvexHullShape: likely hull created for ICollisionQuery.
-// * btBoxShape: BBoxConvexCache_t pointer.
-// CPhysConvex user index is set externally and can be queried.
-// CPhysCollide user index is the VCollide solid index.
+/* CPhysConvex can be one of the following:
+ * - btConvexHullShape - its user data is its hull for ICollisionQuery if ever requested.
+ * - btBoxShape - always from the bbox cache, its user data is BBoxConvexCache_t.
+ * User index of CPhysConvex is set with SetConvexGameData.
+ *
+ * CPhysCollide is either:
+ * - btCompoundShape - user index is VCollide solid index.
+ * - btBvhTriangleMeshShape - virtual mesh (displacement) or polysoup.
+ */
 
 // TODO: Cleanup the bbox cache when shutting down.
 // Not sure what to do with it in thread contexts though.
+
+#define CPHYSCONVEX_HULL_FAILED ((void *) -1)
 
 /*******************
  * Convex polyhedra
@@ -117,11 +123,11 @@ bool CPhysicsCollision::IsCollideCachedBBox(const CPhysCollide *pCollide) const 
 	if (childShape->getShapeType() != BOX_SHAPE_PROXYTYPE) {
 		return false;
 	}
-	void *userData = childShape->getUserPointer();
-	if (userData == nullptr) {
+	void *userPointer = childShape->getUserPointer();
+	if (userPointer == nullptr) {
 		return false;
 	}
-	return reinterpret_cast<const BBoxCache_t *>(userData)->compoundShape == compoundShape;
+	return reinterpret_cast<const BBoxCache_t *>(userPointer)->compoundShape == compoundShape;
 }
 
 /************
@@ -141,15 +147,114 @@ void CPhysicsCollision::SetCollideIndex(CPhysCollide *pCollide, int index) {
 	reinterpret_cast<btCollisionShape *>(pCollide)->setUserIndex(index);
 }
 
+/***************
+ * Tool queries
+ ***************/
+
+HullResult *CPhysicsCollision::GetConvexHull(btConvexHullShape *shape) {
+	void *userPointer = shape->getUserPointer();
+	if (userPointer == CPHYSCONVEX_HULL_FAILED) {
+		return nullptr;
+	}
+	if (userPointer != nullptr) {
+		return reinterpret_cast<HullResult *>(userPointer);
+	}
+
+	BEGIN_BULLET_ALLOCATION();
+	HullResult *hullResult = new HullResult;
+	HullError hullError = m_HullLibrary.CreateConvexHull(
+			HullDesc(QF_TRIANGLES, shape->getNumPoints(), shape->getPoints()), *hullResult);
+	END_BULLET_ALLOCATION();
+
+	if (hullError != QE_OK) {
+		delete hullResult;
+		shape->setUserPointer(CPHYSCONVEX_HULL_FAILED);
+		return nullptr;
+	}
+
+	shape->setUserPointer(hullResult);
+	return hullResult;
+}
+
+float CPhysicsCollision::ConvexVolume(CPhysConvex *pConvex) {
+	btScalar bulletVolume = 0.0f;
+
+	btCollisionShape *shape = reinterpret_cast<btCollisionShape *>(pConvex);
+	int shapeType = shape->getShapeType();
+	if (shapeType == CONVEX_HULL_SHAPE_PROXYTYPE) {
+		const HullResult *hull = GetConvexHull(static_cast<btConvexHullShape *>(shape));
+		if (hull != nullptr && hull->mNumOutputVertices > 0) {
+			// Tetrahedronalize this hull and compute its volume.
+			const btVector3 *vertices = &hull->m_OutputVertices[0];
+			const btVector3 &v0 = vertices[0];
+			const unsigned int *indices = &hull->m_Indices[0];
+			unsigned int indexCount = hull->mNumIndices;
+			for (int indexIndex = 0; indexIndex < indexCount; indexCount += 3) {
+				btVector3 a = vertices[indices[indexIndex]] - v0;
+				btVector3 b = vertices[indices[indexIndex + 1]] - v0;
+				btVector3 c = vertices[indices[indexIndex + 2]] - v0;
+				bulletVolume += btFabs(a.dot(b.cross(c)));
+			}
+			bulletVolume *= 1.0f / 6.0f;
+		}
+	} else if (shapeType == BOX_SHAPE_PROXYTYPE) {
+		const btVector3 &halfExtents =
+				static_cast<const btBoxShape *>(shape)->getHalfExtentsWithoutMargin();
+		bulletVolume = 8.0f * halfExtents.getX() * halfExtents.getY() * halfExtents.getZ();
+	}
+
+	return (float) bulletVolume * (BULLET2HL_FACTOR * BULLET2HL_FACTOR * BULLET2HL_FACTOR);
+}
+
+float CPhysicsCollision::ConvexSurfaceArea(CPhysConvex *pConvex) {
+	btScalar bulletArea = 0.0f;
+
+	btCollisionShape *shape = reinterpret_cast<btCollisionShape *>(pConvex);
+	int shapeType = shape->getShapeType();
+	if (shapeType == CONVEX_HULL_SHAPE_PROXYTYPE) {
+		const HullResult *hull = GetConvexHull(static_cast<btConvexHullShape *>(shape));
+		if (hull != nullptr && hull->mNumOutputVertices > 0) {
+			const btVector3 *vertices = &hull->m_OutputVertices[0];
+			const unsigned int *indices = &hull->m_Indices[0];
+			unsigned int indexCount = hull->mNumIndices;
+			for (int indexIndex = 0; indexIndex < indexCount; indexCount += 3) {
+				btVector3 v0 = vertices[indices[indexIndex]];
+				btVector3 e0 = vertices[indices[indexIndex + 1]] - v0;
+				btVector3 e1 = vertices[indices[indexIndex + 2]] - v0;
+				bulletArea += e0.cross(e1).length();
+			}
+			bulletArea *= 0.5f;
+		}
+	} else if (shapeType == BOX_SHAPE_PROXYTYPE) {
+		const btVector3 &halfExtents =
+				static_cast<const btBoxShape *>(shape)->getHalfExtentsWithoutMargin();
+		bulletArea = 8.0f * halfExtents.getX() * halfExtents.getY() +
+				4.0 * halfExtents.getZ() * (halfExtents.getX() + halfExtents.getY());
+	}
+
+	return (float) bulletArea * (BULLET2HL_FACTOR * BULLET2HL_FACTOR);
+}
+
 /**************
  * Destruction
  **************/
 
 void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
 	btCollisionShape *shape = reinterpret_cast<btCollisionShape *>(pConvex);
-	if (shape->getShapeType() == BOX_SHAPE_PROXYTYPE && shape->getUserPointer() != nullptr) {
-		// All bboxes are cached, but may be shutting down, in this case it's nullptr.
+	int shapeType = shape->getShapeType();
+	void *userPointer = shape->getUserPointer();
+
+	// All bboxes are cached and must not be freed except for when shutting down.
+	// In this case, the cache pointer is null.
+	if (shapeType == BOX_SHAPE_PROXYTYPE && userPointer != nullptr) {
 		return;
 	}
+
+	// Remove the convex hull.
+	if (shapeType == CONVEX_HULL_SHAPE_PROXYTYPE &&
+			userPointer != nullptr && userPointer != CPHYSCONVEX_HULL_FAILED) {
+		delete reinterpret_cast<HullResult *>(userPointer);
+	}
+
 	delete shape;
 }
