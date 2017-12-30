@@ -3,6 +3,7 @@
 
 #include "physics_object.h"
 #include "physics_environment.h"
+#include "bspflags.h"
 #include "tier0/dbg.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -19,7 +20,8 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_GameData(nullptr), m_GameFlags(0), m_GameIndex(0),
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
-				CALLBACK_GLOBAL_COLLIDE_STATIC | CALLBACK_DO_FLUID_SIMULATION) {
+				CALLBACK_GLOBAL_COLLIDE_STATIC | CALLBACK_DO_FLUID_SIMULATION),
+		m_ContentsMask(CONTENTS_SOLID) {
 	btVector3 inertia;
 	ConvertDirectionToBullet(m_Inertia, inertia);
 
@@ -217,4 +219,12 @@ void CPhysicsObject::SetCallbackFlags(unsigned short callbackflags) {
 
 unsigned short CPhysicsObject::GetCallbackFlags() const {
 	return m_Callbacks;
+}
+
+unsigned int CPhysicsObject::GetContents() const {
+	return m_ContentsMask;
+}
+
+void CPhysicsObject::SetContents(unsigned int contents) {
+	m_ContentsMask = contents;
 }

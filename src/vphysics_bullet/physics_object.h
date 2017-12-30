@@ -45,6 +45,9 @@ public:
 	virtual void SetDamping(const float *speed, const float *rot);
 	virtual void GetDamping(float *speed, float *rot) const;
 
+	virtual unsigned int GetContents() const;
+	virtual void SetContents(unsigned int contents);
+
 	// Internal methods.
 
 	// Bullet doesn't allow damping factors over 1, so it has to be done manually.
@@ -66,6 +69,8 @@ private:
 	unsigned short m_GameIndex;
 
 	unsigned short m_Callbacks;
+
+	unsigned int m_ContentsMask;
 };
 
 #endif

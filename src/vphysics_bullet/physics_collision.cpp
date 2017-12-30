@@ -10,11 +10,12 @@
 /* CPhysConvex can be one of the following:
  * - btConvexHullShape - its user data is its hull for ICollisionQuery if ever requested.
  * - btBoxShape - always from the bbox cache, its user data is BBoxConvexCache_t.
- * User index of CPhysConvex is set with SetConvexGameData.
+ * User index (contents) of CPhysConvex is set with SetConvexGameData.
  *
  * CPhysCollide is either:
  * - btCompoundShape - user index is VCollide solid index.
  * - btBvhTriangleMeshShape - virtual mesh (displacement) or polysoup.
+ * User index of CPhysCollide is the solid index in VCollide.
  */
 
 // TODO: Cleanup the bbox cache when shutting down.
@@ -34,6 +35,7 @@ CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) 
 		ConvertPositionToBullet(*pVerts[vertIndex], points[vertIndex]);
 	}
 	btConvexHullShape *shape = new btConvexHullShape(&points[0][0], vertCount);
+	shape->setUserIndex(0);
 	END_BULLET_ALLOCATION();
 	return reinterpret_cast<CPhysConvex *>(shape);
 }
@@ -48,6 +50,7 @@ CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &Co
 		ConvertPositionToBullet(verts[vertIndex], points[vertIndex]);
 	}
 	btConvexHullShape *shape = new btConvexHullShape(&points[0][0], vertCount);
+	shape->setUserIndex(0);
 	END_BULLET_ALLOCATION();
 	return reinterpret_cast<CPhysConvex *>(shape);
 }
@@ -90,8 +93,10 @@ CPhysicsCollision::BBoxCache_t *CPhysicsCollision::CreateBBox(const Vector &mins
 	bbox->origin = origin;
 	BEGIN_BULLET_ALLOCATION();
 	bbox->boxShape = new btBoxShape(bulletHalfExtents);
+	bbox->boxShape->setUserIndex(0);
 	bbox->boxShape->setUserPointer(bbox);
 	bbox->compoundShape = new btCompoundShape(false);
+	bbox->compoundShape->setUserIndex(0);
 	bbox->compoundShape->addChildShape(
 			btTransform(btMatrix3x3::getIdentity(), bulletOrigin), bbox->boxShape);
 	END_BULLET_ALLOCATION();
