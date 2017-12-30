@@ -42,6 +42,15 @@ public:
 	virtual Vector GetInvInertia() const;
 	virtual void SetInertia(const Vector &inertia);
 
+	virtual void SetDamping(const float *speed, const float *rot);
+	virtual void GetDamping(float *speed, float *rot) const;
+
+	// Internal methods.
+
+	// Bullet doesn't allow damping factors over 1, so it has to be done manually.
+	// Also applies damping in a way more similar to how IVP VPhysics does it.
+	void ApplyDamping(float timeStep);
+
 private:
 	IPhysicsEnvironment *m_Environment;
 
@@ -49,6 +58,8 @@ private:
 
 	float m_Mass;
 	Vector m_Inertia;
+
+	float m_Damping, m_RotDamping;
 
 	void *m_GameData;
 	unsigned short m_GameFlags;

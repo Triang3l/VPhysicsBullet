@@ -2,6 +2,7 @@
 // Bullet integration by Triang3l, derivative work, in public domain if detached from Valve's work.
 
 #include "physics_environment.h"
+#include "physics_object.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -14,6 +15,8 @@ CPhysicsEnvironment::CPhysicsEnvironment() {
 	m_Solver = new btSequentialImpulseConstraintSolver();
 	m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_Broadphase, m_Solver, m_CollisionConfiguration);
 	END_BULLET_ALLOCATION();
+
+	m_DynamicsWorld->setInternalTickCallback(PreTickCallback, this, true);
 }
 
 CPhysicsEnvironment::~CPhysicsEnvironment() {
@@ -32,4 +35,13 @@ void CPhysicsEnvironment::SetGravity(const Vector &gravityVector) {
 
 void CPhysicsEnvironment::GetGravity(Vector *pGravityVector) const {
 	ConvertPositionToHL(m_DynamicsWorld->getGravity(), *pGravityVector);
+}
+
+void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeStep) {
+	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(world->getWorldUserInfo());
+	IPhysicsObject * const *objects = environment->m_NonStaticObjects.Base();
+	int objectCount = environment->m_NonStaticObjects.Count();
+	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
+		static_cast<CPhysicsObject *>(objects[objectIndex])->ApplyDamping((float) timeStep);
+	}
 }

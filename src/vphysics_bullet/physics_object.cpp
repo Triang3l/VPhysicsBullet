@@ -15,6 +15,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_Environment(environment),
 		m_Mass((!isStatic && !collisionShape->isNonMoving()) ? pParams->mass : 0.0f),
 		m_Inertia(pParams->inertia, pParams->inertia, pParams->inertia),
+		m_Damping(pParams->damping), m_RotDamping(pParams->rotdamping),
 		m_GameData(nullptr), m_GameFlags(0), m_GameIndex(0),
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
@@ -27,6 +28,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	BEGIN_BULLET_ALLOCATION();
 	m_RigidBody = new btRigidBody(constructionInfo);
 	END_BULLET_ALLOCATION();
+	m_RigidBody->setUserPointer(this);
 }
 
 CPhysicsObject::~CPhysicsObject() {
@@ -104,9 +106,9 @@ void CPhysicsObject::Sleep() {
 	}
 }
 
-/**********
- * Gravity
- **********/
+/**********************
+ * Gravity and damping
+ **********************/
 
 bool CPhysicsObject::IsGravityEnabled() const {
 	return !IsStatic() && !(m_RigidBody->getFlags() & BT_DISABLE_WORLD_GRAVITY);
@@ -130,6 +132,55 @@ void CPhysicsObject::EnableGravity(bool enable) {
 		m_RigidBody->setGravity(btVector3(0.0f, 0.0f, 0.0f));
 		m_RigidBody->setFlags(flags | BT_DISABLE_WORLD_GRAVITY);
 	}
+}
+
+void CPhysicsObject::SetDamping(const float *speed, const float *rot) {
+	if (speed != nullptr) {
+		m_Damping = *speed;
+	}
+	if (rot != nullptr) {
+		m_RotDamping = *rot;
+	}
+}
+
+void CPhysicsObject::GetDamping(float *speed, float *rot) const {
+	if (speed != nullptr) {
+		*speed = m_Damping;
+	}
+	if (rot != nullptr) {
+		*rot = m_RotDamping;
+	}
+}
+
+void CPhysicsObject::ApplyDamping(float timeStep) {
+	if (m_RigidBody->isStaticOrKinematicObject() || !IsGravityEnabled()) {
+		return;
+	}
+
+	const btVector3 &linearVelocity = m_RigidBody->getLinearVelocity();
+	const btVector3 &angularVelocity = m_RigidBody->getAngularVelocity();
+
+	btScalar damping = m_Damping, rotDamping = m_RotDamping;
+	if (linearVelocity.length2() < 0.01f && angularVelocity.length2() < 0.01f) {
+		damping += 0.1f;
+		rotDamping += 0.1f;
+	}
+	damping *= timeStep;
+	rotDamping *= timeStep;
+
+	if (damping < 0.25f) {
+		damping = btScalar(1.0f) - damping;
+	} else {
+		damping = btExp(-damping);
+	}
+	m_RigidBody->setLinearVelocity(linearVelocity * damping);
+
+	if (rotDamping < 0.4f) {
+		rotDamping = btScalar(1.0f) - rotDamping;
+	} else {
+		rotDamping = btExp(-rotDamping);
+	}
+	m_RigidBody->setAngularVelocity(angularVelocity * rotDamping);
 }
 
 /************

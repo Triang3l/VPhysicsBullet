@@ -5,6 +5,7 @@
 #define PHYSICS_ENVIRONMENT_H
 
 #include "physics_internal.h"
+#include "tier1/utlvector.h"
 
 class CPhysicsEnvironment : public IPhysicsEnvironment {
 public:
@@ -31,6 +32,10 @@ private:
 	btBroadphaseInterface *m_Broadphase;
 	btSequentialImpulseConstraintSolver *m_Solver;
 	btDiscreteDynamicsWorld *m_DynamicsWorld;
+
+	CUtlVector<IPhysicsObject *> m_NonStaticObjects;
+
+	static void PreTickCallback(btDynamicsWorld *world, btScalar timeStep);
 };
 
 #endif
