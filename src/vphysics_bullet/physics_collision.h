@@ -31,7 +31,7 @@ private:
 	struct ConvexHullData_t {
 		HullResult m_Hull;
 		btScalar m_SurfaceArea;
-		btVector3 m_CenterOfMass;
+		btVector3 m_AreaWeightedAverage;
 	};
 	HullLibrary m_HullLibrary;
 	btConvexHullShape *ConvexFromBulletPoints(

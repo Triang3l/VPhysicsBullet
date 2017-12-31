@@ -42,9 +42,9 @@ btConvexHullShape *CPhysicsCollision::ConvexFromBulletPoints(
 		return nullptr;
 	}
 
-	// Find the center of mass as the area-weighted average of triangle centroids.
-	btVector3 centerOfMass(0.0f, 0.0f, 0.0f);
+	// Find the area-weighted average of triangle centroids for center of mass calculation.
 	btScalar surfaceArea = 0.0f;
+	btVector3 areaWeightedAverage(0.0f, 0.0f, 0.0f);
 	const btVector3 *vertices = &hull.m_OutputVertices[0];
 	unsigned int vertexCount = hull.mNumOutputVertices;
 	const unsigned int *indices = &hull.m_Indices[0];
@@ -54,21 +54,11 @@ btConvexHullShape *CPhysicsCollision::ConvexFromBulletPoints(
 		const btVector3 &v1 = vertices[indices[indexIndex + 1]];
 		const btVector3 &v2 = vertices[indices[indexIndex + 2]];
 		btScalar triangleArea = (v1 - v0).cross(v2 - v0).length() * 0.5f;
-		centerOfMass += (v0 + v1 + v2) * (1.0f / 3.0f) * triangleArea;
 		surfaceArea += triangleArea;
+		areaWeightedAverage += (v0 + v1 + v2) * (1.0f / 3.0f) * triangleArea;
 	}
 	hullData->m_SurfaceArea = surfaceArea;
-	if (surfaceArea > 1e-4) {
-		centerOfMass *= 1.0f / surfaceArea;
-	} else {
-		// For very small shapes, use the geometric average.
-		centerOfMass.setZero();
-		for (unsigned int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex) {
-			centerOfMass += vertices[vertexIndex];
-		}
-		centerOfMass *= 1.0f / (btScalar) vertexCount;
-	}
-	hullData->m_CenterOfMass = centerOfMass;
+	hullData->m_AreaWeightedAverage = areaWeightedAverage;
 
 	// Create the mesh.
 	BEGIN_BULLET_ALLOCATION();
