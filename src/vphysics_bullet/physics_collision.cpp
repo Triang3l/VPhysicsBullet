@@ -248,6 +248,32 @@ float CPhysicsCollision::ConvexSurfaceArea(CPhysConvex *pConvex) {
 	return (float) bulletArea * (BULLET2HL_FACTOR * BULLET2HL_FACTOR);
 }
 
+btScalar CPhysicsCollision::ConvexSurfaceAreaAndWeightedAverage(
+		const btCollisionShape *shape, btVector3 &areaWeightedAverage) {
+	int shapeType = shape->getShapeType();
+	void *userPointer = shape->getUserPointer();
+	if (shapeType == CONVEX_HULL_SHAPE_PROXYTYPE) {
+		const ConvexHullData_t &hullData =
+				*reinterpret_cast<const ConvexHullData_t *>(userPointer);
+		areaWeightedAverage = hullData.m_AreaWeightedAverage;
+		return hullData.m_SurfaceArea;
+	}
+	if (shapeType == BOX_SHAPE_PROXYTYPE) {
+		const BBoxCache_t &bboxCache =
+				*reinterpret_cast<const BBoxCache_t *>(userPointer);
+		const btVector3 &halfExtents =
+				static_cast<const btBoxShape *>(shape)->getHalfExtentsWithoutMargin();
+		btScalar area = 8.0f * halfExtents.getX() * halfExtents.getY() +
+				4.0 * halfExtents.getZ() * (halfExtents.getX() + halfExtents.getY());
+		btVector3 origin;
+		ConvertPositionToBullet(bboxCache.origin, origin);
+		areaWeightedAverage = origin * area;
+		return area;
+	}
+	areaWeightedAverage.setZero();
+	return 0.0f;
+}
+
 /**************
  * Destruction
  **************/

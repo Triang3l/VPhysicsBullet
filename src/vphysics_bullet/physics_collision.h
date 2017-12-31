@@ -48,6 +48,9 @@ private:
 	CUtlVector<BBoxCache_t> m_BBoxCache;
 	BBoxCache_t *CreateBBox(const Vector &mins, const Vector &maxs);
 	bool IsCollideCachedBBox(const CPhysCollide *pCollide) const;
+
+	btScalar ConvexSurfaceAreaAndWeightedAverage(
+			const btCollisionShape *convex, btVector3 &areaWeightedAverage);
 };
 
 #endif
