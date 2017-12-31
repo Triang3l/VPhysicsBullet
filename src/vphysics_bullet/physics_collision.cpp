@@ -178,6 +178,65 @@ bool CPhysicsCollision::IsCollideCachedBBox(const CPhysCollide *pCollide) const 
 	return reinterpret_cast<const BBoxCache_t *>(userPointer)->compoundShape == compoundShape;
 }
 
+/******************
+ * Compound shapes
+ ******************/
+
+CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, int convexCount) {
+	if (convexCount == 0 || pConvex == nullptr) {
+		return nullptr;
+	}
+
+	// Calculate the center of mass.
+	btVector3 areaWeightedAverage(0.0f, 0.0f, 0.0f);
+	btScalar area = 0.0f;
+	for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
+		const btCollisionShape *shape =
+				reinterpret_cast<const btCollisionShape *>(pConvex[convexIndex]);
+		btVector3 convexAreaWeightedAverage;
+		area += ConvexSurfaceAreaAndWeightedAverage(shape, convexAreaWeightedAverage);
+		areaWeightedAverage += convexAreaWeightedAverage;
+	}
+
+	btVector3 centerOfMass;
+	if (area > 1e-4) {
+		centerOfMass = areaWeightedAverage / area;
+	} else {
+		// For very small collides, use the AABB center as the center of mass.
+		btVector3 aabbMin(FLT_MAX, FLT_MAX, FLT_MAX), aabbMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+		const btTransform &identity = btTransform::getIdentity();
+		for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
+			const btCollisionShape *convexShape =
+					reinterpret_cast<const btCollisionShape *>(pConvex[convexIndex]);
+			btVector3 convexAabbMin, convexAabbMax;
+			convexShape->getAabb(identity, convexAabbMin, convexAabbMax);
+			if (convexShape->getShapeType() == BOX_SHAPE_PROXYTYPE) {
+				btVector3 origin;
+				ConvertPositionToBullet(reinterpret_cast<const BBoxCache_t *>(
+						convexShape->getUserPointer())->origin, origin);
+				convexAabbMin += origin;
+				convexAabbMax += origin;
+			}
+			aabbMin.setMin(convexAabbMin);
+			aabbMax.setMax(convexAabbMax);
+		}
+		centerOfMass = (aabbMin + aabbMax) * 0.5f;
+	}
+	btTransform childTransform(btMatrix3x3::getIdentity(), -centerOfMass);
+
+	BEGIN_BULLET_ALLOCATION();
+	btCompoundShape *compoundShape = new btCompoundShape(convexCount > 1, convexCount);
+	compoundShape->setUserIndex(0);
+	for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
+		// This takes the ownership of the children!
+		compoundShape->addChildShape(childTransform,
+				reinterpret_cast<btCollisionShape *>(pConvex[convexIndex]));
+	}
+	END_BULLET_ALLOCATION();
+	// TODO: Store the center of mass behind the user pointer.
+	return reinterpret_cast<CPhysCollide *>(compoundShape);
+}
+
 /************
  * User data
  ************/
@@ -195,9 +254,9 @@ void CPhysicsCollision::SetCollideIndex(CPhysCollide *pCollide, int index) {
 	reinterpret_cast<btCollisionShape *>(pCollide)->setUserIndex(index);
 }
 
-/***************
- * Tool queries
- ***************/
+/**********
+ * Queries
+ **********/
 
 float CPhysicsCollision::ConvexVolume(CPhysConvex *pConvex) {
 	btScalar bulletVolume = 0.0f;

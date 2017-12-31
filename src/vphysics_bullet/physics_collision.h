@@ -20,6 +20,7 @@ public:
 	virtual void ConvexFree(CPhysConvex *pConvex);
 	virtual CPhysConvex *BBoxToConvex(const Vector &mins, const Vector &maxs);
 	virtual CPhysConvex *ConvexFromConvexPolyhedron(const CPolyhedron &ConvexPolyhedron);
+	virtual CPhysCollide *ConvertConvexToCollide(CPhysConvex **pConvex, int convexCount);
 	virtual int CollideIndex(const CPhysCollide *pCollide);
 	virtual CPhysCollide *BBoxToCollide(const Vector &mins, const Vector &maxs);
 
