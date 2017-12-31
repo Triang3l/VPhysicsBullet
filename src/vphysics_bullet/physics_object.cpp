@@ -22,11 +22,12 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
 				CALLBACK_GLOBAL_COLLIDE_STATIC | CALLBACK_DO_FLUID_SIMULATION),
 		m_ContentsMask(CONTENTS_SOLID) {
+	VectorAbs(m_Inertia, m_Inertia);
 	btVector3 inertia;
 	ConvertDirectionToBullet(m_Inertia, inertia);
 
 	btRigidBody::btRigidBodyConstructionInfo constructionInfo(
-			m_Mass, &m_MotionState, collisionShape, inertia);
+			m_Mass, &m_MotionState, collisionShape, inertia.absolute());
 	BEGIN_BULLET_ALLOCATION();
 	m_RigidBody = new btRigidBody(constructionInfo);
 	END_BULLET_ALLOCATION();
@@ -57,7 +58,7 @@ void CPhysicsObject::SetMass(float mass) {
 	m_Mass = mass;
 	btVector3 bulletInertia;
 	ConvertDirectionToBullet(m_Inertia, bulletInertia);
-	m_RigidBody->setMassProps(mass, bulletInertia);
+	m_RigidBody->setMassProps(mass, bulletInertia.absolute());
 }
 
 float CPhysicsObject::GetMass() const {
@@ -75,14 +76,16 @@ Vector CPhysicsObject::GetInertia() const {
 Vector CPhysicsObject::GetInvInertia() const {
 	Vector inertia;
 	ConvertDirectionToHL(m_RigidBody->getInvInertiaDiagLocal(), inertia);
+	VectorAbs(inertia, inertia);
 	return inertia;
 }
 
 void CPhysicsObject::SetInertia(const Vector &inertia) {
 	m_Inertia = inertia;
+	VectorAbs(m_Inertia, m_Inertia);
 	btVector3 bulletInertia;
 	ConvertDirectionToBullet(inertia, bulletInertia);
-	m_RigidBody->setMassProps(m_Mass, bulletInertia);
+	m_RigidBody->setMassProps(m_Mass, bulletInertia.absolute());
 }
 
 /*******************

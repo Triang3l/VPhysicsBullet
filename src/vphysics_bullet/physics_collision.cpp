@@ -106,9 +106,7 @@ CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &Co
 
 CPhysicsCollision::BBoxCache_t *CPhysicsCollision::CreateBBox(const Vector &mins, const Vector &maxs) {
 	Vector halfExtents = maxs - mins;
-	halfExtents.x = fabsf(halfExtents.x);
-	halfExtents.y = fabsf(halfExtents.y);
-	halfExtents.z = fabsf(halfExtents.z);
+	VectorAbs(halfExtents, halfExtents);
 	Vector origin = (mins + maxs) * 0.5f;
 
 	BBoxCache_t *bbox;
