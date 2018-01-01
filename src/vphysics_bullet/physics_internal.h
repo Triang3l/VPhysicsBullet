@@ -6,6 +6,7 @@
 
 #include "vphysics_interface.h"
 #include <btBulletDynamicsCommon.h>
+#include "mathlib/mathlib.h"
 #include "tier0/memalloc.h"
 
 #ifdef _DEBUG
@@ -44,5 +45,8 @@ inline void ConvertDirectionToHL(const btVector3 &in, Vector &out) {
 	out.y = -in.getZ();
 	out.z = in.getY();
 }
+
+void ConvertMatrixToBullet(const matrix3x4_t &matrix, btTransform &transform);
+void ConvertMatrixToHL(const btTransform &transform, matrix3x4_t &matrix);
 
 #endif
