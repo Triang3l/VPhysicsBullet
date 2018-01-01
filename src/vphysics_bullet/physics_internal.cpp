@@ -12,10 +12,7 @@ void ConvertMatrixToBullet(const matrix3x4_t &matrix, btTransform &transform) {
 			HL2BULLET(matrix[0][3]), HL2BULLET(matrix[2][3]), -HL2BULLET(matrix[1][3]));
 }
 
-void ConvertMatrixToHL(const btTransform &transform, matrix3x4_t &matrix) {
-	const btMatrix3x3 &basis = transform.getBasis();
-	const btVector3 &origin = transform.getOrigin();
-
+void ConvertMatrixToHL(const btMatrix3x3 &basis, const btVector3 &origin, matrix3x4_t &matrix) {
 	matrix[0][0] = basis[0][0];
 	matrix[0][1] = -basis[2][0];
 	matrix[0][2] = basis[1][0];

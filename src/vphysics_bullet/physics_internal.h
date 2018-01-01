@@ -47,7 +47,10 @@ inline void ConvertDirectionToHL(const btVector3 &in, Vector &out) {
 }
 
 void ConvertMatrixToBullet(const matrix3x4_t &matrix, btTransform &transform);
-void ConvertMatrixToHL(const btTransform &transform, matrix3x4_t &matrix);
+void ConvertMatrixToHL(const btMatrix3x3 &basis, const btVector3 &origin, matrix3x4_t &matrix);
+inline void ConvertMatrixToHL(const btTransform &transform, matrix3x4_t &matrix) {
+	ConvertMatrixToHL(transform.getBasis(), transform.getOrigin(), matrix);
+}
 
 void ConvertRotationToHL(const btMatrix3x3 &basis, QAngle &angles);
 
