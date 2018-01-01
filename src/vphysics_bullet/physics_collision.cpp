@@ -162,8 +162,11 @@ CPhysCollide *CPhysicsCollision::BBoxToCollide(const Vector &mins, const Vector 
 	return reinterpret_cast<CPhysCollide *>(bbox->compoundShape);
 }
 
-bool CPhysicsCollision::IsCollideCachedBBox(const CPhysCollide *pCollide) const {
-	const btCompoundShape *compoundShape = reinterpret_cast<const btCompoundShape *>(pCollide);
+bool CPhysicsCollision::IsCollideCachedBBox(const btCollisionShape *shape) const {
+	if (shape->getShapeType() != COMPOUND_SHAPE_PROXYTYPE) {
+		return false;
+	}
+	const btCompoundShape *compoundShape = static_cast<const btCompoundShape *>(shape);
 	if (compoundShape->getNumChildShapes() != 1) {
 		return false;
 	}
@@ -198,9 +201,9 @@ CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, i
 		areaWeightedAverage += convexAreaWeightedAverage;
 	}
 
-	btVector3 centerOfMass;
+	btVector3 massCenter;
 	if (area > 1e-4) {
-		centerOfMass = areaWeightedAverage / area;
+		massCenter = areaWeightedAverage / area;
 	} else {
 		// For very small collides, use the AABB center as the center of mass.
 		btVector3 aabbMin(FLT_MAX, FLT_MAX, FLT_MAX), aabbMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
@@ -220,9 +223,9 @@ CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, i
 			aabbMin.setMin(convexAabbMin);
 			aabbMax.setMax(convexAabbMax);
 		}
-		centerOfMass = (aabbMin + aabbMax) * 0.5f;
+		massCenter = (aabbMin + aabbMax) * 0.5f;
 	}
-	btTransform childTransform(btMatrix3x3::getIdentity(), -centerOfMass);
+	btTransform childTransform(btMatrix3x3::getIdentity(), -massCenter);
 
 	BEGIN_BULLET_ALLOCATION();
 	btCompoundShape *compoundShape = new btCompoundShape(convexCount > 1, convexCount);
@@ -233,8 +236,36 @@ CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, i
 				reinterpret_cast<btCollisionShape *>(pConvex[convexIndex]));
 	}
 	END_BULLET_ALLOCATION();
-	// TODO: Store the center of mass behind the user pointer.
 	return reinterpret_cast<CPhysCollide *>(compoundShape);
+}
+
+btVector3 CPhysicsCollision::CollideGetBulletMassCenter(const btCollisionShape *shape) {
+	if (shape->getShapeType() == COMPOUND_SHAPE_PROXYTYPE) {
+		return -(static_cast<const btCompoundShape *>(shape)->getChildTransform(0).getOrigin());
+	}
+	return btVector3(0.0f, 0.0f, 0.0f);
+}
+
+void CPhysicsCollision::CollideGetMassCenter(CPhysCollide *pCollide, Vector *pOutMassCenter) {
+	ConvertPositionToHL(CollideGetBulletMassCenter(
+			reinterpret_cast<const btCollisionShape *>(pCollide)), *pOutMassCenter);
+}
+
+void CPhysicsCollision::CollideSetMassCenter(CPhysCollide *pCollide, const Vector &massCenter) {
+	btCollisionShape *shape = reinterpret_cast<btCollisionShape *>(pCollide);
+	if (shape->getShapeType() != COMPOUND_SHAPE_PROXYTYPE || IsCollideCachedBBox(shape)) {
+		AssertMsg(false, "Can only override mass center of compound shapes.");
+		return;
+	}
+	btCompoundShape *compoundShape = static_cast<btCompoundShape *>(shape);
+	btVector3 bulletMassCenter;
+	ConvertPositionToBullet(massCenter, bulletMassCenter);
+	btTransform transform(btMatrix3x3::getIdentity(), -bulletMassCenter);
+	int childCount = compoundShape->getNumChildShapes();
+	for (int childIndex = 0; childIndex < childCount; ++childIndex) {
+		compoundShape->updateChildTransform(childIndex, transform, false);
+	}
+	compoundShape->recalculateLocalAabb();
 }
 
 /************
@@ -246,7 +277,6 @@ void CPhysicsCollision::SetConvexGameData(CPhysConvex *pConvex, unsigned int gam
 }
 
 int CPhysicsCollision::CollideIndex(const CPhysCollide *pCollide) {
-	Assert(!IsCollideCachedBBox(pCollide));
 	return reinterpret_cast<const btCollisionShape *>(pCollide)->getUserIndex();
 }
 

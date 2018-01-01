@@ -16,6 +16,8 @@ public:
 	virtual CPhysConvex *ConvexFromVerts(Vector **pVerts, int vertCount);
 	virtual float ConvexVolume(CPhysConvex *pConvex);
 	virtual float ConvexSurfaceArea(CPhysConvex *pConvex);
+	virtual void CollideGetMassCenter(CPhysCollide *pCollide, Vector *pOutMassCenter);
+	virtual void CollideSetMassCenter(CPhysCollide *pCollide, const Vector &massCenter);
 	virtual void SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData);
 	virtual void ConvexFree(CPhysConvex *pConvex);
 	virtual CPhysConvex *BBoxToConvex(const Vector &mins, const Vector &maxs);
@@ -48,10 +50,12 @@ private:
 	};
 	CUtlVector<BBoxCache_t> m_BBoxCache;
 	BBoxCache_t *CreateBBox(const Vector &mins, const Vector &maxs);
-	bool IsCollideCachedBBox(const CPhysCollide *pCollide) const;
+	bool IsCollideCachedBBox(const btCollisionShape *shape) const;
 
 	btScalar ConvexSurfaceAreaAndWeightedAverage(
 			const btCollisionShape *convex, btVector3 &areaWeightedAverage);
+
+	btVector3 CollideGetBulletMassCenter(const btCollisionShape *shape);
 };
 
 #endif
