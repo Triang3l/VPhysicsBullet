@@ -21,7 +21,8 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
 				CALLBACK_GLOBAL_COLLIDE_STATIC | CALLBACK_DO_FLUID_SIMULATION),
-		m_ContentsMask(CONTENTS_SOLID) {
+		m_ContentsMask(CONTENTS_SOLID),
+		m_CollideObjectNext(this), m_CollideObjectPrevious(this) {
 	VectorAbs(m_Inertia, m_Inertia);
 	btVector3 inertia;
 	ConvertDirectionToBullet(m_Inertia, inertia);
@@ -32,6 +33,8 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	m_RigidBody = new btRigidBody(constructionInfo);
 	END_BULLET_ALLOCATION();
 	m_RigidBody->setUserPointer(this);
+
+	AddReferenceToCollide();
 }
 
 CPhysicsObject::~CPhysicsObject() {
@@ -230,4 +233,34 @@ unsigned int CPhysicsObject::GetContents() const {
 
 void CPhysicsObject::SetContents(unsigned int contents) {
 	m_ContentsMask = contents;
+}
+
+/***************************************
+ * Collide object reference linked list
+ ***************************************/
+
+void CPhysicsObject::AddReferenceToCollide() {
+	btCollisionShape *shape = m_RigidBody->getCollisionShape();
+	void *nextPointer = shape->getUserPointer();
+	shape->setUserPointer(static_cast<IPhysicsObject *>(this));
+	if (nextPointer != nullptr) {
+		m_CollideObjectNext = static_cast<CPhysicsObject *>(
+				reinterpret_cast<IPhysicsObject *>(nextPointer));
+		m_CollideObjectPrevious = m_CollideObjectNext->m_CollideObjectPrevious;
+		m_CollideObjectNext->m_CollideObjectPrevious = this;
+		m_CollideObjectPrevious->m_CollideObjectNext = this;
+	} else {
+		m_CollideObjectNext = m_CollideObjectPrevious = this;
+	}
+}
+
+void CPhysicsObject::RemoveReferenceFromCollide() {
+	btCollisionShape *shape = m_RigidBody->getCollisionShape();
+	void *nextPointer = shape->getUserPointer();
+	if (nextPointer != nullptr && reinterpret_cast<IPhysicsObject *>(nextPointer) == this) {
+		shape->setUserPointer(m_CollideObjectNext != this ?
+				static_cast<IPhysicsObject *>(m_CollideObjectNext) : nullptr);
+	}
+	m_CollideObjectNext->m_CollideObjectPrevious = m_CollideObjectPrevious;
+	m_CollideObjectPrevious->m_CollideObjectNext = m_CollideObjectNext;
 }

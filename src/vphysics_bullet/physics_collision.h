@@ -28,6 +28,8 @@ public:
 
 	// Internal methods.
 
+	btVector3 CollideGetBulletMassCenter(const CPhysCollide *pCollide);
+
 	void SetCollideIndex(CPhysCollide *pCollide, int index);
 
 private:
@@ -54,8 +56,6 @@ private:
 
 	btScalar ConvexSurfaceAreaAndWeightedAverage(
 			const btCollisionShape *convex, btVector3 &areaWeightedAverage);
-
-	btVector3 CollideGetBulletMassCenter(const btCollisionShape *shape);
 };
 
 #endif

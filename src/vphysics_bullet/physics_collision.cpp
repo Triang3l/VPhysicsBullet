@@ -2,6 +2,7 @@
 // Bullet integration by Triang3l, derivative work, in public domain if detached from Valve's work.
 
 #include "physics_collision.h"
+#include "physics_object.h"
 #include "mathlib/polyhedron.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -16,6 +17,7 @@
  * - btCompoundShape - user index is VCollide solid index.
  * - btBvhTriangleMeshShape - virtual mesh (displacement) or polysoup.
  * User index of CPhysCollide is the solid index in VCollide.
+ * User pointer is one of the objects using this collide for mass center updates.
  */
 
 // TODO: Cleanup the bbox cache when shutting down.
@@ -239,7 +241,8 @@ CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, i
 	return reinterpret_cast<CPhysCollide *>(compoundShape);
 }
 
-btVector3 CPhysicsCollision::CollideGetBulletMassCenter(const btCollisionShape *shape) {
+btVector3 CPhysicsCollision::CollideGetBulletMassCenter(const CPhysCollide *pCollide) {
+	const btCollisionShape *shape = reinterpret_cast<const btCollisionShape *>(pCollide);
 	if (shape->getShapeType() == COMPOUND_SHAPE_PROXYTYPE) {
 		return -(static_cast<const btCompoundShape *>(shape)->getChildTransform(0).getOrigin());
 	}
@@ -247,8 +250,7 @@ btVector3 CPhysicsCollision::CollideGetBulletMassCenter(const btCollisionShape *
 }
 
 void CPhysicsCollision::CollideGetMassCenter(CPhysCollide *pCollide, Vector *pOutMassCenter) {
-	ConvertPositionToHL(CollideGetBulletMassCenter(
-			reinterpret_cast<const btCollisionShape *>(pCollide)), *pOutMassCenter);
+	ConvertPositionToHL(CollideGetBulletMassCenter(pCollide), *pOutMassCenter);
 }
 
 void CPhysicsCollision::CollideSetMassCenter(CPhysCollide *pCollide, const Vector &massCenter) {

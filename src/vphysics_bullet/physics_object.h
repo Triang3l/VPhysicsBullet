@@ -54,6 +54,10 @@ public:
 	// Also applies damping in a way more similar to how IVP VPhysics does it.
 	void ApplyDamping(float timeStep);
 
+	FORCEINLINE CPhysicsObject *GetNextCollideObject() const {
+		return m_CollideObjectNext;
+	}
+
 private:
 	IPhysicsEnvironment *m_Environment;
 
@@ -71,6 +75,10 @@ private:
 	unsigned short m_Callbacks;
 
 	unsigned int m_ContentsMask;
+
+	CPhysicsObject *m_CollideObjectNext, *m_CollideObjectPrevious;
+	void AddReferenceToCollide();
+	void RemoveReferenceFromCollide();
 };
 
 #endif
