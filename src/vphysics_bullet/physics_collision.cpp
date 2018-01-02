@@ -14,8 +14,9 @@
  * User index (contents) of CPhysConvex is set with SetConvexGameData.
  *
  * CPhysCollide is either:
- * - btCompoundShape - user index is VCollide solid index.
+ * - btCompoundShape - user index is VCollide solid index, may be a cached bbox.
  * - btBvhTriangleMeshShape - virtual mesh (displacement) or polysoup.
+ * - btSphereShape - for spherical physics objects.
  * User index of CPhysCollide is the solid index in VCollide.
  * User pointer is one of the objects using this collide for mass center updates.
  */
@@ -261,15 +262,28 @@ void CPhysicsCollision::CollideSetMassCenter(CPhysCollide *pCollide, const Vecto
 		AssertMsg(false, "Can only override mass center of compound shapes.");
 		return;
 	}
-	btCompoundShape *compoundShape = static_cast<btCompoundShape *>(shape);
-	btVector3 bulletMassCenter;
+
+	btVector3 bulletOldMassCenter = CollideGetBulletMassCenter(shape), bulletMassCenter;
 	ConvertPositionToBullet(massCenter, bulletMassCenter);
 	btTransform transform(btMatrix3x3::getIdentity(), -bulletMassCenter);
+
+	btCompoundShape *compoundShape = static_cast<btCompoundShape *>(shape);
 	int childCount = compoundShape->getNumChildShapes();
 	for (int childIndex = 0; childIndex < childCount; ++childIndex) {
 		compoundShape->updateChildTransform(childIndex, transform, false);
 	}
 	compoundShape->recalculateLocalAabb();
+
+	void *objectPointer = shape->getUserPointer();
+	if (objectPointer != nullptr) {
+		CPhysicsObject *startObject = static_cast<CPhysicsObject *>(
+				reinterpret_cast<IPhysicsObject *>(objectPointer));
+		CPhysicsObject *object = startObject;
+		do {
+			object->NotifyMassCenterChanged(bulletOldMassCenter);
+			object = object->GetNextCollideObject();
+		} while (object != startObject);
+	}
 }
 
 /************

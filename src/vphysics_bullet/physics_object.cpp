@@ -281,6 +281,19 @@ Vector CPhysicsObject::GetMassCenterLocalSpace() const {
 	return massCenter;
 }
 
+void CPhysicsObject::NotifyMassCenterChanged(const btVector3 &oldMassCenter) {
+	btVector3 offset = g_pPhysCollision->CollideGetBulletMassCenter(GetCollisionShape()) - oldMassCenter;
+	if (m_MassCenterOverrideShape != nullptr) {
+		btTransform childTransform = m_MassCenterOverrideShape->getChildTransform(0);
+		childTransform.getOrigin() -= offset;
+		m_MassCenterOverrideShape->updateChildTransform(0, childTransform);
+	} else {
+		btTransform worldTransform = m_RigidBody->getWorldTransform();
+		worldTransform.getOrigin() -= worldTransform.getBasis() * offset;
+		m_RigidBody->setWorldTransform(worldTransform);
+	}
+}
+
 void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
 	const btTransform &transform = m_RigidBody->getWorldTransform();
 	const btMatrix3x3 &basis = transform.getBasis();

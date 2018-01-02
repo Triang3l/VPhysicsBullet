@@ -68,6 +68,8 @@ public:
 		return m_CollideObjectNext;
 	}
 
+	void NotifyMassCenterChanged(const btVector3 &oldMassCenter);
+
 private:
 	IPhysicsEnvironment *m_Environment;
 
