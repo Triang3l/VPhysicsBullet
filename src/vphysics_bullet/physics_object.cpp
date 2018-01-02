@@ -129,7 +129,7 @@ bool CPhysicsObject::IsAsleep() const {
 }
 
 void CPhysicsObject::Wake() {
-	if (!IsStatic()) {
+	if (!IsStatic() && m_RigidBody->getActivationState() != DISABLE_DEACTIVATION) {
 		// Forcing because it may be used for external forces without contacts.
 		// Also waking up from DISABLE_SIMULATION, which is not possible with setActivationState.
 		m_RigidBody->forceActivationState(ACTIVE_TAG);
@@ -138,7 +138,7 @@ void CPhysicsObject::Wake() {
 }
 
 void CPhysicsObject::Sleep() {
-	if (!IsStatic()) {
+	if (!IsStatic() && m_RigidBody->getActivationState() != DISABLE_DEACTIVATION) {
 		m_RigidBody->setActivationState(DISABLE_SIMULATION);
 	}
 }
