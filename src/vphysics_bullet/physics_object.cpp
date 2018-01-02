@@ -84,7 +84,7 @@ bool CPhysicsObject::IsStatic() const {
 
 void CPhysicsObject::SetMass(float mass) {
 	Assert(mass > 0.0f);
-	if (IsStatic()) {
+	if (m_RigidBody->isStaticObject()) {
 		return;
 	}
 	m_Mass = mass;
@@ -129,7 +129,7 @@ bool CPhysicsObject::IsAsleep() const {
 }
 
 void CPhysicsObject::Wake() {
-	if (!IsStatic() && m_RigidBody->getActivationState() != DISABLE_DEACTIVATION) {
+	if (!m_RigidBody->isStaticObject() && m_RigidBody->getActivationState() != DISABLE_DEACTIVATION) {
 		// Forcing because it may be used for external forces without contacts.
 		// Also waking up from DISABLE_SIMULATION, which is not possible with setActivationState.
 		m_RigidBody->forceActivationState(ACTIVE_TAG);
@@ -138,7 +138,7 @@ void CPhysicsObject::Wake() {
 }
 
 void CPhysicsObject::Sleep() {
-	if (!IsStatic() && m_RigidBody->getActivationState() != DISABLE_DEACTIVATION) {
+	if (!m_RigidBody->isStaticObject() && m_RigidBody->getActivationState() != DISABLE_DEACTIVATION) {
 		m_RigidBody->setActivationState(DISABLE_SIMULATION);
 	}
 }
@@ -148,11 +148,11 @@ void CPhysicsObject::Sleep() {
  **********************/
 
 bool CPhysicsObject::IsGravityEnabled() const {
-	return !IsStatic() && !(m_RigidBody->getFlags() & BT_DISABLE_WORLD_GRAVITY);
+	return !m_RigidBody->isStaticObject() && !(m_RigidBody->getFlags() & BT_DISABLE_WORLD_GRAVITY);
 }
 
 void CPhysicsObject::EnableGravity(bool enable) {
-	if (IsStatic()) {
+	if (m_RigidBody->isStaticObject()) {
 		return;
 	}
 
