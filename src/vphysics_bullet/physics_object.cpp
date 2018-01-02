@@ -28,8 +28,19 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	btVector3 inertia;
 	ConvertDirectionToBullet(m_Inertia, inertia);
 
+	// TODO: Mass center override.
+
 	btRigidBody::btRigidBodyConstructionInfo constructionInfo(
-			m_Mass, &m_MotionState, collisionShape, inertia.absolute());
+			m_Mass, nullptr, collisionShape, inertia.absolute());
+
+	matrix3x4_t startMatrix;
+	AngleMatrix(angles, position, startMatrix);
+	ConvertMatrixToBullet(startMatrix, constructionInfo.m_startWorldTransform);
+	btTransform &startWorldTransform = constructionInfo.m_startWorldTransform;
+	startWorldTransform.getOrigin() += startWorldTransform.getBasis() *
+			g_pPhysCollision->CollideGetBulletMassCenter(
+					reinterpret_cast<const CPhysCollide *>(collisionShape));
+
 	BEGIN_BULLET_ALLOCATION();
 	m_RigidBody = new btRigidBody(constructionInfo);
 	END_BULLET_ALLOCATION();
