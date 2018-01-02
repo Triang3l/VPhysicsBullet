@@ -48,6 +48,8 @@ public:
 	virtual unsigned int GetContents() const;
 	virtual void SetContents(unsigned int contents);
 
+	virtual Vector GetMassCenterLocalSpace() const;
+
 	virtual void GetPosition(Vector *worldPosition, QAngle *angles) const;
 	virtual void GetPositionMatrix(matrix3x4_t *positionMatrix) const;
 
@@ -70,6 +72,11 @@ private:
 	IPhysicsEnvironment *m_Environment;
 
 	btRigidBody *m_RigidBody;
+
+	btVector3 m_MassCenterOverride;
+	btCompoundShape *m_MassCenterOverrideShape;
+
+	btCollisionShape *GetCollisionShape() const;
 
 	float m_Mass;
 	Vector m_Inertia;

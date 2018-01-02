@@ -143,7 +143,7 @@ CPhysicsCollision::BBoxCache_t *CPhysicsCollision::CreateBBox(const Vector &mins
 	bbox->boxShape = new btBoxShape(bulletHalfExtents);
 	bbox->boxShape->setUserIndex(0);
 	bbox->boxShape->setUserPointer(bbox);
-	bbox->compoundShape = new btCompoundShape(false);
+	bbox->compoundShape = new btCompoundShape(false, 1);
 	bbox->compoundShape->setUserIndex(0);
 	bbox->compoundShape->addChildShape(
 			btTransform(btMatrix3x3::getIdentity(), bulletOrigin), bbox->boxShape);
@@ -244,8 +244,7 @@ CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, i
 	return reinterpret_cast<CPhysCollide *>(compoundShape);
 }
 
-btVector3 CPhysicsCollision::CollideGetBulletMassCenter(const CPhysCollide *pCollide) {
-	const btCollisionShape *shape = reinterpret_cast<const btCollisionShape *>(pCollide);
+btVector3 CPhysicsCollision::CollideGetBulletMassCenter(const btCollisionShape *shape) {
 	if (shape->getShapeType() == COMPOUND_SHAPE_PROXYTYPE) {
 		return -(static_cast<const btCompoundShape *>(shape)->getChildTransform(0).getOrigin());
 	}

@@ -28,7 +28,10 @@ public:
 
 	// Internal methods.
 
-	btVector3 CollideGetBulletMassCenter(const CPhysCollide *pCollide);
+	btVector3 CollideGetBulletMassCenter(const btCollisionShape *shape);
+	FORCEINLINE btVector3 CollideGetBulletMassCenter(const CPhysCollide *pCollide) {
+		return CollideGetBulletMassCenter(reinterpret_cast<const btCollisionShape *>(pCollide));
+	}
 
 	void SetCollideIndex(CPhysCollide *pCollide, int index);
 
