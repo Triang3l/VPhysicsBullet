@@ -2,6 +2,7 @@
 // Bullet integration by Triang3l, derivative work, in public domain if detached from Valve's work.
 
 #include "physics_object.h"
+#include "physics_collision.h"
 #include "physics_environment.h"
 #include "bspflags.h"
 #include "tier0/dbg.h"
@@ -233,6 +234,33 @@ unsigned int CPhysicsObject::GetContents() const {
 
 void CPhysicsObject::SetContents(unsigned int contents) {
 	m_ContentsMask = contents;
+}
+
+/**********************
+ * Position and forces
+ **********************/
+
+const btVector3 &CPhysicsObject::GetBulletMassCenter() const {
+	return g_pPhysCollision->CollideGetBulletMassCenter(
+			reinterpret_cast<const CPhysCollide *>(m_RigidBody->getCollisionShape()));
+}
+
+void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
+	const btTransform &transform = m_RigidBody->getWorldTransform();
+	const btMatrix3x3 &basis = transform.getBasis();
+	if (worldPosition != nullptr) {
+		ConvertPositionToHL(transform.getOrigin() - basis * GetBulletMassCenter(), *worldPosition);
+	}
+	if (angles != nullptr) {
+		ConvertRotationToHL(basis, *angles);
+	}
+}
+
+void CPhysicsObject::GetPositionMatrix(matrix3x4_t *positionMatrix) const {
+	const btTransform &transform = m_RigidBody->getWorldTransform();
+	const btMatrix3x3 &basis = transform.getBasis();
+	btVector3 origin = transform.getOrigin() - basis * GetBulletMassCenter();
+	ConvertMatrixToHL(basis, origin, *positionMatrix);
 }
 
 /***************************************

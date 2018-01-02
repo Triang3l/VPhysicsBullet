@@ -48,6 +48,9 @@ public:
 	virtual unsigned int GetContents() const;
 	virtual void SetContents(unsigned int contents);
 
+	virtual void GetPosition(Vector *worldPosition, QAngle *angles) const;
+	virtual void GetPositionMatrix(matrix3x4_t *positionMatrix) const;
+
 	// Internal methods.
 
 	// Bullet doesn't allow damping factors over 1, so it has to be done manually.
@@ -75,6 +78,8 @@ private:
 	unsigned short m_Callbacks;
 
 	unsigned int m_ContentsMask;
+
+	const btVector3 &GetBulletMassCenter() const;
 
 	CPhysicsObject *m_CollideObjectNext, *m_CollideObjectPrevious;
 	void AddReferenceToCollide();

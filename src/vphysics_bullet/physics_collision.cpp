@@ -23,6 +23,9 @@
 // TODO: Cleanup the bbox cache when shutting down.
 // Not sure what to do with it in thread contexts though.
 
+static CPhysicsCollision s_PhysCollision;
+CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
+
 /*******************
  * Convex polyhedra
  *******************/

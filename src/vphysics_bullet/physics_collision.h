@@ -58,4 +58,6 @@ private:
 			const btCollisionShape *convex, btVector3 &areaWeightedAverage);
 };
 
+extern CPhysicsCollision *g_pPhysCollision;
+
 #endif
