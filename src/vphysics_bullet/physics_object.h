@@ -19,8 +19,11 @@ public:
 	virtual bool IsStatic() const;
 	virtual bool IsAsleep() const;
 	virtual bool IsGravityEnabled() const;
+	virtual bool IsMotionEnabled() const;
+	virtual bool IsMoveable() const;
 
 	virtual void EnableGravity(bool enable);
+	virtual void EnableMotion(bool enable);
 
 	virtual void SetGameData(void *pGameData);
 	virtual void *GetGameData() const;
@@ -75,10 +78,14 @@ private:
 
 	btRigidBody *m_RigidBody;
 
+	btCollisionShape *GetCollisionShape() const;
+	CPhysicsObject *m_CollideObjectNext, *m_CollideObjectPrevious;
+	void AddReferenceToCollide();
+	void RemoveReferenceFromCollide();
+
 	btVector3 m_MassCenterOverride;
 	btCompoundShape *m_MassCenterOverrideShape;
-
-	btCollisionShape *GetCollisionShape() const;
+	const btVector3 &GetBulletMassCenter() const;
 
 	float m_Mass;
 	Vector m_Inertia;
@@ -92,12 +99,6 @@ private:
 	unsigned short m_Callbacks;
 
 	unsigned int m_ContentsMask;
-
-	const btVector3 &GetBulletMassCenter() const;
-
-	CPhysicsObject *m_CollideObjectNext, *m_CollideObjectPrevious;
-	void AddReferenceToCollide();
-	void RemoveReferenceFromCollide();
 };
 
 #endif

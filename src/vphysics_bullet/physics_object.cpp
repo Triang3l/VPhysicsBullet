@@ -15,6 +15,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		const Vector &position, const QAngle &angles,
 		objectparams_t *pParams, bool isStatic) :
 		m_Environment(environment),
+		m_CollideObjectNext(this), m_CollideObjectPrevious(this),
 		m_MassCenterOverride(0.0f, 0.0f, 0.0f), m_MassCenterOverrideShape(nullptr),
 		m_Mass((!isStatic && !collisionShape->isNonMoving()) ? pParams->mass : 0.0f),
 		m_Inertia(pParams->inertia, pParams->inertia, pParams->inertia),
@@ -23,8 +24,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
 				CALLBACK_GLOBAL_COLLIDE_STATIC | CALLBACK_DO_FLUID_SIMULATION),
-		m_ContentsMask(CONTENTS_SOLID),
-		m_CollideObjectNext(this), m_CollideObjectPrevious(this) {
+		m_ContentsMask(CONTENTS_SOLID) {
 	VectorAbs(m_Inertia, m_Inertia);
 	btVector3 inertia;
 	ConvertDirectionToBullet(m_Inertia, inertia);
@@ -84,7 +84,7 @@ bool CPhysicsObject::IsStatic() const {
 
 void CPhysicsObject::SetMass(float mass) {
 	Assert(mass > 0.0f);
-	if (m_RigidBody->isStaticObject()) {
+	if (IsStatic()) {
 		return;
 	}
 	m_Mass = mass;
@@ -120,6 +120,36 @@ void CPhysicsObject::SetInertia(const Vector &inertia) {
 	m_RigidBody->setMassProps(m_Mass, bulletInertia.absolute());
 }
 
+bool CPhysicsObject::IsMotionEnabled() const {
+	return !m_RigidBody->getAngularFactor().isZero();
+}
+
+bool CPhysicsObject::IsMoveable() const {
+	return !IsStatic() && IsMotionEnabled();
+}
+
+void CPhysicsObject::EnableMotion(bool enable) {
+	if (IsMotionEnabled() == enable) {
+		return;
+	}
+
+	btVector3 zero(0.0f, 0.0f, 0.0f);
+
+	// IVP clears velocity even if unpinning.
+	m_RigidBody->clearForces();
+	m_RigidBody->setLinearVelocity(zero);
+	m_RigidBody->setAngularVelocity(zero);
+
+	if (enable) {
+		btVector3 one(1.0f, 1.0f, 1.0f);
+		m_RigidBody->setLinearFactor(one);
+		m_RigidBody->setAngularFactor(one);
+	} else {
+		m_RigidBody->setLinearFactor(zero);
+		m_RigidBody->setAngularFactor(zero);
+	}
+}
+
 /*******************
  * Activation state
  *******************/
@@ -129,7 +159,7 @@ bool CPhysicsObject::IsAsleep() const {
 }
 
 void CPhysicsObject::Wake() {
-	if (!m_RigidBody->isStaticObject() && m_RigidBody->getActivationState() != DISABLE_DEACTIVATION) {
+	if (!IsStatic() && m_RigidBody->getActivationState() != DISABLE_DEACTIVATION) {
 		// Forcing because it may be used for external forces without contacts.
 		// Also waking up from DISABLE_SIMULATION, which is not possible with setActivationState.
 		m_RigidBody->forceActivationState(ACTIVE_TAG);
@@ -138,7 +168,7 @@ void CPhysicsObject::Wake() {
 }
 
 void CPhysicsObject::Sleep() {
-	if (!m_RigidBody->isStaticObject() && m_RigidBody->getActivationState() != DISABLE_DEACTIVATION) {
+	if (!IsStatic() && m_RigidBody->getActivationState() != DISABLE_DEACTIVATION) {
 		m_RigidBody->setActivationState(DISABLE_SIMULATION);
 	}
 }
@@ -148,11 +178,11 @@ void CPhysicsObject::Sleep() {
  **********************/
 
 bool CPhysicsObject::IsGravityEnabled() const {
-	return !m_RigidBody->isStaticObject() && !(m_RigidBody->getFlags() & BT_DISABLE_WORLD_GRAVITY);
+	return !IsStatic() && !(m_RigidBody->getFlags() & BT_DISABLE_WORLD_GRAVITY);
 }
 
 void CPhysicsObject::EnableGravity(bool enable) {
-	if (m_RigidBody->isStaticObject()) {
+	if (IsStatic()) {
 		return;
 	}
 

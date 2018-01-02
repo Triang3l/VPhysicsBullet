@@ -54,4 +54,14 @@ inline void ConvertMatrixToHL(const btTransform &transform, matrix3x4_t &matrix)
 
 void ConvertRotationToHL(const btMatrix3x3 &basis, QAngle &angles);
 
+inline int ConvertAxisIndexToBullet(int axisIndex) {
+	if (axisIndex == 1) {
+		return 2;
+	}
+	if (axisIndex == 2) {
+		return 1;
+	}
+	return axisIndex;
+}
+
 #endif
