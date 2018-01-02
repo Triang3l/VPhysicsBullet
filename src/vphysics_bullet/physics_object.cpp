@@ -274,6 +274,34 @@ void CPhysicsObject::GetPositionMatrix(matrix3x4_t *positionMatrix) const {
 	ConvertMatrixToHL(basis, origin, *positionMatrix);
 }
 
+void CPhysicsObject::LocalToWorld(Vector *worldPosition, const Vector &localPosition) const {
+	matrix3x4_t matrix;
+	GetPositionMatrix(&matrix);
+	// Copy in case src == dest.
+	VectorTransform(Vector(localPosition), matrix, *worldPosition);
+}
+
+void CPhysicsObject::WorldToLocal(Vector *localPosition, const Vector &worldPosition) const {
+	matrix3x4_t matrix;
+	GetPositionMatrix(&matrix);
+	// Copy in case src == dest.
+	VectorITransform(Vector(worldPosition), matrix, *localPosition);
+}
+
+void CPhysicsObject::LocalToWorldVector(Vector *worldVector, const Vector &localVector) const {
+	matrix3x4_t matrix;
+	GetPositionMatrix(&matrix);
+	// Copy in case src == dest.
+	VectorRotate(Vector(localVector), matrix, *worldVector);
+}
+
+void CPhysicsObject::WorldToLocalVector(Vector *localVector, const Vector &worldVector) const {
+	matrix3x4_t matrix;
+	GetPositionMatrix(&matrix);
+	// Copy in case src == dest.
+	VectorIRotate(Vector(worldVector), matrix, *localVector);
+}
+
 /***************************************
  * Collide object reference linked list
  ***************************************/

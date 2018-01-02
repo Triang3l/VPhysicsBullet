@@ -51,6 +51,11 @@ public:
 	virtual void GetPosition(Vector *worldPosition, QAngle *angles) const;
 	virtual void GetPositionMatrix(matrix3x4_t *positionMatrix) const;
 
+	virtual void LocalToWorld(Vector *worldPosition, const Vector &localPosition) const;
+	virtual void WorldToLocal(Vector *localPosition, const Vector &worldPosition) const;
+	virtual void LocalToWorldVector(Vector *worldVector, const Vector &localVector) const;
+	virtual void WorldToLocalVector(Vector *localVector, const Vector &worldVector) const;
+
 	// Internal methods.
 
 	// Bullet doesn't allow damping factors over 1, so it has to be done manually.
