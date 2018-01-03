@@ -435,6 +435,23 @@ void CPhysicsObject::GetVelocity(Vector *velocity, AngularImpulse *angularVeloci
 	}
 }
 
+void CPhysicsObject::AddVelocity(const Vector *velocity, const AngularImpulse *angularVelocity) {
+	if (!IsMoveable()) {
+		return;
+	}
+	Wake();
+	if (velocity != nullptr) {
+		btVector3 bulletVelocity;
+		ConvertPositionToBullet(*velocity, bulletVelocity);
+		m_LinearVelocityChange += bulletVelocity;
+	}
+	if (angularVelocity != nullptr) {
+		btVector3 bulletAngularVelocity;
+		ConvertAngularImpulseToBullet(*angularVelocity, bulletAngularVelocity);
+		m_LocalAngularVelocityChange += bulletAngularVelocity;
+	}
+}
+
 void CPhysicsObject::ApplyForceCenter(const Vector &forceVector) {
 	if (!IsMoveable()) {
 		return;
