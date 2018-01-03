@@ -374,21 +374,31 @@ void CPhysicsObject::SetVelocity(const Vector *velocity, const AngularImpulse *a
 	if (!IsMoveable()) {
 		return;
 	}
+
 	Wake();
 	btVector3 bulletForce = m_RigidBody->getTotalForce();
 	btVector3 bulletTorque = m_RigidBody->getTotalTorque();
 	m_RigidBody->clearForces();
+
 	btVector3 zero(0.0f, 0.0f, 0.0f);
+
 	if (velocity != nullptr) {
 		ConvertPositionToBullet(*velocity, bulletForce);
+		bulletForce *= GetMass();
 		m_RigidBody->setLinearVelocity(zero);
 	}
+
 	if (angularVelocity != nullptr) {
 		AngularImpulse torque;
 		LocalToWorldVector(&torque, *angularVelocity);
 		ConvertAngularImpulseToBullet(torque, bulletTorque);
+		const Vector &inertia = GetInertia();
+		btVector3 bulletInertia;
+		ConvertDirectionToBullet(inertia, bulletInertia);
+		bulletTorque *= bulletInertia;
 		m_RigidBody->setAngularVelocity(zero);
 	}
+
 	m_RigidBody->applyCentralForce(bulletForce);
 	m_RigidBody->applyTorque(bulletTorque);
 }
@@ -401,10 +411,10 @@ void CPhysicsObject::ApplyForceCenter(const Vector &forceVector) {
 	btVector3 bulletForce;
 	ConvertForceImpulseToBullet(forceVector, bulletForce);
 
-	btScalar maxSpeed = static_cast<CPhysicsEnvironment *>(m_Environment)->GetMaxSpeed();
-	btClamp(bulletForce[0], -maxSpeed, maxSpeed);
-	btClamp(bulletForce[1], -maxSpeed, maxSpeed);
-	btClamp(bulletForce[2], -maxSpeed, maxSpeed);
+	btScalar maxForce = static_cast<CPhysicsEnvironment *>(m_Environment)->GetMaxSpeed() * GetMass();
+	btClamp(bulletForce[0], -maxForce, maxForce);
+	btClamp(bulletForce[1], -maxForce, maxForce);
+	btClamp(bulletForce[2], -maxForce, maxForce);
 
 	m_RigidBody->applyCentralForce(bulletForce);
 	Wake();
@@ -426,15 +436,17 @@ void CPhysicsObject::ApplyForceOffset(const Vector &forceVector, const Vector &w
 
 	const CPhysicsEnvironment *environment = static_cast<CPhysicsEnvironment *>(m_Environment);
 
-	btScalar maxSpeed = environment->GetMaxSpeed();
-	btClamp(bulletForce[0], -maxSpeed, maxSpeed);
-	btClamp(bulletForce[1], -maxSpeed, maxSpeed);
-	btClamp(bulletForce[2], -maxSpeed, maxSpeed);
+	btScalar maxForce = environment->GetMaxSpeed() * GetMass();
+	btClamp(bulletForce[0], -maxForce, maxForce);
+	btClamp(bulletForce[1], -maxForce, maxForce);
+	btClamp(bulletForce[2], -maxForce, maxForce);
 
-	btScalar maxAngularSpeed = environment->GetMaxAngularSpeed();
-	btClamp(bulletTorque[0], -maxAngularSpeed, maxAngularSpeed);
-	btClamp(bulletTorque[1], -maxAngularSpeed, maxAngularSpeed);
-	btClamp(bulletTorque[2], -maxAngularSpeed, maxAngularSpeed);
+	const Vector &inertia = GetInertia();
+	btVector3 bulletMaxTorque;
+	ConvertDirectionToBullet(inertia, bulletMaxTorque);
+	bulletMaxTorque *= environment->GetMaxAngularSpeed();
+	bulletTorque.setMin(bulletMaxTorque);
+	bulletTorque.setMax(-bulletMaxTorque);
 
 	m_RigidBody->applyCentralForce(bulletForce);
 	m_RigidBody->applyTorque(bulletTorque);
@@ -450,10 +462,12 @@ void CPhysicsObject::ApplyTorqueCenter(const AngularImpulse &torque) {
 	btVector3 bulletTorque;
 	ConvertAngularImpulseToBullet(torque, bulletTorque);
 
-	btScalar maxAngularSpeed = static_cast<CPhysicsEnvironment *>(m_Environment)->GetMaxAngularSpeed();
-	btClamp(bulletTorque[0], -maxAngularSpeed, maxAngularSpeed);
-	btClamp(bulletTorque[1], -maxAngularSpeed, maxAngularSpeed);
-	btClamp(bulletTorque[2], -maxAngularSpeed, maxAngularSpeed);
+	const Vector &inertia = GetInertia();
+	btVector3 bulletMaxTorque;
+	ConvertDirectionToBullet(inertia, bulletMaxTorque);
+	bulletMaxTorque *= static_cast<CPhysicsEnvironment *>(m_Environment)->GetMaxAngularSpeed();
+	bulletTorque.setMin(bulletMaxTorque);
+	bulletTorque.setMax(-bulletMaxTorque);
 
 	m_RigidBody->applyTorque(bulletTorque);
 	Wake();
