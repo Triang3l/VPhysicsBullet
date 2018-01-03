@@ -370,6 +370,71 @@ void CPhysicsObject::WorldToLocalVector(Vector *localVector, const Vector &world
 	VectorIRotate(Vector(worldVector), matrix, *localVector);
 }
 
+void CPhysicsObject::ApplyForceCenter(const Vector &forceVector) {
+	if (!IsMoveable()) {
+		return;
+	}
+
+	btVector3 bulletForce;
+	ConvertForceImpulseToBullet(forceVector, bulletForce);
+
+	btScalar maxSpeed = static_cast<CPhysicsEnvironment *>(m_Environment)->GetMaxSpeed();
+	btClamp(bulletForce[0], -maxSpeed, maxSpeed);
+	btClamp(bulletForce[1], -maxSpeed, maxSpeed);
+	btClamp(bulletForce[2], -maxSpeed, maxSpeed);
+
+	m_RigidBody->applyCentralForce(bulletForce);
+	Wake();
+}
+
+void CPhysicsObject::ApplyForceOffset(const Vector &forceVector, const Vector &worldPosition) {
+	if (!IsMoveable()) {
+		return;
+	}
+
+	btVector3 bulletForce;
+	ConvertForceImpulseToBullet(forceVector, bulletForce);
+
+	Vector localPosition;
+	WorldToLocal(&localPosition, worldPosition);
+	btVector3 bulletRelPos;
+	ConvertPositionToBullet(localPosition, bulletRelPos);
+	btVector3 bulletTorque = bulletRelPos.cross(bulletForce * m_RigidBody->getLinearFactor());
+
+	const CPhysicsEnvironment *environment = static_cast<CPhysicsEnvironment *>(m_Environment);
+
+	btScalar maxSpeed = environment->GetMaxSpeed();
+	btClamp(bulletForce[0], -maxSpeed, maxSpeed);
+	btClamp(bulletForce[1], -maxSpeed, maxSpeed);
+	btClamp(bulletForce[2], -maxSpeed, maxSpeed);
+
+	btScalar maxAngularSpeed = environment->GetMaxAngularSpeed();
+	btClamp(bulletTorque[0], -maxAngularSpeed, maxAngularSpeed);
+	btClamp(bulletTorque[1], -maxAngularSpeed, maxAngularSpeed);
+	btClamp(bulletTorque[2], -maxAngularSpeed, maxAngularSpeed);
+
+	m_RigidBody->applyCentralForce(bulletForce);
+	m_RigidBody->applyTorque(bulletTorque);
+	Wake();
+}
+
+void CPhysicsObject::ApplyTorqueCenter(const AngularImpulse &torque) {
+	if (!IsMoveable()) {
+		return;
+	}
+
+	btVector3 bulletTorque;
+	ConvertAngularImpulseToBullet(torque, bulletTorque);
+
+	btScalar maxAngularSpeed = static_cast<CPhysicsEnvironment *>(m_Environment)->GetMaxAngularSpeed();
+	btClamp(bulletTorque[0], -maxAngularSpeed, maxAngularSpeed);
+	btClamp(bulletTorque[1], -maxAngularSpeed, maxAngularSpeed);
+	btClamp(bulletTorque[2], -maxAngularSpeed, maxAngularSpeed);
+
+	m_RigidBody->applyTorque(bulletTorque);
+	Wake();
+}
+
 /***************************************
  * Collide object reference linked list
  ***************************************/

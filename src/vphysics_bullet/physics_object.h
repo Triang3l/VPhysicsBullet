@@ -61,6 +61,10 @@ public:
 	virtual void LocalToWorldVector(Vector *worldVector, const Vector &localVector) const;
 	virtual void WorldToLocalVector(Vector *localVector, const Vector &worldVector) const;
 
+	virtual void ApplyForceCenter(const Vector &forceVector);
+	virtual void ApplyForceOffset(const Vector &forceVector, const Vector &worldPosition);
+	virtual void ApplyTorqueCenter(const AngularImpulse &torque);
+
 	// Internal methods.
 
 	// Bullet doesn't allow damping factors over 1, so it has to be done manually.

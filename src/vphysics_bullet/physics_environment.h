@@ -5,6 +5,7 @@
 #define PHYSICS_ENVIRONMENT_H
 
 #include "physics_internal.h"
+#include "vphysics/performance.h"
 #include "tier1/utlvector.h"
 
 class CPhysicsEnvironment : public IPhysicsEnvironment {
@@ -17,6 +18,9 @@ public:
 	virtual void SetGravity(const Vector &gravityVector);
 	virtual void GetGravity(Vector *pGravityVector) const;
 
+	virtual void GetPerformanceSettings(physics_performanceparams_t *pOutput) const;
+	virtual void SetPerformanceSettings(const physics_performanceparams_t *pSettings);
+
 	// Internal methods.
 
 	FORCEINLINE btDiscreteDynamicsWorld *GetDynamicsWorld() {
@@ -24,6 +28,13 @@ public:
 	}
 	FORCEINLINE const btDiscreteDynamicsWorld *GetDynamicsWorld() const {
 		return m_DynamicsWorld;
+	}
+
+	FORCEINLINE btScalar GetMaxSpeed() const {
+		return HL2BULLET(m_PerformanceSettings.maxVelocity);
+	}
+	FORCEINLINE btScalar GetMaxAngularSpeed() const {
+		return DEG2RAD(m_PerformanceSettings.maxAngularVelocity);
 	}
 
 private:
@@ -34,6 +45,8 @@ private:
 	btDiscreteDynamicsWorld *m_DynamicsWorld;
 
 	CUtlVector<IPhysicsObject *> m_NonStaticObjects;
+
+	physics_performanceparams_t m_PerformanceSettings;
 
 	static void PreTickCallback(btDynamicsWorld *world, btScalar timeStep);
 };

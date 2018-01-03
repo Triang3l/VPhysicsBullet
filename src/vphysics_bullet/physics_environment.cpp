@@ -8,6 +8,8 @@
 #include "tier0/memdbgon.h"
 
 CPhysicsEnvironment::CPhysicsEnvironment() {
+	m_PerformanceSettings.Defaults();
+
 	BEGIN_BULLET_ALLOCATION();
 	m_CollisionConfiguration = new btDefaultCollisionConfiguration();
 	m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
@@ -35,6 +37,14 @@ void CPhysicsEnvironment::SetGravity(const Vector &gravityVector) {
 
 void CPhysicsEnvironment::GetGravity(Vector *pGravityVector) const {
 	ConvertPositionToHL(m_DynamicsWorld->getGravity(), *pGravityVector);
+}
+
+void CPhysicsEnvironment::GetPerformanceSettings(physics_performanceparams_t *pOutput) const {
+	*pOutput = m_PerformanceSettings;
+}
+
+void CPhysicsEnvironment::SetPerformanceSettings(const physics_performanceparams_t *pSettings) {
+	m_PerformanceSettings = *pSettings;
 }
 
 void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeStep) {

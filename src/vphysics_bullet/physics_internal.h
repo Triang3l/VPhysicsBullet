@@ -34,6 +34,9 @@ inline void ConvertPositionToHL(const btVector3 &in, Vector &out) {
 	out.z = BULLET2HL(in.getY());
 }
 
+#define ConvertForceImpulseToBullet ConvertPositionToBullet
+#define ConvertForceImpulseToHL ConvertPositionToHL
+
 inline void ConvertDirectionToBullet(const Vector &in, btVector3 &out) {
 	out.setX(in.x);
 	out.setY(in.z);
@@ -44,6 +47,12 @@ inline void ConvertDirectionToHL(const btVector3 &in, Vector &out) {
 	out.x = in.getX();
 	out.y = -in.getZ();
 	out.z = in.getY();
+}
+
+inline void ConvertAngularImpulseToBullet(const AngularImpulse &in, btVector3 &out) {
+	out.setX(DEG2RAD(in.x));
+	out.setY(DEG2RAD(in.z));
+	out.setZ(-DEG2RAD(in.y));
 }
 
 void ConvertMatrixToBullet(const matrix3x4_t &matrix, btTransform &transform);
