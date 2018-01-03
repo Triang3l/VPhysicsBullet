@@ -385,7 +385,7 @@ void CPhysicsObject::SetVelocity(const Vector *velocity, const AngularImpulse *a
 	}
 	if (angularVelocity != nullptr) {
 		AngularImpulse torque;
-		LocalToWorld(&torque, *angularVelocity);
+		LocalToWorldVector(&torque, *angularVelocity);
 		ConvertAngularImpulseToBullet(torque, bulletTorque);
 		m_RigidBody->setAngularVelocity(zero);
 	}
