@@ -53,6 +53,8 @@ public:
 
 	virtual Vector GetMassCenterLocalSpace() const;
 
+	virtual void SetPosition(const Vector &worldPosition, const QAngle &angles, bool isTeleport);
+	virtual void SetPositionMatrix(const matrix3x4_t &matrix, bool isTeleport);
 	virtual void GetPosition(Vector *worldPosition, QAngle *angles) const;
 	virtual void GetPositionMatrix(matrix3x4_t *positionMatrix) const;
 

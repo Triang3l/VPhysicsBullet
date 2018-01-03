@@ -34,24 +34,24 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	btRigidBody::btRigidBodyConstructionInfo constructionInfo(
 			m_Mass, nullptr, collisionShape, inertia.absolute());
 
+	btVector3 massCenter = g_pPhysCollision->CollideGetBulletMassCenter(collisionShape);
 	const Vector *massCenterOverride = pParams->massCenterOverride;
 	if (massCenterOverride != nullptr && *massCenterOverride != vec3_origin) {
 		ConvertPositionToBullet(*massCenterOverride, m_MassCenterOverride);
 		BEGIN_BULLET_ALLOCATION();
 		m_MassCenterOverrideShape = new btCompoundShape(false, 1);
 		m_MassCenterOverrideShape->addChildShape(btTransform(btMatrix3x3::getIdentity(),
-				g_pPhysCollision->CollideGetBulletMassCenter(collisionShape) - m_MassCenterOverride),
-				collisionShape);
+				massCenter - m_MassCenterOverride), collisionShape);
 		END_BULLET_ALLOCATION();
 		constructionInfo.m_collisionShape = m_MassCenterOverrideShape;
+		massCenter = m_MassCenterOverride;
 	}
 
 	matrix3x4_t startMatrix;
 	AngleMatrix(angles, position, startMatrix);
-	ConvertMatrixToBullet(startMatrix, constructionInfo.m_startWorldTransform);
 	btTransform &startWorldTransform = constructionInfo.m_startWorldTransform;
-	startWorldTransform.getOrigin() += startWorldTransform.getBasis() *
-			g_pPhysCollision->CollideGetBulletMassCenter(collisionShape);
+	ConvertMatrixToBullet(startMatrix, startWorldTransform);
+	startWorldTransform.getOrigin() += startWorldTransform.getBasis() * massCenter;
 
 	BEGIN_BULLET_ALLOCATION();
 	m_RigidBody = new btRigidBody(constructionInfo);
@@ -317,21 +317,40 @@ Vector CPhysicsObject::GetMassCenterLocalSpace() const {
 }
 
 void CPhysicsObject::NotifyMassCenterChanged(const btVector3 &oldMassCenter) {
-	btVector3 offset = g_pPhysCollision->CollideGetBulletMassCenter(GetCollisionShape()) - oldMassCenter;
+	const btVector3 &newMassCenter = g_pPhysCollision->CollideGetBulletMassCenter(GetCollisionShape());
 	if (m_MassCenterOverrideShape != nullptr) {
 		btTransform childTransform = m_MassCenterOverrideShape->getChildTransform(0);
-		childTransform.getOrigin() -= offset;
+		childTransform.setOrigin(newMassCenter - m_MassCenterOverride);
 		m_MassCenterOverrideShape->updateChildTransform(0, childTransform);
 	} else {
 		// Updates the same properties as setCenterOfMassTransform.
+		btVector3 offset = newMassCenter - oldMassCenter;
 		btTransform worldTransform = m_RigidBody->getWorldTransform();
 		btVector3 worldOffset = worldTransform.getBasis() * offset;
-		worldTransform.getOrigin() -= worldOffset;
+		worldTransform.getOrigin() += worldOffset;
 		m_RigidBody->setWorldTransform(worldTransform);
 		btTransform interpolationWorldTransform = m_RigidBody->getInterpolationWorldTransform();
-		interpolationWorldTransform.getOrigin() -= worldOffset;
+		interpolationWorldTransform.getOrigin() += worldOffset;
 		m_RigidBody->setInterpolationWorldTransform(interpolationWorldTransform);
 	}
+}
+
+void CPhysicsObject::SetPosition(const Vector &worldPosition, const QAngle &angles, bool isTeleport) {
+	// TODO: Update the shadow.
+	matrix3x4_t matrix;
+	AngleMatrix(angles, worldPosition, matrix);
+	btTransform transform;
+	ConvertMatrixToBullet(matrix, transform);
+	transform.getOrigin() += transform.getBasis() * GetBulletMassCenter();
+	m_RigidBody->proceedToTransform(transform);
+}
+
+void CPhysicsObject::SetPositionMatrix(const matrix3x4_t &matrix, bool isTeleport) {
+	// TODO: Update the shadow.
+	btTransform transform;
+	ConvertMatrixToBullet(matrix, transform);
+	transform.getOrigin() += transform.getBasis() * GetBulletMassCenter();
+	m_RigidBody->proceedToTransform(transform);
 }
 
 void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
