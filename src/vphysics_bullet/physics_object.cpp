@@ -24,7 +24,9 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
 				CALLBACK_GLOBAL_COLLIDE_STATIC | CALLBACK_DO_FLUID_SIMULATION),
-		m_ContentsMask(CONTENTS_SOLID) {
+		m_ContentsMask(CONTENTS_SOLID),
+		m_LinearVelocityChange(0.0f, 0.0f, 0.0f),
+		m_LocalAngularVelocityChange(0.0f, 0.0f, 0.0f) {
 	VectorAbs(m_Inertia, m_Inertia);
 	btVector3 inertia;
 	ConvertDirectionToBullet(m_Inertia, inertia);
@@ -140,6 +142,8 @@ void CPhysicsObject::EnableMotion(bool enable) {
 	m_RigidBody->clearForces();
 	m_RigidBody->setLinearVelocity(zero);
 	m_RigidBody->setAngularVelocity(zero);
+	m_LinearVelocityChange.setZero();
+	m_LocalAngularVelocityChange.setZero();
 
 	if (enable) {
 		btVector3 one(1.0f, 1.0f, 1.0f);
@@ -376,47 +380,56 @@ void CPhysicsObject::WorldToLocalVector(Vector *localVector, const Vector &world
 	VectorIRotate(Vector(worldVector), matrix, *localVector);
 }
 
+void CPhysicsObject::ApplyForcesAndSpeedLimit() {
+	if (IsMoveable() && !IsAsleep()) {
+		const CPhysicsEnvironment *environment = static_cast<CPhysicsEnvironment *>(m_Environment);
+
+		btVector3 linearVelocity = m_RigidBody->getLinearVelocity();
+		linearVelocity += m_LinearVelocityChange * m_RigidBody->getLinearFactor();
+		btScalar maxSpeed = environment->GetMaxSpeed();
+		btClamp(linearVelocity[0], -maxSpeed, maxSpeed);
+		btClamp(linearVelocity[1], -maxSpeed, maxSpeed);
+		btClamp(linearVelocity[2], -maxSpeed, maxSpeed);
+		m_RigidBody->setLinearVelocity(linearVelocity);
+
+		btVector3 angularVelocity = m_RigidBody->getAngularVelocity();
+		angularVelocity += (m_RigidBody->getWorldTransform().getBasis() * m_LocalAngularVelocityChange) *
+				m_RigidBody->getAngularFactor();
+		btScalar maxAngularSpeed = environment->GetMaxAngularSpeed();
+		btClamp(angularVelocity[0], -maxAngularSpeed, maxAngularSpeed);
+		btClamp(angularVelocity[1], -maxAngularSpeed, maxAngularSpeed);
+		btClamp(angularVelocity[2], -maxAngularSpeed, maxAngularSpeed);
+		m_RigidBody->setAngularVelocity(angularVelocity);
+	}
+
+	m_LinearVelocityChange.setZero();
+	m_LocalAngularVelocityChange.setZero();
+}
+
 void CPhysicsObject::SetVelocity(const Vector *velocity, const AngularImpulse *angularVelocity) {
 	if (!IsMoveable()) {
 		return;
 	}
-
 	Wake();
-
-	btVector3 bulletForce = m_RigidBody->getTotalForce();
-	btVector3 bulletTorque = m_RigidBody->getTotalTorque();
-	m_RigidBody->clearForces();
-
 	btVector3 zero(0.0f, 0.0f, 0.0f);
-
 	if (velocity != nullptr) {
-		ConvertPositionToBullet(*velocity, bulletForce);
-		bulletForce *= GetMass();
+		ConvertPositionToBullet(*velocity, m_LinearVelocityChange);
 		m_RigidBody->setLinearVelocity(zero);
 	}
-
 	if (angularVelocity != nullptr) {
-		AngularImpulse worldAngularVelocity;
-		LocalToWorldVector(&worldAngularVelocity, *angularVelocity);
-		ConvertAngularImpulseToBullet(worldAngularVelocity, bulletTorque);
-		bulletTorque = m_RigidBody->getInvInertiaTensorWorld().inverse() * bulletTorque;
+		ConvertAngularImpulseToBullet(*angularVelocity, m_LocalAngularVelocityChange);
 		m_RigidBody->setAngularVelocity(zero);
 	}
-
-	m_RigidBody->applyCentralForce(bulletForce);
-	m_RigidBody->applyTorque(bulletTorque);
 }
 
 void CPhysicsObject::GetVelocity(Vector *velocity, AngularImpulse *angularVelocity) const {
 	if (velocity != nullptr) {
-		ConvertPositionToHL(m_RigidBody->getLinearVelocity() +
-				(m_RigidBody->getTotalForce() * m_RigidBody->getInvMass()),
-				*velocity);
+		ConvertPositionToHL(m_RigidBody->getLinearVelocity() + m_LinearVelocityChange, *velocity);
 	}
 	if (angularVelocity != nullptr) {
 		AngularImpulse worldAngularVelocity;
 		ConvertAngularImpulseToHL(m_RigidBody->getAngularVelocity() +
-				(m_RigidBody->getInvInertiaTensorWorld() * m_RigidBody->getTotalTorque()),
+				(m_RigidBody->getWorldTransform().getBasis() * m_LocalAngularVelocityChange),
 				worldAngularVelocity);
 		WorldToLocalVector(angularVelocity, worldAngularVelocity);
 	}
@@ -426,16 +439,9 @@ void CPhysicsObject::ApplyForceCenter(const Vector &forceVector) {
 	if (!IsMoveable()) {
 		return;
 	}
-
 	btVector3 bulletForce;
 	ConvertForceImpulseToBullet(forceVector, bulletForce);
-
-	btScalar maxForce = static_cast<CPhysicsEnvironment *>(m_Environment)->GetMaxSpeed() * GetMass();
-	btClamp(bulletForce[0], -maxForce, maxForce);
-	btClamp(bulletForce[1], -maxForce, maxForce);
-	btClamp(bulletForce[2], -maxForce, maxForce);
-
-	m_RigidBody->applyCentralForce(bulletForce);
+	m_LinearVelocityChange += bulletForce * m_RigidBody->getInvMass();
 	Wake();
 }
 
@@ -444,51 +450,34 @@ void CPhysicsObject::ApplyForceOffset(const Vector &forceVector, const Vector &w
 		return;
 	}
 
-	btVector3 bulletForce;
-	ConvertForceImpulseToBullet(forceVector, bulletForce);
+	btVector3 bulletWorldForce;
+	ConvertForceImpulseToBullet(forceVector, bulletWorldForce);
+	m_LinearVelocityChange += bulletWorldForce * m_RigidBody->getInvMass();
 
+	Vector localForce;
+	WorldToLocalVector(&localForce, forceVector);
+	btVector3 bulletLocalForce;
+	ConvertForceImpulseToBullet(localForce, bulletLocalForce);
 	Vector localPosition;
 	WorldToLocal(&localPosition, worldPosition);
-	btVector3 bulletRelPos;
-	ConvertPositionToBullet(localPosition, bulletRelPos);
-	btVector3 bulletTorque = bulletRelPos.cross(bulletForce * m_RigidBody->getLinearFactor());
+	btVector3 bulletLocalPosition;
+	ConvertPositionToBullet(localPosition, bulletLocalPosition);
+	m_LocalAngularVelocityChange += bulletLocalPosition.cross(bulletLocalForce) *
+			m_RigidBody->getInvInertiaDiagLocal();
 
-	const CPhysicsEnvironment *environment = static_cast<CPhysicsEnvironment *>(m_Environment);
-
-	btScalar maxForce = environment->GetMaxSpeed() * GetMass();
-	btClamp(bulletForce[0], -maxForce, maxForce);
-	btClamp(bulletForce[1], -maxForce, maxForce);
-	btClamp(bulletForce[2], -maxForce, maxForce);
-
-	const Vector &inertia = GetInertia();
-	btScalar maxTorque = environment->GetMaxAngularSpeed() *
-			MAX(MAX(inertia.x, inertia.y), inertia.z);
-	btClamp(bulletTorque[0], -maxTorque, maxTorque);
-	btClamp(bulletTorque[1], -maxTorque, maxTorque);
-	btClamp(bulletTorque[2], -maxTorque, maxTorque);
-
-	m_RigidBody->applyCentralForce(bulletForce);
-	m_RigidBody->applyTorque(bulletTorque);
 	Wake();
 }
 
-// In world space.
 void CPhysicsObject::ApplyTorqueCenter(const AngularImpulse &torque) {
 	if (!IsMoveable()) {
 		return;
 	}
-
-	btVector3 bulletTorque;
-	ConvertAngularImpulseToBullet(torque, bulletTorque);
-
-	const Vector &inertia = GetInertia();
-	btScalar maxTorque = static_cast<CPhysicsEnvironment *>(m_Environment)->GetMaxAngularSpeed() *
-			MAX(MAX(inertia.x, inertia.y), inertia.z);
-	btClamp(bulletTorque[0], -maxTorque, maxTorque);
-	btClamp(bulletTorque[1], -maxTorque, maxTorque);
-	btClamp(bulletTorque[2], -maxTorque, maxTorque);
-
-	m_RigidBody->applyTorque(bulletTorque);
+	AngularImpulse localTorque;
+	WorldToLocalVector(&localTorque, torque);
+	btVector3 bulletLocalTorque;
+	ConvertAngularImpulseToBullet(localTorque, bulletLocalTorque);
+	m_LocalAngularVelocityChange += bulletLocalTorque *
+			m_RigidBody->getInvInertiaDiagLocal();
 	Wake();
 }
 

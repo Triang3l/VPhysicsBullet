@@ -74,6 +74,9 @@ public:
 	// Also applies damping in a way more similar to how IVP VPhysics does it.
 	void ApplyDamping(float timeStep);
 
+	// Bullet integrates forces and torques over time, in IVP async pushes are applied fully.
+	void ApplyForcesAndSpeedLimit();
+
 	FORCEINLINE CPhysicsObject *GetNextCollideObject() const {
 		return m_CollideObjectNext;
 	}
@@ -106,6 +109,9 @@ private:
 	unsigned short m_Callbacks;
 
 	unsigned int m_ContentsMask;
+
+	btVector3 m_LinearVelocityChange;
+	btVector3 m_LocalAngularVelocityChange;
 };
 
 #endif

@@ -52,6 +52,8 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 	IPhysicsObject * const *objects = environment->m_NonStaticObjects.Base();
 	int objectCount = environment->m_NonStaticObjects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
-		static_cast<CPhysicsObject *>(objects[objectIndex])->ApplyDamping((float) timeStep);
+		CPhysicsObject *object = static_cast<CPhysicsObject *>(objects[objectIndex]);
+		object->ApplyDamping((float) timeStep);
+		object->ApplyForcesAndSpeedLimit();
 	}
 }
