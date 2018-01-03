@@ -384,8 +384,9 @@ void CPhysicsObject::SetVelocity(const Vector *velocity, const AngularImpulse *a
 		m_RigidBody->setLinearVelocity(zero);
 	}
 	if (angularVelocity != nullptr) {
-		// In world space.
-		ConvertAngularImpulseToBullet(*angularVelocity, bulletTorque);
+		AngularImpulse torque;
+		LocalToWorld(&torque, *angularVelocity);
+		ConvertAngularImpulseToBullet(torque, bulletTorque);
 		m_RigidBody->setAngularVelocity(zero);
 	}
 	m_RigidBody->applyCentralForce(bulletForce);
