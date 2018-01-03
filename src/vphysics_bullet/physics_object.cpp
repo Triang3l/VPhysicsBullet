@@ -370,6 +370,28 @@ void CPhysicsObject::WorldToLocalVector(Vector *localVector, const Vector &world
 	VectorIRotate(Vector(worldVector), matrix, *localVector);
 }
 
+void CPhysicsObject::SetVelocity(const Vector *velocity, const AngularImpulse *angularVelocity) {
+	if (!IsMoveable()) {
+		return;
+	}
+	Wake();
+	btVector3 bulletForce = m_RigidBody->getTotalForce();
+	btVector3 bulletTorque = m_RigidBody->getTotalTorque();
+	m_RigidBody->clearForces();
+	btVector3 zero(0.0f, 0.0f, 0.0f);
+	if (velocity != nullptr) {
+		ConvertPositionToBullet(*velocity, bulletForce);
+		m_RigidBody->setLinearVelocity(zero);
+	}
+	if (angularVelocity != nullptr) {
+		// In world space.
+		ConvertAngularImpulseToBullet(*angularVelocity, bulletTorque);
+		m_RigidBody->setAngularVelocity(zero);
+	}
+	m_RigidBody->applyCentralForce(bulletForce);
+	m_RigidBody->applyTorque(bulletTorque);
+}
+
 void CPhysicsObject::ApplyForceCenter(const Vector &forceVector) {
 	if (!IsMoveable()) {
 		return;
@@ -418,6 +440,7 @@ void CPhysicsObject::ApplyForceOffset(const Vector &forceVector, const Vector &w
 	Wake();
 }
 
+// In world space.
 void CPhysicsObject::ApplyTorqueCenter(const AngularImpulse &torque) {
 	if (!IsMoveable()) {
 		return;

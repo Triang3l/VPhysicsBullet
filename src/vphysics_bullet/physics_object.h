@@ -56,6 +56,8 @@ public:
 	virtual void GetPosition(Vector *worldPosition, QAngle *angles) const;
 	virtual void GetPositionMatrix(matrix3x4_t *positionMatrix) const;
 
+	virtual void SetVelocity(const Vector *velocity, const AngularImpulse *angularVelocity);
+
 	virtual void LocalToWorld(Vector *worldPosition, const Vector &localPosition) const;
 	virtual void WorldToLocal(Vector *localPosition, const Vector &worldPosition) const;
 	virtual void LocalToWorldVector(Vector *worldVector, const Vector &localVector) const;

@@ -55,6 +55,12 @@ inline void ConvertAngularImpulseToBullet(const AngularImpulse &in, btVector3 &o
 	out.setZ(-DEG2RAD(in.y));
 }
 
+inline void ConvertAngularImpulseToHL(const btVector3 &in, AngularImpulse &out) {
+	out.x = RAD2DEG(in.getX());
+	out.y = -RAD2DEG(in.getZ());
+	out.z = RAD2DEG(in.getY());
+}
+
 void ConvertMatrixToBullet(const matrix3x4_t &matrix, btTransform &transform);
 void ConvertMatrixToHL(const btMatrix3x3 &basis, const btVector3 &origin, matrix3x4_t &matrix);
 inline void ConvertMatrixToHL(const btTransform &transform, matrix3x4_t &matrix) {
