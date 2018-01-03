@@ -401,7 +401,7 @@ void CPhysicsObject::WorldToLocalVector(Vector *localVector, const Vector &world
 
 void CPhysicsObject::ApplyForcesAndSpeedLimit() {
 	if (IsMoveable() && !IsAsleep()) {
-		const CPhysicsEnvironment *environment = static_cast<CPhysicsEnvironment *>(m_Environment);
+		const CPhysicsEnvironment *environment = static_cast<const CPhysicsEnvironment *>(m_Environment);
 
 		btVector3 linearVelocity = m_RigidBody->getLinearVelocity();
 		linearVelocity += m_LinearVelocityChange * m_RigidBody->getLinearFactor();
