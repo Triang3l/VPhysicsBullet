@@ -518,6 +518,33 @@ void CPhysicsObject::ApplyTorqueCenter(const AngularImpulse &torque) {
 	Wake();
 }
 
+/***********
+ * Triggers
+ ***********/
+
+bool CPhysicsObject::IsTrigger() const {
+	return (m_RigidBody->getCollisionFlags() & btCollisionObject::CF_NO_CONTACT_RESPONSE) != 0;
+}
+
+void CPhysicsObject::BecomeTrigger() {
+	if (IsTrigger()) {
+		return;
+	}
+	EnableDrag(false);
+	EnableGravity(false);
+	m_RigidBody->setCollisionFlags(m_RigidBody->getCollisionFlags() |
+			btCollisionObject::CF_NO_CONTACT_RESPONSE);
+}
+
+void CPhysicsObject::RemoveTrigger() {
+	if (!IsTrigger()) {
+		return;
+	}
+	m_RigidBody->setCollisionFlags(m_RigidBody->getCollisionFlags() &
+			~btCollisionObject::CF_NO_CONTACT_RESPONSE);
+	static_cast<CPhysicsEnvironment *>(m_Environment)->NotifyTriggerRemoved(this);
+}
+
 /***************************************
  * Collide object reference linked list
  ***************************************/

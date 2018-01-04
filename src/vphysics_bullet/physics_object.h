@@ -5,6 +5,7 @@
 #define PHYSICS_OBJECT_H
 
 #include "physics_internal.h"
+#include "tier1/utlvector.h"
 
 class CPhysicsObject : public IPhysicsObject {
 public:
@@ -18,6 +19,7 @@ public:
 
 	virtual bool IsStatic() const;
 	virtual bool IsAsleep() const;
+	virtual bool IsTrigger() const;
 	virtual bool IsGravityEnabled() const;
 	virtual bool IsMotionEnabled() const;
 	virtual bool IsMoveable() const;
@@ -70,6 +72,9 @@ public:
 	virtual void ApplyForceCenter(const Vector &forceVector);
 	virtual void ApplyForceOffset(const Vector &forceVector, const Vector &worldPosition);
 	virtual void ApplyTorqueCenter(const AngularImpulse &torque);
+
+	virtual void BecomeTrigger();
+	virtual void RemoveTrigger();
 
 	// Internal methods.
 
