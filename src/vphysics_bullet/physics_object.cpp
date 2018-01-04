@@ -498,6 +498,7 @@ void CPhysicsObject::ApplyForceOffset(const Vector &forceVector, const Vector &w
 	WorldToLocal(&localPosition, worldPosition);
 	btVector3 bulletLocalPosition;
 	ConvertPositionToBullet(localPosition, bulletLocalPosition);
+	bulletLocalPosition -= GetBulletMassCenter();
 	m_LocalAngularVelocityChange += bulletLocalPosition.cross(bulletLocalForce) *
 			m_RigidBody->getInvInertiaDiagLocal();
 
