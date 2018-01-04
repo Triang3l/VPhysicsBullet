@@ -5,7 +5,6 @@
 #define PHYSICS_OBJECT_H
 
 #include "physics_internal.h"
-#include "tier1/utlvector.h"
 
 class CPhysicsObject : public IPhysicsObject {
 public:
