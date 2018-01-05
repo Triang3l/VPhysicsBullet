@@ -53,6 +53,7 @@ public:
 	virtual unsigned int GetContents() const;
 	virtual void SetContents(unsigned int contents);
 
+	virtual float GetEnergy() const;
 	virtual Vector GetMassCenterLocalSpace() const;
 
 	virtual void SetPosition(const Vector &worldPosition, const QAngle &angles, bool isTeleport);

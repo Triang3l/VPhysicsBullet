@@ -79,4 +79,8 @@ inline int ConvertAxisIndexToBullet(int axisIndex) {
 	return axisIndex;
 }
 
+FORCEINLINE float ConvertEnergyToHL(btScalar energy) {
+	return (float) energy * (1.0f / (METERS_PER_INCH * METERS_PER_INCH));
+}
+
 #endif

@@ -507,6 +507,14 @@ void CPhysicsObject::AddVelocity(const Vector *velocity, const AngularImpulse *a
 	}
 }
 
+float CPhysicsObject::GetEnergy() const {
+	const btVector3 &angularVelocity = m_RigidBody->getAngularVelocity();
+	// 1/2mv^2 + 1/2Iw^2
+	return ConvertEnergyToHL(0.5f * (
+			btScalar(GetMass()) * m_RigidBody->getLinearVelocity().length2() +
+			(m_RigidBody->getInvInertiaTensorWorld() * angularVelocity).dot(angularVelocity)));
+}
+
 void CPhysicsObject::ApplyForceCenter(const Vector &forceVector) {
 	if (!IsMoveable()) {
 		return;
