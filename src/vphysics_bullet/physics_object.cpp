@@ -91,6 +91,14 @@ btCollisionShape *CPhysicsObject::GetCollisionShape() const {
 	return m_RigidBody->getCollisionShape();
 }
 
+float CPhysicsObject::GetSphereRadius() const {
+	const btCollisionShape *shape = GetCollisionShape();
+	if (shape->getShapeType() == SPHERE_SHAPE_PROXYTYPE) {
+		return BULLET2HL(static_cast<const btSphereShape *>(shape)->getRadius());
+	}
+	return 0.0f;
+}
+
 void CPhysicsObject::NotifyTransferred(IPhysicsEnvironment *newEnvironment) {
 	m_Environment = newEnvironment;
 	Assert(!IsTouchingTriggers());
