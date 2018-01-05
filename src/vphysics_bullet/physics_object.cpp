@@ -22,7 +22,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_Mass((!isStatic && !collisionShape->isNonMoving()) ? pParams->mass : 0.0f),
 		m_Inertia(pParams->inertia, pParams->inertia, pParams->inertia), m_HingeAxis(-1),
 		m_Damping(pParams->damping), m_RotDamping(pParams->rotdamping),
-		m_GameData(nullptr), m_GameFlags(0), m_GameIndex(0),
+		m_GameData(pParams->pGameData), m_GameFlags(0), m_GameIndex(0),
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
 				CALLBACK_GLOBAL_COLLIDE_STATIC | CALLBACK_DO_FLUID_SIMULATION),
