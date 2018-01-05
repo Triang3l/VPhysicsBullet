@@ -91,6 +91,10 @@ btCollisionShape *CPhysicsObject::GetCollisionShape() const {
 	return m_RigidBody->getCollisionShape();
 }
 
+const CPhysCollide *CPhysicsObject::GetCollide() const {
+	return reinterpret_cast<const CPhysCollide *>(GetCollisionShape());
+}
+
 float CPhysicsObject::GetSphereRadius() const {
 	const btCollisionShape *shape = GetCollisionShape();
 	if (shape->getShapeType() == SPHERE_SHAPE_PROXYTYPE) {
@@ -499,6 +503,38 @@ void CPhysicsObject::SetVelocity(const Vector *velocity, const AngularImpulse *a
 	if (angularVelocity != nullptr) {
 		ConvertAngularImpulseToBullet(*angularVelocity, m_LocalAngularVelocityChange);
 		m_RigidBody->setAngularVelocity(zero);
+	}
+}
+
+void CPhysicsObject::SetVelocityInstantaneous(const Vector *velocity, const AngularImpulse *angularVelocity) {
+	if (!IsMoveable()) {
+		return;
+	}
+
+	Wake();
+
+	const CPhysicsEnvironment *environment = static_cast<const CPhysicsEnvironment *>(m_Environment);
+
+	if (velocity != nullptr) {
+		btVector3 bulletVelocity;
+		ConvertPositionToBullet(*velocity, bulletVelocity);
+		btScalar maxSpeed = environment->GetMaxSpeed();
+		btClamp(bulletVelocity[0], -maxSpeed, maxSpeed);
+		btClamp(bulletVelocity[1], -maxSpeed, maxSpeed);
+		btClamp(bulletVelocity[2], -maxSpeed, maxSpeed);
+		m_RigidBody->setLinearVelocity(bulletVelocity);
+		m_LinearVelocityChange.setZero();
+	}
+
+	if (angularVelocity != nullptr) {
+		btVector3 bulletAngularVelocity;
+		ConvertAngularImpulseToBullet(*angularVelocity, bulletAngularVelocity);
+		bulletAngularVelocity = m_RigidBody->getWorldTransform().getBasis() * bulletAngularVelocity;
+		btScalar maxAngularSpeed = environment->GetMaxAngularSpeed();
+		btClamp(bulletAngularVelocity[0], -maxAngularSpeed, maxAngularSpeed);
+		btClamp(bulletAngularVelocity[1], -maxAngularSpeed, maxAngularSpeed);
+		btClamp(bulletAngularVelocity[2], -maxAngularSpeed, maxAngularSpeed);
+		m_RigidBody->setAngularVelocity(bulletAngularVelocity);
 	}
 }
 

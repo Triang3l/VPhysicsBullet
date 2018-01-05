@@ -64,6 +64,7 @@ public:
 	virtual void GetPositionMatrix(matrix3x4_t *positionMatrix) const;
 
 	virtual void SetVelocity(const Vector *velocity, const AngularImpulse *angularVelocity);
+	virtual void SetVelocityInstantaneous(const Vector *velocity, const AngularImpulse *angularVelocity);
 	virtual void GetVelocity(Vector *velocity, AngularImpulse *angularVelocity) const;
 	virtual void AddVelocity(const Vector *velocity, const AngularImpulse *angularVelocity);
 	virtual void GetVelocityAtPoint(const Vector &worldPosition, Vector *pVelocity) const;
@@ -76,6 +77,8 @@ public:
 	virtual void ApplyForceCenter(const Vector &forceVector);
 	virtual void ApplyForceOffset(const Vector &forceVector, const Vector &worldPosition);
 	virtual void ApplyTorqueCenter(const AngularImpulse &torque);
+
+	virtual const CPhysCollide *GetCollide() const;
 
 	virtual void BecomeTrigger();
 	virtual void RemoveTrigger();
