@@ -474,6 +474,22 @@ void CPhysicsObject::GetVelocity(Vector *velocity, AngularImpulse *angularVeloci
 	}
 }
 
+void CPhysicsObject::GetVelocityAtPoint(const Vector &worldPosition, Vector *pVelocity) const {
+	const btTransform &worldTransform = m_RigidBody->getWorldTransform();
+
+	btVector3 angularVelocity = m_RigidBody->getAngularVelocity() +
+			(worldTransform.getBasis() * m_LocalAngularVelocityChange);
+
+	btVector3 bulletWorldPosition;
+	ConvertPositionToBullet(worldPosition, bulletWorldPosition);
+	btVector3 relativePosition = bulletWorldPosition - (worldTransform.getOrigin() -
+			worldTransform.getBasis() * GetBulletMassCenter());
+
+	btVector3 speed = m_RigidBody->getLinearVelocity() +
+			angularVelocity.cross(relativePosition) + m_LinearVelocityChange;
+	ConvertPositionToHL(speed, *pVelocity);
+}
+
 void CPhysicsObject::AddVelocity(const Vector *velocity, const AngularImpulse *angularVelocity) {
 	if (!IsMoveable()) {
 		return;
