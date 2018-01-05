@@ -69,14 +69,24 @@ inline void ConvertMatrixToHL(const btTransform &transform, matrix3x4_t &matrix)
 
 void ConvertRotationToHL(const btMatrix3x3 &basis, QAngle &angles);
 
-inline int ConvertAxisIndexToBullet(int axisIndex) {
-	if (axisIndex == 1) {
+inline int ConvertCoordinateAxisToBullet(int axis) {
+	if (axis == 1) {
 		return 2;
 	}
-	if (axisIndex == 2) {
+	if (axis == 2) {
 		return 1;
 	}
-	return axisIndex;
+	return axis;
+}
+
+inline int ConvertCoordinateAxisToHL(int axis) {
+	if (axis == 1) {
+		return 2;
+	}
+	if (axis == 2) {
+		return 1;
+	}
+	return axis;
 }
 
 FORCEINLINE float ConvertEnergyToHL(btScalar energy) {

@@ -20,6 +20,7 @@ public:
 	virtual bool IsStatic() const;
 	virtual bool IsAsleep() const;
 	virtual bool IsTrigger() const;
+	virtual bool IsHinged() const;
 	virtual bool IsGravityEnabled() const;
 	virtual bool IsMotionEnabled() const;
 	virtual bool IsMoveable() const;
@@ -79,6 +80,9 @@ public:
 	virtual void BecomeTrigger();
 	virtual void RemoveTrigger();
 
+	virtual void BecomeHinged(int localAxis);
+	virtual void RemoveHinged();
+
 	// Internal methods.
 
 	// Bullet doesn't allow damping factors over 1, so it has to be done manually.
@@ -124,6 +128,8 @@ private:
 
 	float m_Mass;
 	Vector m_Inertia;
+	int m_HingeAxis;
+	void UpdateMassProps(bool inertiaChanged);
 
 	float m_Damping, m_RotDamping;
 

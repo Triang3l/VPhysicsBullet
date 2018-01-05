@@ -20,7 +20,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_CollideObjectNext(this), m_CollideObjectPrevious(this),
 		m_MassCenterOverride(0.0f, 0.0f, 0.0f), m_MassCenterOverrideShape(nullptr),
 		m_Mass((!isStatic && !collisionShape->isNonMoving()) ? pParams->mass : 0.0f),
-		m_Inertia(pParams->inertia, pParams->inertia, pParams->inertia),
+		m_Inertia(pParams->inertia, pParams->inertia, pParams->inertia), m_HingeAxis(-1),
 		m_Damping(pParams->damping), m_RotDamping(pParams->rotdamping),
 		m_GameData(nullptr), m_GameFlags(0), m_GameIndex(0),
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
@@ -112,15 +112,26 @@ bool CPhysicsObject::IsStatic() const {
 	return m_RigidBody->isStaticObject();
 }
 
+void CPhysicsObject::UpdateMassProps(bool inertiaChanged) {
+	btVector3 bulletInertia;
+	ConvertDirectionToBullet(m_Inertia, bulletInertia);
+	bulletInertia = bulletInertia.absolute();
+	if (m_HingeAxis >= 0) {
+		bulletInertia[m_HingeAxis] = 50000.0f;
+	}
+	m_RigidBody->setMassProps(m_Mass, bulletInertia);
+	if (inertiaChanged) {
+		m_RigidBody->updateInertiaTensor();
+	}
+}
+
 void CPhysicsObject::SetMass(float mass) {
 	Assert(mass > 0.0f);
 	if (IsStatic()) {
 		return;
 	}
 	m_Mass = mass;
-	btVector3 bulletInertia;
-	ConvertDirectionToBullet(m_Inertia, bulletInertia);
-	m_RigidBody->setMassProps(mass, bulletInertia.absolute());
+	UpdateMassProps(false);
 }
 
 float CPhysicsObject::GetMass() const {
@@ -132,6 +143,10 @@ float CPhysicsObject::GetInvMass() const {
 }
 
 Vector CPhysicsObject::GetInertia() const {
+	Vector inertia = m_Inertia;
+	if (m_HingeAxis >= 0) {
+		inertia[ConvertCoordinateAxisToHL(m_HingeAxis)] = 50000.0f;
+	}
 	return m_Inertia;
 }
 
@@ -143,12 +158,30 @@ Vector CPhysicsObject::GetInvInertia() const {
 }
 
 void CPhysicsObject::SetInertia(const Vector &inertia) {
-	m_Inertia = inertia;
-	VectorAbs(m_Inertia, m_Inertia);
-	btVector3 bulletInertia;
-	ConvertDirectionToBullet(inertia, bulletInertia);
-	m_RigidBody->setMassProps(m_Mass, bulletInertia.absolute());
-	m_RigidBody->updateInertiaTensor();
+	VectorAbs(inertia, m_Inertia);
+	UpdateMassProps(true);
+}
+
+bool CPhysicsObject::IsHinged() const {
+	return m_HingeAxis >= 0;
+}
+
+void CPhysicsObject::BecomeHinged(int localAxis) {
+	Assert(localAxis >= 0 && localAxis <= 2);
+	int bulletAxis = ConvertCoordinateAxisToBullet(localAxis);
+	if (m_HingeAxis == bulletAxis) {
+		return;
+	}
+	m_HingeAxis = bulletAxis;
+	UpdateMassProps(true);
+}
+
+void CPhysicsObject::RemoveHinged() {
+	if (!IsHinged()) {
+		return;
+	}
+	m_HingeAxis = -1;
+	UpdateMassProps(true);
 }
 
 bool CPhysicsObject::IsMotionEnabled() const {
