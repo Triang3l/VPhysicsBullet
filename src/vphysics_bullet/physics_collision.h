@@ -28,12 +28,18 @@ public:
 
 	// Internal methods.
 
+	CPhysCollide *CreateSphere(float radius);
+	float GetSphereRadius(const CPhysCollide *pCollide) const;
+	void SetSphereRadius(CPhysCollide *pCollide, float radius);
+
 	btVector3 CollideGetBulletMassCenter(const btCollisionShape *shape);
 	FORCEINLINE btVector3 CollideGetBulletMassCenter(const CPhysCollide *pCollide) {
 		return CollideGetBulletMassCenter(reinterpret_cast<const btCollisionShape *>(pCollide));
 	}
 
 	void SetCollideIndex(CPhysCollide *pCollide, int index);
+
+	bool IsCollideUsedByObjects(const CPhysCollide *pCollide) const;
 
 private:
 	struct ConvexHullData_t {
@@ -48,14 +54,16 @@ private:
 	// BBoxes need to be offset when added to compound collides.
 	// User data of bboxes points to this.
 	struct BBoxCache_t {
-		Vector halfExtents;
-		Vector origin;
-		btBoxShape *boxShape; // Returned from BBoxToConvex - zero origin.
-		btCompoundShape *compoundShape; // Returned from BBoxToCollide - correct origin.
+		Vector m_HalfExtents;
+		Vector m_Origin;
+		btBoxShape *m_BoxShape; // Returned from BBoxToConvex - zero origin.
+		btCompoundShape *m_CompoundShape; // Returned from BBoxToCollide - correct origin.
 	};
 	CUtlVector<BBoxCache_t> m_BBoxCache;
 	BBoxCache_t *CreateBBox(const Vector &mins, const Vector &maxs);
 	bool IsCollideCachedBBox(const btCollisionShape *shape) const;
+
+	btAlignedObjectArray<btSphereShape> m_SphereCache;
 
 	btScalar ConvexSurfaceAreaAndWeightedAverage(
 			const btCollisionShape *convex, btVector3 &areaWeightedAverage);

@@ -51,6 +51,8 @@ private:
 	btSequentialImpulseConstraintSolver *m_Solver;
 	btDiscreteDynamicsWorld *m_DynamicsWorld;
 
+	CUtlVector<CPhysCollide *> m_SphereCache;
+
 	CUtlVector<IPhysicsObject *> m_NonStaticObjects;
 
 	IPhysicsCollisionEvent *m_CollisionEvents;

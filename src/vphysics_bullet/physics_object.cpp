@@ -96,11 +96,8 @@ const CPhysCollide *CPhysicsObject::GetCollide() const {
 }
 
 float CPhysicsObject::GetSphereRadius() const {
-	const btCollisionShape *shape = GetCollisionShape();
-	if (shape->getShapeType() == SPHERE_SHAPE_PROXYTYPE) {
-		return BULLET2HL(static_cast<const btSphereShape *>(shape)->getRadius());
-	}
-	return 0.0f;
+	return g_pPhysCollision->GetSphereRadius(
+			reinterpret_cast<const CPhysCollide *>(GetCollisionShape()));
 }
 
 void CPhysicsObject::NotifyTransferred(IPhysicsEnvironment *newEnvironment) {
