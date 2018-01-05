@@ -189,7 +189,7 @@ void CPhysicsObject::RemoveHinged() {
 }
 
 bool CPhysicsObject::IsMotionEnabled() const {
-	return !m_RigidBody->getAngularFactor().isZero();
+	return !m_RigidBody->getLinearFactor().isZero();
 }
 
 bool CPhysicsObject::IsMoveable() const {
