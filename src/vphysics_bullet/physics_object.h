@@ -9,7 +9,8 @@
 class CPhysicsObject : public IPhysicsObject {
 public:
 	CPhysicsObject(IPhysicsEnvironment *environment,
-			btCollisionShape *collisionShape, int materialIndex,
+			btCollisionShape *collisionShape, bool ownCollisionShape,
+			int materialIndex,
 			const Vector &position, const QAngle &angles,
 			objectparams_t *pParams, bool isStatic);
 	virtual ~CPhysicsObject();
@@ -90,12 +91,26 @@ public:
 
 	void NotifyMassCenterChanged(const btVector3 &oldMassCenter);
 
+	FORCEINLINE void AddTriggerTouchReference() {
+		++m_TouchingTriggers;
+	}
+	FORCEINLINE void RemoveTriggerTouchReference() {
+		--m_TouchingTriggers;
+		Assert(m_TouchingTriggers >= 0);
+	}
+	FORCEINLINE bool IsTouchingTriggers() {
+		return m_TouchingTriggers > 0;
+	}
+
+	void NotifyTransferred(IPhysicsEnvironment *newEnvironment);
+
 private:
 	IPhysicsEnvironment *m_Environment;
 
 	btRigidBody *m_RigidBody;
 
 	btCollisionShape *GetCollisionShape() const;
+	bool m_OwnCollisionShape;
 	CPhysicsObject *m_CollideObjectNext, *m_CollideObjectPrevious;
 	void AddReferenceToCollide();
 	void RemoveReferenceFromCollide();
@@ -119,6 +134,8 @@ private:
 
 	btVector3 m_LinearVelocityChange;
 	btVector3 m_LocalAngularVelocityChange;
+
+	int m_TouchingTriggers;
 };
 
 #endif

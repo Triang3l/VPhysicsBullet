@@ -33,6 +33,34 @@ CPhysicsEnvironment::~CPhysicsEnvironment() {
 	delete m_CollisionConfiguration;
 }
 
+void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {
+	CPhysicsObject *physicsObject = static_cast<CPhysicsObject *>(object);
+
+	if (object->IsTrigger()) {
+		NotifyTriggerRemoved(object);
+	}
+
+	if (physicsObject->IsTouchingTriggers()) {
+		unsigned short touchIndex = m_TriggerTouches.FirstInorder();
+		while (touchIndex != m_TriggerTouches.InvalidIndex()) {
+			unsigned short nextTouch = m_TriggerTouches.NextInorder(touchIndex);
+			if (m_TriggerTouches[touchIndex].m_Object == object) {
+				m_TriggerTouches.RemoveAt(touchIndex);
+				physicsObject->RemoveTriggerTouchReference();
+				if (!physicsObject->IsTouchingTriggers()) {
+					break;
+				}
+			}
+			touchIndex = nextTouch;
+		}
+		Assert(!physicsObject->IsTouchingTriggers());
+	}
+
+	if (!object->IsStatic()) {
+		m_NonStaticObjects.FindAndFastRemove(object);
+	}
+}
+
 /****************
  * Global forces
  ****************/
@@ -144,8 +172,6 @@ void CPhysicsEnvironment::NotifyTriggerRemoved(IPhysicsObject *trigger) {
 		}
 		index = next;
 	}
-	// TODO: A similar loop, but over the touching objects, needs to be done when deleting an object.
-	// Maybe store a reference count in the objects.
 }
 
 /***********************

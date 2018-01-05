@@ -11,10 +11,12 @@
 #include "tier0/memdbgon.h"
 
 CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
-		btCollisionShape *collisionShape, int materialIndex,
+		btCollisionShape *collisionShape, bool ownCollisionShape,
+		int materialIndex,
 		const Vector &position, const QAngle &angles,
 		objectparams_t *pParams, bool isStatic) :
 		m_Environment(environment),
+		m_OwnCollisionShape(ownCollisionShape),
 		m_CollideObjectNext(this), m_CollideObjectPrevious(this),
 		m_MassCenterOverride(0.0f, 0.0f, 0.0f), m_MassCenterOverrideShape(nullptr),
 		m_Mass((!isStatic && !collisionShape->isNonMoving()) ? pParams->mass : 0.0f),
@@ -66,7 +68,20 @@ CPhysicsObject::~CPhysicsObject() {
 	m_Callbacks = 0;
 	m_GameData = nullptr;
 
-	// TODO: Delete or add to the deletion queue.
+	// TODO: Do deletion actions such as unlinking from controllers.
+
+	static_cast<CPhysicsEnvironment *>(m_Environment)->NotifyObjectRemoving(this);
+
+	if (m_MassCenterOverrideShape != nullptr) {
+		delete m_MassCenterOverrideShape;
+	}
+	RemoveReferenceFromCollide();
+	if (m_OwnCollisionShape) {
+		g_pPhysCollision->DestroyCollide(reinterpret_cast<CPhysCollide *>(
+				m_RigidBody->getCollisionShape()));
+	}
+
+	delete m_RigidBody;
 }
 
 btCollisionShape *CPhysicsObject::GetCollisionShape() const {
@@ -74,6 +89,11 @@ btCollisionShape *CPhysicsObject::GetCollisionShape() const {
 		return m_MassCenterOverrideShape->getChildShape(0);
 	}
 	return m_RigidBody->getCollisionShape();
+}
+
+void CPhysicsObject::NotifyTransferred(IPhysicsEnvironment *newEnvironment) {
+	m_Environment = newEnvironment;
+	Assert(!IsTouchingTriggers());
 }
 
 /*******************

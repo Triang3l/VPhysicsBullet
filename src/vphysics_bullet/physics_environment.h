@@ -33,6 +33,8 @@ public:
 		return m_DynamicsWorld;
 	}
 
+	void NotifyObjectRemoving(IPhysicsObject *object);
+
 	void NotifyTriggerRemoved(IPhysicsObject *trigger);
 
 	FORCEINLINE btScalar GetMaxSpeed() const {
