@@ -339,3 +339,17 @@ void CPhysCollide_Compound::SetMassCenter(const btVector3 &massCenter) {
 	m_Shape.recalculateLocalAabb();
 	NotifyObjectsOfMassCenterChange(oldMassCenter);
 }
+
+/**********
+ * Spheres
+ **********/
+
+btScalar CPhysCollide_Sphere::GetVolume() const {
+	btScalar radius = m_Shape.getRadius();
+	return ((4.0f / 3.0f) * SIMD_PI) * radius * radius * radius;
+}
+
+btScalar CPhysCollide_Sphere::GetSurfaceArea() const {
+	btScalar radius = m_Shape.getRadius();
+	return (4.0f * SIMD_PI) * radius * radius;
+}

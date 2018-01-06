@@ -181,7 +181,8 @@ public:
 		return collide->GetShape()->getShapeType() == SPHERE_SHAPE_PROXYTYPE;
 	}
 
-	FORCEINLINE btScalar GetRadius() const { return m_Shape.getRadius(); }
+	virtual btScalar GetVolume() const;
+	virtual btScalar GetSurfaceArea() const;
 
 private:
 	btSphereShape m_Shape;
