@@ -14,6 +14,20 @@
 static CPhysicsCollision s_PhysCollision;
 CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
 
+/****************************************
+ * Utility for convexes and collideables
+ ****************************************/
+
+btVector3 CPhysicsCollision::BoxInertia(const btVector3 &extents) {
+	btVector3 l2 = extents * extents;
+	return (1.0f / 12.0f) * btVector3(l2.y() + l2.z(), l2.x() + l2.z(), l2.x() + l2.y());
+}
+
+btVector3 CPhysicsCollision::OffsetInertia(const btVector3 &inertia, const btVector3 &origin) {
+	btScalar o2 = origin.length2();
+	return inertia + btVector3(o2, o2, o2) - (origin * origin);
+}
+
 /***********
  * Convexes
  ***********/
@@ -45,35 +59,51 @@ CPhysConvex_Hull::CPhysConvex_Hull(HullResult *hull) :
 		m_Hull(hull) {
 	Initialize();
 
-	// Find the area-weighted average of triangle centroids for center of mass calculation.
-	btScalar surfaceArea = 0.0f;
-	btVector3 areaWeightedAverage(0.0f, 0.0f, 0.0f);
-	const btVector3 *vertices = &m_Hull->m_OutputVertices[0];
-	unsigned int vertexCount = m_Hull->mNumOutputVertices;
-	const unsigned int *indices = &m_Hull->m_Indices[0];
-	unsigned int indexCount = m_Hull->mNumIndices;
-	for (unsigned int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
+	// Based on btConvexTriangleMeshShape::calculatePrincipalAxisTransform, but without rotation.
+
+	const btVector3 *vertices = &hull->m_OutputVertices[0];
+	unsigned int vertexCount = hull->mNumOutputVertices;
+	const unsigned int *indices = &hull->m_Indices[0];
+	unsigned int indexCount = hull->mNumIndices;
+
+	// Volume and center of mass.
+	const btVector3 &ref = vertices[indices[0]];
+	btVector3 massCenterSum(0.0f, 0.0f, 0.0f);
+	btScalar sixVolume = 0.0f;
+	for (unsigned int indexIndex = 3; indexIndex < indexCount; indexIndex += 3) {
 		const btVector3 &v0 = vertices[indices[indexIndex]];
 		const btVector3 &v1 = vertices[indices[indexIndex + 1]];
 		const btVector3 &v2 = vertices[indices[indexIndex + 2]];
-		btScalar triangleArea = (v1 - v0).cross(v2 - v0).length() * 0.5f;
-		surfaceArea += triangleArea;
-		areaWeightedAverage += (v0 + v1 + v2) * (1.0f / 3.0f) * triangleArea;
+		btScalar tetrahedronSixVolume = btFabs((v0 - ref).triple(v1 - ref, v2 - ref));
+		massCenterSum += (0.25f * tetrahedronSixVolume) * (v0 + v1 + v2 + ref);
+		sixVolume += tetrahedronSixVolume;
 	}
-	m_SurfaceArea = surfaceArea;
-	if (surfaceArea > 1e-4) {
-		m_MassCenter = areaWeightedAverage / m_SurfaceArea;
-	} else {
-		// Use the geometric average as the mass center.
-		btVector3 aabbMins(BT_LARGE_FLOAT, BT_LARGE_FLOAT, BT_LARGE_FLOAT);
-		btVector3 aabbMaxs(-BT_LARGE_FLOAT, -BT_LARGE_FLOAT, -BT_LARGE_FLOAT);
-		for (unsigned int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex) {
-			const btVector3 &vertex = vertices[vertexIndex];
-			aabbMins.setMin(vertex);
-			aabbMaxs.setMax(vertex);
+	m_Volume = (1.0f / 6.0f) * sixVolume;
+	if (m_Volume > 0.0f) {
+		m_MassCenter = massCenterSum / sixVolume;
+		m_Inertia.setZero();
+		for (unsigned int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
+			btVector3 a = vertices[indices[indexIndex]] - m_MassCenter;
+			btVector3 b = vertices[indices[indexIndex + 1]] - m_MassCenter;
+			btVector3 c = vertices[indices[indexIndex + 2]] - m_MassCenter;
+			btVector3 i = btFabs(a.triple(b, c)) * (0.1f / 6.0f) *
+					(a * a + b * b + c * c + a * b + a * c + b * c);
+			m_Inertia[0] += i[1] + i[2];
+			m_Inertia[1] += i[2] + i[0];
+			m_Inertia[2] += i[0] + i[1];
 		}
-		m_MassCenter = (aabbMins + aabbMaxs) * 0.5f;
+		m_Inertia /= m_Volume;
+	} else {
+		// Use a box approximation.
+		btVector3 aabbMin(BT_LARGE_FLOAT, BT_LARGE_FLOAT, BT_LARGE_FLOAT);
+		btVector3 aabbMax(-BT_LARGE_FLOAT, -BT_LARGE_FLOAT, -BT_LARGE_FLOAT);
+		m_Shape.getAabb(btTransform(btMatrix3x3::getIdentity()), aabbMin, aabbMax);
+		m_MassCenter = (aabbMin + aabbMax) * 0.5f;
+		m_Inertia = CPhysicsCollision::OffsetInertia(
+				CPhysicsCollision::BoxInertia(aabbMax - aabbMin),
+				(aabbMin + aabbMax) * 0.5f);
 	}
+	m_Inertia = m_Inertia.absolute();
 }
 
 CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
@@ -84,7 +114,7 @@ CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
 	HullResult *hull = new HullResult;
 	HullError hullError = hullLibrary.CreateConvexHull(
 			HullDesc(QF_TRIANGLES, pointCount, points), *hull);
-	if (hullError != QE_OK || hull->mNumOutputVertices == 0) {
+	if (hullError != QE_OK || hull->mNumIndices < 3) {
 		AssertMsg(false, "Convex hull creation failed");
 		delete hull;
 		return nullptr;
@@ -99,13 +129,28 @@ btScalar CPhysConvex_Hull::GetVolume() const {
 	const btVector3 &v0 = vertices[0];
 	const unsigned int *indices = &m_Hull->m_Indices[0];
 	unsigned int indexCount = m_Hull->mNumIndices;
-	for (int indexIndex = 0; indexIndex < indexCount; indexCount += 3) {
+	for (int indexIndex = 3; indexIndex < indexCount; indexCount += 3) {
 		btVector3 a = vertices[indices[indexIndex]] - v0;
 		btVector3 b = vertices[indices[indexIndex + 1]] - v0;
 		btVector3 c = vertices[indices[indexIndex + 2]] - v0;
 		volume += btFabs(a.dot(b.cross(c)));
 	}
 	volume *= 1.0f / 6.0f;
+}
+
+btScalar CPhysConvex_Hull::GetSurfaceArea() const {
+	const btVector3 *vertices = &m_Hull->m_OutputVertices[0];
+	unsigned int vertexCount = m_Hull->mNumOutputVertices;
+	const unsigned int *indices = &m_Hull->m_Indices[0];
+	unsigned int indexCount = m_Hull->mNumIndices;
+	btScalar area = 0.0f;
+	for (unsigned int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
+		const btVector3 &v0 = vertices[indices[indexIndex]];
+		const btVector3 &v1 = vertices[indices[indexIndex + 1]];
+		const btVector3 &v2 = vertices[indices[indexIndex + 2]];
+		area += (v1 - v0).cross(v2 - v0).length();
+	}
+	return 0.5f * area;
 }
 
 CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) {
@@ -152,6 +197,10 @@ btScalar CPhysConvex_Box::GetSurfaceArea() const {
 	const btVector3 &halfExtents = m_Shape.getHalfExtentsWithoutMargin();
 	return 8.0f * halfExtents.getX() * halfExtents.getY() +
 			4.0 * halfExtents.getZ() * (halfExtents.getX() + halfExtents.getY());
+}
+
+btVector3 CPhysConvex_Box::GetInertia() const {
+	return CPhysicsCollision::BoxInertia(2.0f * m_Shape.getHalfExtentsWithoutMargin());
 }
 
 CPhysCollide_Compound *CPhysicsCollision::CreateBBox(const Vector &mins, const Vector &maxs) {
@@ -269,20 +318,30 @@ CPhysCollide_Compound::CPhysCollide_Compound(CPhysConvex **pConvex, int convexCo
 
 	Initialize();
 
-	// Calculate the center of mass.
-	if (convexCount > 1) {
-		btVector3 areaWeightedAverage(0.0f, 0.0f, 0.0f);
-		btScalar area = 0.0f;
+	// Calculate volume and center of mass.
+	m_Volume = 0.0f;
+	m_MassCenter.setZero();
+	for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
+		const CPhysConvex *convex = pConvex[convexIndex];
+		btScalar convexVolume = convex->GetVolume();
+		m_Volume += convexVolume;
+		m_MassCenter += (convex->GetOriginInCompound() + convex->GetMassCenter()) * convexVolume;
+	}
+	if (m_Volume > 0.0f) {
+		m_MassCenter /= m_Volume;
+	} else {
+		btVector3 aabbMin(BT_LARGE_FLOAT, BT_LARGE_FLOAT, BT_LARGE_FLOAT);
+		btVector3 aabbMax(-BT_LARGE_FLOAT, -BT_LARGE_FLOAT, -BT_LARGE_FLOAT);
+		btTransform convexAabbTransform(btMatrix3x3::getIdentity());
 		for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
 			const CPhysConvex *convex = pConvex[convexIndex];
-			btScalar convexArea = convex->GetSurfaceArea();
-			area += convexArea;
-			areaWeightedAverage += (convex->GetOriginInCompound() + convex->GetMassCenter()) * convexArea;
+			convexAabbTransform.setOrigin(convex->GetOriginInCompound());
+			btVector3 convexAabbMin, convexAabbMax;
+			convex->GetShape()->getAabb(convexAabbTransform, convexAabbMin, convexAabbMax);
+			aabbMin.setMin(convexAabbMin);
+			aabbMax.setMax(convexAabbMax);
 		}
-		// TODO: Do something if area is near 0 (center of AABB?) if needed.
-		m_MassCenter = areaWeightedAverage / area;
-	} else {
-		m_MassCenter = pConvex[0]->GetMassCenter() + pConvex[0]->GetOriginInCompound();
+		m_MassCenter = (aabbMin + aabbMax) * 0.5f;
 	}
 
 	btTransform transform(btMatrix3x3::getIdentity());
@@ -294,6 +353,8 @@ CPhysCollide_Compound::CPhysCollide_Compound(CPhysConvex **pConvex, int convexCo
 		transform.setOrigin(convex->GetOriginInCompound() - m_MassCenter);
 		m_Shape.addChildShape(transform, convex->GetShape());
 	}
+
+	CalculateInertia();
 }
 
 CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, int convexCount) {
@@ -337,7 +398,30 @@ void CPhysCollide_Compound::SetMassCenter(const btVector3 &massCenter) {
 		m_Shape.updateChildTransform(childIndex, childTransform, false);
 	}
 	m_Shape.recalculateLocalAabb();
+	CalculateInertia();
 	NotifyObjectsOfMassCenterChange(oldMassCenter);
+}
+
+void CPhysCollide_Compound::CalculateInertia() {
+	if (m_Volume >= 0) {
+		m_Inertia.setZero();
+		int childCount = m_Shape.getNumChildShapes();
+		for (int childIndex = 0; childIndex < childCount; ++childIndex) {
+			const CPhysConvex *convex = reinterpret_cast<const CPhysConvex *>(
+					m_Shape.getChildShape(childIndex)->getUserPointer());
+			const btVector3 &origin = m_Shape.getChildTransform(childIndex).getOrigin();
+			m_Inertia += convex->GetVolume() * CPhysicsCollision::OffsetInertia(
+					convex->GetInertia(), m_Shape.getChildTransform(childIndex).getOrigin());
+		}
+		m_Inertia /= m_Volume;
+	} else {
+		btVector3 aabbMin, aabbMax;
+		m_Shape.getAabb(btTransform(btMatrix3x3::getIdentity()), aabbMin, aabbMax);
+		m_Inertia = CPhysicsCollision::OffsetInertia(
+				CPhysicsCollision::BoxInertia(aabbMax - aabbMin),
+				(aabbMin + aabbMax) * 0.5f);
+	}
+	m_Inertia = m_Inertia.absolute();
 }
 
 /**********
@@ -352,4 +436,10 @@ btScalar CPhysCollide_Sphere::GetVolume() const {
 btScalar CPhysCollide_Sphere::GetSurfaceArea() const {
 	btScalar radius = m_Shape.getRadius();
 	return (4.0f * SIMD_PI) * radius * radius;
+}
+
+btVector3 CPhysCollide_Sphere::GetInertia() const {
+	btScalar elem = m_Shape.getRadius();
+	elem *= elem * 0.4;
+	return btVector3(elem, elem, elem);
 }

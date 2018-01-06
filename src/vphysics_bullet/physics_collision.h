@@ -29,6 +29,7 @@ public:
 	virtual btScalar GetVolume() const { return 0.0f; }
 	virtual btScalar GetSurfaceArea() const { return 0.0f; }
 	virtual btVector3 GetMassCenter() const { return btVector3(0.0f, 0.0f, 0.0f); }
+	virtual btVector3 GetInertia() const { return btVector3(1.0f, 1.0f, 1.0f); }
 
 	virtual btVector3 GetOriginInCompound() const { return btVector3(0.0f, 0.0f, 0.0f); }
 
@@ -61,14 +62,16 @@ public:
 	}
 
 	virtual btScalar GetVolume() const;
-	virtual btScalar GetSurfaceArea() const { return m_SurfaceArea; }
+	virtual btScalar GetSurfaceArea() const; // Slow.
 	virtual btVector3 GetMassCenter() const { return m_MassCenter; }
+	virtual btVector3 GetInertia() const { return m_Inertia; }
 
 private:
 	btConvexHullShape m_Shape;
 	HullResult *m_Hull;
-	btScalar m_SurfaceArea;
+	btScalar m_Volume;
 	btVector3 m_MassCenter;
+	btVector3 m_Inertia;
 };
 
 class CPhysConvex_Box : public CPhysConvex {
@@ -86,6 +89,7 @@ public:
 
 	virtual btScalar GetVolume() const;
 	virtual btScalar GetSurfaceArea() const;
+	virtual btVector3 GetInertia() const;
 
 	virtual btVector3 GetOriginInCompound() const { return m_Origin; }
 
@@ -116,6 +120,7 @@ public:
 
 	virtual btVector3 GetMassCenter() const { return btVector3(0.0f, 0.0f, 0.0f); }
 	virtual void SetMassCenter(const btVector3 &massCenter) {}
+	virtual btVector3 GetInertia() const { return btVector3(1.0f, 1.0f, 1.0f); }
 
 	FORCEINLINE IPhysicsObject *GetObjectReferenceList() const {
 		return m_ObjectReferenceList;
@@ -157,7 +162,7 @@ public:
 		return collide->GetShape()->getShapeType() == COMPOUND_SHAPE_PROXYTYPE;
 	}
 
-	virtual btScalar GetVolume() const;
+	virtual btScalar GetVolume() const { return m_Volume; }
 	virtual btScalar GetSurfaceArea() const;
 
 	virtual btVector3 GetMassCenter() const { return m_MassCenter; }
@@ -165,7 +170,11 @@ public:
 
 private:
 	btCompoundShape m_Shape;
+	btScalar m_Volume;
 	btVector3 m_MassCenter;
+	btVector3 m_Inertia;
+
+	void CalculateInertia();
 };
 
 class CPhysCollide_Sphere : public CPhysCollide {
@@ -183,6 +192,8 @@ public:
 
 	virtual btScalar GetVolume() const;
 	virtual btScalar GetSurfaceArea() const;
+
+	virtual btVector3 GetInertia() const;
 
 private:
 	btSphereShape m_Shape;
@@ -212,6 +223,9 @@ public:
 	virtual CPhysCollide *BBoxToCollide(const Vector &mins, const Vector &maxs);
 
 	// Internal methods.
+
+	static btVector3 BoxInertia(const btVector3 &extents);
+	static btVector3 OffsetInertia(const btVector3 &inertia, const btVector3 &origin);
 
 	void SetCollideIndex(CPhysCollide *pCollide, int index);
 
