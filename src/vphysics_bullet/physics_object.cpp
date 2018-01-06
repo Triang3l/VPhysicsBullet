@@ -18,7 +18,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_CollideObjectNext(this), m_CollideObjectPrevious(this),
 		m_MassCenterOverride(0.0f, 0.0f, 0.0f),
 		m_Mass((!isStatic && !collide->GetShape()->isNonMoving()) ? pParams->mass : 0.0f),
-		m_Inertia(pParams->inertia, pParams->inertia, pParams->inertia), m_HingeAxis(-1),
+		m_HingeAxis(-1),
 		m_Damping(pParams->damping), m_RotDamping(pParams->rotdamping),
 		m_GameData(pParams->pGameData), m_GameFlags(0), m_GameIndex(0),
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
@@ -27,12 +27,8 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_ContentsMask(CONTENTS_SOLID),
 		m_LinearVelocityChange(0.0f, 0.0f, 0.0f),
 		m_LocalAngularVelocityChange(0.0f, 0.0f, 0.0f) {
-	VectorAbs(m_Inertia, m_Inertia);
-	btVector3 inertia;
-	ConvertDirectionToBullet(m_Inertia, inertia);
-
 	btRigidBody::btRigidBodyConstructionInfo constructionInfo(
-			m_Mass, nullptr, collide->GetShape(), inertia.absolute());
+			m_Mass, nullptr, collide->GetShape(), collide->GetInertia());
 
 	btVector3 massCenter = collide->GetMassCenter();
 	const Vector *massCenterOverride = pParams->massCenterOverride;
@@ -40,12 +36,22 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		ConvertPositionToBullet(*massCenterOverride, m_MassCenterOverride);
 		BEGIN_BULLET_ALLOCATION();
 		btCompoundShape *massCenterOverrideShape = new btCompoundShape(false, 1);
+		btVector3 massCenterOffset = m_MassCenterOverride - massCenter;
 		massCenterOverrideShape->addChildShape(btTransform(btMatrix3x3::getIdentity(),
-				massCenter - m_MassCenterOverride), collide->GetShape());
+				-massCenterOffset), collide->GetShape());
 		END_BULLET_ALLOCATION();
 		constructionInfo.m_collisionShape = massCenterOverrideShape;
 		massCenter = m_MassCenterOverride;
+		constructionInfo.m_localInertia = CPhysicsCollision::OffsetInertia(
+				constructionInfo.m_localInertia, massCenterOffset).absolute();
 	}
+	constructionInfo.m_localInertia *= pParams->inertia * m_Mass;
+	if (pParams->rotInertiaLimit > 0.0f) {
+		btScalar minInertia = constructionInfo.m_localInertia.length() * pParams->rotInertiaLimit;
+		constructionInfo.m_localInertia.setMax(btVector3(minInertia, minInertia, minInertia));
+	}
+	ConvertDirectionToHL(constructionInfo.m_localInertia, m_Inertia);
+	VectorAbs(m_Inertia, m_Inertia);
 
 	matrix3x4_t startMatrix;
 	AngleMatrix(angles, position, startMatrix);
@@ -166,6 +172,9 @@ Vector CPhysicsObject::GetInvInertia() const {
 }
 
 void CPhysicsObject::SetInertia(const Vector &inertia) {
+	if (!IsStatic()) {
+		return;
+	}
 	VectorAbs(inertia, m_Inertia);
 	UpdateMassProps(true);
 }
@@ -176,6 +185,9 @@ bool CPhysicsObject::IsHinged() const {
 
 void CPhysicsObject::BecomeHinged(int localAxis) {
 	Assert(localAxis >= 0 && localAxis <= 2);
+	if (IsStatic()) {
+		return;
+	}
 	int bulletAxis = ConvertCoordinateAxisToBullet(localAxis);
 	if (m_HingeAxis == bulletAxis) {
 		return;
@@ -403,6 +415,7 @@ void CPhysicsObject::NotifyMassCenterChanged(const btVector3 &oldMassCenter) {
 		btTransform interpolationWorldTransform = m_RigidBody->getInterpolationWorldTransform();
 		interpolationWorldTransform.getOrigin() += worldOffset;
 		m_RigidBody->setInterpolationWorldTransform(interpolationWorldTransform);
+		// TODO: Nothing is done to inertia. But SetCollideMassCenter isn't called for live collides apparently.
 	}
 }
 
