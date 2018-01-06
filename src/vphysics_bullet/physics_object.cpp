@@ -11,15 +11,13 @@
 #include "tier0/memdbgon.h"
 
 CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
-		btCollisionShape *collisionShape, bool ownCollisionShape,
-		int materialIndex,
+		CPhysCollide *collide, int materialIndex,
 		const Vector &position, const QAngle &angles,
 		objectparams_t *pParams, bool isStatic) :
 		m_Environment(environment),
-		m_OwnCollisionShape(ownCollisionShape),
 		m_CollideObjectNext(this), m_CollideObjectPrevious(this),
-		m_MassCenterOverride(0.0f, 0.0f, 0.0f), m_MassCenterOverrideShape(nullptr),
-		m_Mass((!isStatic && !collisionShape->isNonMoving()) ? pParams->mass : 0.0f),
+		m_MassCenterOverride(0.0f, 0.0f, 0.0f),
+		m_Mass((!isStatic && !collide->GetShape()->isNonMoving()) ? pParams->mass : 0.0f),
 		m_Inertia(pParams->inertia, pParams->inertia, pParams->inertia), m_HingeAxis(-1),
 		m_Damping(pParams->damping), m_RotDamping(pParams->rotdamping),
 		m_GameData(pParams->pGameData), m_GameFlags(0), m_GameIndex(0),
@@ -34,18 +32,18 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	ConvertDirectionToBullet(m_Inertia, inertia);
 
 	btRigidBody::btRigidBodyConstructionInfo constructionInfo(
-			m_Mass, nullptr, collisionShape, inertia.absolute());
+			m_Mass, nullptr, collide->GetShape(), inertia.absolute());
 
-	btVector3 massCenter = g_pPhysCollision->CollideGetBulletMassCenter(collisionShape);
+	btVector3 massCenter = collide->GetMassCenter();
 	const Vector *massCenterOverride = pParams->massCenterOverride;
 	if (massCenterOverride != nullptr && *massCenterOverride != vec3_origin) {
 		ConvertPositionToBullet(*massCenterOverride, m_MassCenterOverride);
 		BEGIN_BULLET_ALLOCATION();
-		m_MassCenterOverrideShape = new btCompoundShape(false, 1);
-		m_MassCenterOverrideShape->addChildShape(btTransform(btMatrix3x3::getIdentity(),
-				massCenter - m_MassCenterOverride), collisionShape);
+		btCompoundShape *massCenterOverrideShape = new btCompoundShape(false, 1);
+		massCenterOverrideShape->addChildShape(btTransform(btMatrix3x3::getIdentity(),
+				massCenter - m_MassCenterOverride), collide->GetShape());
 		END_BULLET_ALLOCATION();
-		constructionInfo.m_collisionShape = m_MassCenterOverrideShape;
+		constructionInfo.m_collisionShape = massCenterOverrideShape;
 		massCenter = m_MassCenterOverride;
 	}
 
@@ -72,32 +70,41 @@ CPhysicsObject::~CPhysicsObject() {
 
 	static_cast<CPhysicsEnvironment *>(m_Environment)->NotifyObjectRemoving(this);
 
-	if (m_MassCenterOverrideShape != nullptr) {
-		delete m_MassCenterOverrideShape;
+	btCollisionShape *shape = m_RigidBody->getCollisionShape();
+	if (shape->getUserPointer() == nullptr) {
+		// Delete the mass override shape.
+		m_RigidBody->setCollisionShape(static_cast<btCompoundShape *>(shape)->getChildShape(0));
+		delete shape;
 	}
 	RemoveReferenceFromCollide();
-	if (m_OwnCollisionShape) {
-		g_pPhysCollision->DestroyCollide(reinterpret_cast<CPhysCollide *>(
-				m_RigidBody->getCollisionShape()));
-	}
 
 	delete m_RigidBody;
 }
 
-btCollisionShape *CPhysicsObject::GetCollisionShape() const {
-	if (m_MassCenterOverrideShape != nullptr) {
-		return m_MassCenterOverrideShape->getChildShape(0);
+CPhysCollide *CPhysicsObject::GetCollide() {
+	btCollisionShape *shape = m_RigidBody->getCollisionShape();
+	if (shape->getUserPointer() == nullptr) {
+		// Overriding mass center.
+		shape = static_cast<btCompoundShape *>(shape)->getChildShape(0);
 	}
-	return m_RigidBody->getCollisionShape();
+	return reinterpret_cast<CPhysCollide *>(shape->getUserPointer());
 }
 
 const CPhysCollide *CPhysicsObject::GetCollide() const {
-	return reinterpret_cast<const CPhysCollide *>(GetCollisionShape());
+	const btCollisionShape *shape = m_RigidBody->getCollisionShape();
+	if (shape->getUserPointer() == nullptr) {
+		// Overriding mass center.
+		shape = static_cast<const btCompoundShape *>(shape)->getChildShape(0);
+	}
+	return reinterpret_cast<const CPhysCollide *>(shape->getUserPointer());
 }
 
 float CPhysicsObject::GetSphereRadius() const {
-	return g_pPhysCollision->GetSphereRadius(
-			reinterpret_cast<const CPhysCollide *>(GetCollisionShape()));
+	const CPhysCollide *collide = GetCollide();
+	if (CPhysCollide_Sphere::IsSphere(collide)) {
+		return BULLET2HL(static_cast<const CPhysCollide_Sphere *>(collide)->GetRadius());
+	}
+	return 0.0f;
 }
 
 void CPhysicsObject::NotifyTransferred(IPhysicsEnvironment *newEnvironment) {
@@ -366,10 +373,10 @@ void CPhysicsObject::SetContents(unsigned int contents) {
  **********************/
 
 const btVector3 &CPhysicsObject::GetBulletMassCenter() const {
-	if (m_MassCenterOverrideShape != nullptr) {
+	if (m_RigidBody->getCollisionShape()->getUserPointer() == nullptr) {
 		return m_MassCenterOverride;
 	}
-	return g_pPhysCollision->CollideGetBulletMassCenter(m_RigidBody->getCollisionShape());
+	return GetCollide()->GetMassCenter();
 }
 
 Vector CPhysicsObject::GetMassCenterLocalSpace() const {
@@ -379,11 +386,13 @@ Vector CPhysicsObject::GetMassCenterLocalSpace() const {
 }
 
 void CPhysicsObject::NotifyMassCenterChanged(const btVector3 &oldMassCenter) {
-	const btVector3 &newMassCenter = g_pPhysCollision->CollideGetBulletMassCenter(GetCollisionShape());
-	if (m_MassCenterOverrideShape != nullptr) {
-		btTransform childTransform = m_MassCenterOverrideShape->getChildTransform(0);
+	const btVector3 &newMassCenter = GetCollide()->GetMassCenter();
+	btCollisionShape *shape = m_RigidBody->getCollisionShape();
+	if (shape->getUserPointer() == nullptr) {
+		btCompoundShape *compoundShape = static_cast<btCompoundShape *>(shape);
+		btTransform childTransform = compoundShape->getChildTransform(0);
 		childTransform.setOrigin(newMassCenter - m_MassCenterOverride);
-		m_MassCenterOverrideShape->updateChildTransform(0, childTransform);
+		compoundShape->updateChildTransform(0, childTransform);
 	} else {
 		// Updates the same properties as setCenterOfMassTransform.
 		btVector3 offset = newMassCenter - oldMassCenter;
@@ -668,12 +677,9 @@ void CPhysicsObject::RemoveTrigger() {
  ***************************************/
 
 void CPhysicsObject::AddReferenceToCollide() {
-	btCollisionShape *shape = GetCollisionShape();
-	void *nextPointer = shape->getUserPointer();
-	shape->setUserPointer(static_cast<IPhysicsObject *>(this));
-	if (nextPointer != nullptr) {
-		m_CollideObjectNext = static_cast<CPhysicsObject *>(
-				reinterpret_cast<IPhysicsObject *>(nextPointer));
+	IPhysicsObject *next = GetCollide()->AddObjectReference(this);
+	if (next != nullptr) {
+		m_CollideObjectNext = static_cast<CPhysicsObject *>(next);
 		m_CollideObjectPrevious = m_CollideObjectNext->m_CollideObjectPrevious;
 		m_CollideObjectNext->m_CollideObjectPrevious = this;
 		m_CollideObjectPrevious->m_CollideObjectNext = this;
@@ -683,12 +689,7 @@ void CPhysicsObject::AddReferenceToCollide() {
 }
 
 void CPhysicsObject::RemoveReferenceFromCollide() {
-	btCollisionShape *shape = GetCollisionShape();
-	void *nextPointer = shape->getUserPointer();
-	if (nextPointer != nullptr && reinterpret_cast<IPhysicsObject *>(nextPointer) == this) {
-		shape->setUserPointer(m_CollideObjectNext != this ?
-				static_cast<IPhysicsObject *>(m_CollideObjectNext) : nullptr);
-	}
+	GetCollide()->RemoveObjectReference(this);
 	m_CollideObjectNext->m_CollideObjectPrevious = m_CollideObjectPrevious;
 	m_CollideObjectPrevious->m_CollideObjectNext = m_CollideObjectNext;
 }

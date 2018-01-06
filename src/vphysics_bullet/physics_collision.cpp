@@ -8,53 +8,50 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-/* CPhysConvex can be one of the following:
- * - btConvexHullShape - user data is ConvexHullData_t.
- * - btBoxShape - always from the bbox cache, its user data is BBoxConvexCache_t.
- * User index (contents) of CPhysConvex is set with SetConvexGameData.
- *
- * CPhysCollide is either:
- * - btCompoundShape - user index is VCollide solid index, may be a cached bbox.
- * - btBvhTriangleMeshShape - virtual mesh (displacement) or polysoup.
- * - btSphereShape - for spherical physics objects.
- * User index of CPhysCollide is the solid index in VCollide.
- * User pointer is one of the objects using this collide for mass center updates.
- */
-
 // TODO: Cleanup the bbox cache when shutting down.
 // Not sure what to do with it in thread contexts though.
 
 static CPhysicsCollision s_PhysCollision;
 CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
 
-/*******************
- * Convex polyhedra
- *******************/
+/***********
+ * Convexes
+ ***********/
 
-btConvexHullShape *CPhysicsCollision::ConvexFromBulletPoints(
-		const btVector3 *points, unsigned int pointCount) {
-	if (pointCount == 0) {
-		return nullptr;
+float CPhysicsCollision::ConvexVolume(CPhysConvex *pConvex) {
+	return (float) pConvex->GetVolume() * (BULLET2HL_FACTOR * BULLET2HL_FACTOR * BULLET2HL_FACTOR);
+}
+
+float CPhysicsCollision::ConvexSurfaceArea(CPhysConvex *pConvex) {
+	return (float) pConvex->GetSurfaceArea() * (BULLET2HL_FACTOR * BULLET2HL_FACTOR);
+}
+
+void CPhysicsCollision::SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData) {
+	pConvex->GetShape()->setUserIndex((int) gameData);
+}
+
+void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
+	if (pConvex->GetOwner() == CPhysConvex::OWNER_GAME) {
+		delete pConvex;
 	}
-	ConvexHullData_t *hullData = new ConvexHullData_t;
-	HullResult &hull = hullData->m_Hull;
-	BEGIN_BULLET_ALLOCATION();
-	HullError hullError = m_HullLibrary.CreateConvexHull(
-			HullDesc(QF_TRIANGLES, pointCount, points), hull);
-	END_BULLET_ALLOCATION();
-	if (hullError != QE_OK || hull.mNumOutputVertices == 0) {
-		AssertMsg(false, "Convex hull creation failed");
-		delete hullData;
-		return nullptr;
-	}
+}
+
+/***************
+ * Convex hulls
+ ***************/
+
+CPhysConvex_Hull::CPhysConvex_Hull(HullResult *hull) :
+		m_Shape(&hull->m_OutputVertices[0][0], hull->mNumOutputVertices),
+		m_Hull(hull) {
+	Initialize();
 
 	// Find the area-weighted average of triangle centroids for center of mass calculation.
 	btScalar surfaceArea = 0.0f;
 	btVector3 areaWeightedAverage(0.0f, 0.0f, 0.0f);
-	const btVector3 *vertices = &hull.m_OutputVertices[0];
-	unsigned int vertexCount = hull.mNumOutputVertices;
-	const unsigned int *indices = &hull.m_Indices[0];
-	unsigned int indexCount = hull.mNumIndices;
+	const btVector3 *vertices = &m_Hull->m_OutputVertices[0];
+	unsigned int vertexCount = m_Hull->mNumOutputVertices;
+	const unsigned int *indices = &m_Hull->m_Indices[0];
+	unsigned int indexCount = m_Hull->mNumIndices;
 	for (unsigned int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
 		const btVector3 &v0 = vertices[indices[indexIndex]];
 		const btVector3 &v1 = vertices[indices[indexIndex + 1]];
@@ -63,16 +60,51 @@ btConvexHullShape *CPhysicsCollision::ConvexFromBulletPoints(
 		surfaceArea += triangleArea;
 		areaWeightedAverage += (v0 + v1 + v2) * (1.0f / 3.0f) * triangleArea;
 	}
-	hullData->m_SurfaceArea = surfaceArea;
-	hullData->m_AreaWeightedAverage = areaWeightedAverage;
+	m_SurfaceArea = surfaceArea;
+	if (surfaceArea > 1e-4) {
+		m_MassCenter = areaWeightedAverage / m_SurfaceArea;
+	} else {
+		// Use the geometric average as the mass center.
+		btVector3 aabbMins(BT_LARGE_FLOAT, BT_LARGE_FLOAT, BT_LARGE_FLOAT);
+		btVector3 aabbMaxs(-BT_LARGE_FLOAT, -BT_LARGE_FLOAT, -BT_LARGE_FLOAT);
+		for (unsigned int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex) {
+			const btVector3 &vertex = vertices[vertexIndex];
+			aabbMins.setMin(vertex);
+			aabbMaxs.setMax(vertex);
+		}
+	}
+}
 
-	// Create the mesh.
-	BEGIN_BULLET_ALLOCATION();
-	btConvexHullShape *shape = new btConvexHullShape(&vertices[0][0], (int) vertexCount);
-	END_BULLET_ALLOCATION();
-	shape->setUserIndex(0);
-	shape->setUserPointer(hullData);
-	return shape;
+CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
+		HullLibrary &hullLibrary, const btVector3 *points, int pointCount) {
+	if (pointCount == 0) {
+		return nullptr;
+	}
+	HullResult *hull = new HullResult;
+	HullError hullError = hullLibrary.CreateConvexHull(
+			HullDesc(QF_TRIANGLES, pointCount, points), *hull);
+	if (hullError != QE_OK || hull->mNumOutputVertices == 0) {
+		AssertMsg(false, "Convex hull creation failed");
+		delete hull;
+		return nullptr;
+	}
+	return new CPhysConvex_Hull(hull);
+}
+
+btScalar CPhysConvex_Hull::GetVolume() const {
+	// Tetrahedronalize the hull and compute its volume.
+	btScalar volume = 0.0f;
+	const btVector3 *vertices = &m_Hull->m_OutputVertices[0];
+	const btVector3 &v0 = vertices[0];
+	const unsigned int *indices = &m_Hull->m_Indices[0];
+	unsigned int indexCount = m_Hull->mNumIndices;
+	for (int indexIndex = 0; indexIndex < indexCount; indexCount += 3) {
+		btVector3 a = vertices[indices[indexIndex]] - v0;
+		btVector3 b = vertices[indices[indexIndex + 1]] - v0;
+		btVector3 c = vertices[indices[indexIndex + 2]] - v0;
+		volume += btFabs(a.dot(b.cross(c)));
+	}
+	volume *= 1.0f / 6.0f;
 }
 
 CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) {
@@ -83,11 +115,11 @@ CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) 
 	for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex) {
 		ConvertPositionToBullet(*pVerts[vertIndex], points[vertIndex]);
 	}
-	btConvexHullShape *shape = ConvexFromBulletPoints(&points[0], points.size());
-	if (shape == nullptr) {
-		return nullptr;
-	}
-	return reinterpret_cast<CPhysConvex *>(shape);
+	BEGIN_BULLET_ALLOCATION();
+	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(
+			m_HullLibrary, &points[0], points.size());
+	END_BULLET_ALLOCATION();
+	return convex;
 }
 
 CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &ConvexPolyhedron) {
@@ -99,332 +131,209 @@ CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &Co
 	for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex) {
 		ConvertPositionToBullet(verts[vertIndex], points[vertIndex]);
 	}
-	btConvexHullShape *shape = ConvexFromBulletPoints(&points[0], points.size());
-	if (shape == nullptr) {
-		return nullptr;
-	}
-	return reinterpret_cast<CPhysConvex *>(shape);
+	BEGIN_BULLET_ALLOCATION();
+	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(
+			m_HullLibrary, &points[0], points.size());
+	END_BULLET_ALLOCATION();
+	return convex;
 }
 
-/*****************
- * Special shapes
- *****************/
+/***********************************************
+ * Bounding boxes (both convex and collideable)
+ ***********************************************/
 
-CPhysicsCollision::BBoxCache_t *CPhysicsCollision::CreateBBox(const Vector &mins, const Vector &maxs) {
-	Vector halfExtents = maxs - mins;
-	VectorAbs(halfExtents, halfExtents);
-	Vector origin = (mins + maxs) * 0.5f;
+btScalar CPhysConvex_Box::GetVolume() const {
+	const btVector3 &halfExtents = m_Shape.getHalfExtentsWithoutMargin();
+	return 8.0f * halfExtents.getX() * halfExtents.getY() * halfExtents.getZ();
+}
 
-	BBoxCache_t *bbox;
+btScalar CPhysConvex_Box::GetSurfaceArea() const {
+	const btVector3 &halfExtents = m_Shape.getHalfExtentsWithoutMargin();
+	return 8.0f * halfExtents.getX() * halfExtents.getY() +
+			4.0 * halfExtents.getZ() * (halfExtents.getX() + halfExtents.getY());
+}
 
-	int bboxIndex, bboxCount = m_BBoxCache.Count();
-	for (bboxIndex = 0; bboxIndex < bboxCount; ++bboxIndex) {
-		bbox = &m_BBoxCache[bboxIndex];
+CPhysCollide_Compound *CPhysicsCollision::CreateBBox(const Vector &mins, const Vector &maxs) {
+	if (mins == maxs) {
+		return nullptr;
+	}
+
+	btVector3 bulletMins, bulletMaxs;
+	ConvertPositionToBullet(mins, bulletMins);
+	ConvertPositionToBullet(maxs, bulletMaxs);
+	btVector3 halfExtents = (bulletMaxs - bulletMins).absolute() * 0.5f;
+	btVector3 origin = (bulletMins + bulletMaxs) * 0.5f;
+
+	const btScalar threshold = HL2BULLET(0.1f);
+
+	for (int bboxIndex = m_BBoxCache.Count() - 1; bboxIndex >= 0; --bboxIndex) {
+		CPhysCollide_Compound *cacheCompound = m_BBoxCache[bboxIndex];
+		const CPhysConvex_Box *cacheBox = static_cast<const CPhysConvex_Box *>(
+				reinterpret_cast<const CPhysConvex *>(
+						cacheCompound->GetCompoundShape()->getChildShape(0)->getUserPointer()));
+		const btVector3 &cacheHalfExtents = cacheBox->GetBoxShape()->getHalfExtentsWithoutMargin();
+		const btVector3 &cacheOrigin = cacheBox->GetOriginInCompound();
 		for (int component = 0; component < 3; ++component) {
-			if (fabsf(bbox->m_HalfExtents[component] - halfExtents[component]) > 0.1f ||
-					fabsf(bbox->m_Origin[component] - origin[component]) > 0.1f) {
-				bbox = nullptr;
+			if (btFabs(cacheHalfExtents[component] - halfExtents[component]) > threshold ||
+					btFabs(cacheOrigin[component] - origin[component]) > threshold) {
+				cacheCompound = nullptr;
 				break;
 			}
-		}
-		if (bbox != nullptr) {
-			return bbox;
+			if (cacheCompound != nullptr) {
+				return cacheCompound;
+			}
 		}
 	}
 
-	btVector3 bulletHalfExtents, bulletOrigin;
-	ConvertPositionToBullet(halfExtents, bulletHalfExtents);
-	bulletHalfExtents = bulletHalfExtents.absolute(); // Because conversion changes signs.
-	ConvertPositionToBullet(origin, bulletOrigin);
-
-	bbox = &m_BBoxCache[m_BBoxCache.AddToTail()];
-	bbox->m_HalfExtents = halfExtents;
-	bbox->m_Origin = origin;
 	BEGIN_BULLET_ALLOCATION();
-	bbox->m_BoxShape = new btBoxShape(bulletHalfExtents);
-	bbox->m_BoxShape->setUserIndex(0);
-	bbox->m_BoxShape->setUserPointer(bbox);
-	bbox->m_CompoundShape = new btCompoundShape(false, 1);
-	bbox->m_CompoundShape->setUserIndex(0);
-	bbox->m_CompoundShape->addChildShape(
-			btTransform(btMatrix3x3::getIdentity(), bulletOrigin), bbox->m_BoxShape);
+	CPhysConvex *box = new CPhysConvex_Box(halfExtents, origin);
+	box->SetOwner(CPhysConvex::OWNER_INTERNAL);
+	CPhysCollide_Compound *compound = new CPhysCollide_Compound(&box, 1);
+	compound->SetOwner(CPhysCollide::OWNER_INTERNAL);
 	END_BULLET_ALLOCATION();
-	return bbox;
+	m_BBoxCache.AddToTail(compound);
+	return compound;
 }
 
 CPhysConvex *CPhysicsCollision::BBoxToConvex(const Vector &mins, const Vector &maxs) {
-	const BBoxCache_t *bbox = CreateBBox(mins, maxs);
-	if (bbox == nullptr) {
+	CPhysCollide_Compound *compound = CreateBBox(mins, maxs);
+	if (compound == nullptr) {
 		return nullptr;
 	}
-	return reinterpret_cast<CPhysConvex *>(bbox->m_BoxShape);
+	return reinterpret_cast<CPhysConvex *>(
+			compound->GetCompoundShape()->getChildShape(0)->getUserPointer());
 }
 
 CPhysCollide *CPhysicsCollision::BBoxToCollide(const Vector &mins, const Vector &maxs) {
-	const BBoxCache_t *bbox = CreateBBox(mins, maxs);
-	if (bbox == nullptr) {
-		return nullptr;
-	}
-	return reinterpret_cast<CPhysCollide *>(bbox->m_CompoundShape);
+	return CreateBBox(mins, maxs);
 }
 
-bool CPhysicsCollision::IsCollideCachedBBox(const btCollisionShape *shape) const {
-	if (shape->getShapeType() != COMPOUND_SHAPE_PROXYTYPE) {
-		return false;
+/***************
+ * Collideables
+ ***************/
+
+void CPhysCollide::RemoveObjectReference(IPhysicsObject *object) {
+	if (m_ObjectReferenceList == object) {
+		m_ObjectReferenceList = static_cast<CPhysicsObject *>(object)->GetNextCollideObject();
+		if (m_ObjectReferenceList == object) {
+			m_ObjectReferenceList = nullptr;
+		}
 	}
-	const btCompoundShape *compoundShape = static_cast<const btCompoundShape *>(shape);
-	if (compoundShape->getNumChildShapes() != 1) {
-		return false;
-	}
-	const btCollisionShape *childShape = compoundShape->getChildShape(0);
-	if (childShape->getShapeType() != BOX_SHAPE_PROXYTYPE) {
-		return false;
-	}
-	void *userPointer = childShape->getUserPointer();
-	if (userPointer == nullptr) {
-		return false;
-	}
-	return reinterpret_cast<const BBoxCache_t *>(userPointer)->m_CompoundShape == compoundShape;
 }
 
-CPhysCollide *CPhysicsCollision::CreateSphere(float radius) {
-	BEGIN_BULLET_ALLOCATION();
-	btSphereShape *shape = new btSphereShape(HL2BULLET(radius));
-	END_BULLET_ALLOCATION();
-	shape->setUserIndex(0);
-	return reinterpret_cast<CPhysCollide *>(shape);
+float CPhysicsCollision::CollideVolume(CPhysCollide *pCollide) {
+	return (float) pCollide->GetVolume() * (BULLET2HL_FACTOR * BULLET2HL_FACTOR * BULLET2HL_FACTOR);
 }
 
-float CPhysicsCollision::GetSphereRadius(const CPhysCollide *pCollide) const {
-	const btCollisionShape *shape = reinterpret_cast<const btCollisionShape *>(pCollide);
-	if (shape->getShapeType() != SPHERE_SHAPE_PROXYTYPE) {
-		return 0.0f;
-	}
-	return BULLET2HL(static_cast<const btSphereShape *>(shape)->getRadius());
+float CPhysicsCollision::CollideSurfaceArea(CPhysCollide *pCollide) {
+	return (float) pCollide->GetSurfaceArea() * (BULLET2HL_FACTOR * BULLET2HL_FACTOR);
 }
 
-void CPhysicsCollision::SetSphereRadius(CPhysCollide *pCollide, float radius) {
-	btCollisionShape *shape = reinterpret_cast<btCollisionShape *>(pCollide);
-	if (shape->getShapeType() == SPHERE_SHAPE_PROXYTYPE) {
-		static_cast<btSphereShape *>(shape)->setUnscaledRadius(HL2BULLET(radius));
+void CPhysicsCollision::CollideGetMassCenter(CPhysCollide *pCollide, Vector *pOutMassCenter) {
+	ConvertPositionToHL(pCollide->GetMassCenter(), *pOutMassCenter);
+}
+
+void CPhysicsCollision::CollideSetMassCenter(CPhysCollide *pCollide, const Vector &massCenter) {
+	btVector3 bulletMassCenter;
+	ConvertPositionToBullet(massCenter, bulletMassCenter);
+	pCollide->SetMassCenter(bulletMassCenter);
+}
+
+void CPhysCollide::NotifyObjectsOfMassCenterChange(const btVector3 &oldMassCenter) {
+	IPhysicsObject *firstObject = GetObjectReferenceList();
+	if (firstObject != nullptr) {
+		CPhysicsObject *object = static_cast<CPhysicsObject *>(firstObject);
+		do {
+			object->NotifyMassCenterChanged(oldMassCenter);
+			object = object->GetNextCollideObject();
+		} while (object != firstObject);
 	}
+}
+
+int CPhysicsCollision::CollideIndex(const CPhysCollide *pCollide) {
+	return pCollide->GetShape()->getUserIndex();
+}
+
+void CPhysicsCollision::SetCollideIndex(CPhysCollide *pCollide, int index) {
+	pCollide->GetShape()->setUserIndex(index);
 }
 
 /******************
  * Compound shapes
  ******************/
 
+CPhysCollide_Compound::CPhysCollide_Compound(CPhysConvex **pConvex, int convexCount) :
+		m_Shape(convexCount > 1, convexCount) {
+	Assert(convexCount > 0);
+
+	Initialize();
+
+	// Calculate the center of mass.
+	if (convexCount > 1) {
+		btVector3 areaWeightedAverage(0.0f, 0.0f, 0.0f);
+		btScalar area = 0.0f;
+		for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
+			const CPhysConvex *convex = pConvex[convexIndex];
+			btScalar convexArea = convex->GetSurfaceArea();
+			area += convexArea;
+			areaWeightedAverage += (convex->GetOriginInCompound() + convex->GetMassCenter()) * convexArea;
+		}
+		m_MassCenter = areaWeightedAverage / area;
+	} else {
+		m_MassCenter = pConvex[0]->GetMassCenter() + pConvex[0]->GetOriginInCompound();
+	}
+
+	btTransform transform(btMatrix3x3::getIdentity());
+	for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
+		CPhysConvex *convex = pConvex[convexIndex];
+		if (convex->GetOwner() == CPhysConvex::OWNER_GAME) {
+			convex->SetOwner(CPhysConvex::OWNER_COMPOUND);
+		}
+		transform.setOrigin(convex->GetOriginInCompound() - m_MassCenter);
+		m_Shape.addChildShape(transform, convex->GetShape());
+	}
+}
+
 CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, int convexCount) {
 	if (convexCount == 0 || pConvex == nullptr) {
 		return nullptr;
 	}
-
-	// Calculate the center of mass.
-	btVector3 areaWeightedAverage(0.0f, 0.0f, 0.0f);
-	btScalar area = 0.0f;
-	for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
-		const btCollisionShape *shape =
-				reinterpret_cast<const btCollisionShape *>(pConvex[convexIndex]);
-		btVector3 convexAreaWeightedAverage;
-		area += ConvexSurfaceAreaAndWeightedAverage(shape, convexAreaWeightedAverage);
-		areaWeightedAverage += convexAreaWeightedAverage;
-	}
-
-	btVector3 massCenter;
-	if (area > 1e-4) {
-		massCenter = areaWeightedAverage / area;
-	} else {
-		// For very small collides, use the AABB center as the center of mass.
-		btVector3 aabbMin(FLT_MAX, FLT_MAX, FLT_MAX), aabbMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-		const btTransform &identity = btTransform::getIdentity();
-		for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
-			const btCollisionShape *convexShape =
-					reinterpret_cast<const btCollisionShape *>(pConvex[convexIndex]);
-			btVector3 convexAabbMin, convexAabbMax;
-			convexShape->getAabb(identity, convexAabbMin, convexAabbMax);
-			if (convexShape->getShapeType() == BOX_SHAPE_PROXYTYPE) {
-				btVector3 origin;
-				ConvertPositionToBullet(reinterpret_cast<const BBoxCache_t *>(
-						convexShape->getUserPointer())->m_Origin, origin);
-				convexAabbMin += origin;
-				convexAabbMax += origin;
-			}
-			aabbMin.setMin(convexAabbMin);
-			aabbMax.setMax(convexAabbMax);
-		}
-		massCenter = (aabbMin + aabbMax) * 0.5f;
-	}
-	btTransform childTransform(btMatrix3x3::getIdentity(), -massCenter);
-
 	BEGIN_BULLET_ALLOCATION();
-	btCompoundShape *compoundShape = new btCompoundShape(convexCount > 1, convexCount);
-	compoundShape->setUserIndex(0);
-	for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
-		// This takes the ownership of the children!
-		compoundShape->addChildShape(childTransform,
-				reinterpret_cast<btCollisionShape *>(pConvex[convexIndex]));
-	}
+	CPhysCollide_Compound *compound = new CPhysCollide_Compound(pConvex, convexCount);
 	END_BULLET_ALLOCATION();
-	return reinterpret_cast<CPhysCollide *>(compoundShape);
+	return compound;
 }
 
-btVector3 CPhysicsCollision::CollideGetBulletMassCenter(const btCollisionShape *shape) {
-	if (shape->getShapeType() == COMPOUND_SHAPE_PROXYTYPE) {
-		return -(static_cast<const btCompoundShape *>(shape)->getChildTransform(0).getOrigin());
-	}
-	return btVector3(0.0f, 0.0f, 0.0f);
-}
-
-void CPhysicsCollision::CollideGetMassCenter(CPhysCollide *pCollide, Vector *pOutMassCenter) {
-	ConvertPositionToHL(CollideGetBulletMassCenter(pCollide), *pOutMassCenter);
-}
-
-void CPhysicsCollision::CollideSetMassCenter(CPhysCollide *pCollide, const Vector &massCenter) {
-	btCollisionShape *shape = reinterpret_cast<btCollisionShape *>(pCollide);
-	if (shape->getShapeType() != COMPOUND_SHAPE_PROXYTYPE || IsCollideCachedBBox(shape)) {
-		AssertMsg(false, "Can only override mass center of compound shapes.");
-		return;
-	}
-
-	btVector3 bulletOldMassCenter = CollideGetBulletMassCenter(shape), bulletMassCenter;
-	ConvertPositionToBullet(massCenter, bulletMassCenter);
-	btTransform transform(btMatrix3x3::getIdentity(), -bulletMassCenter);
-
-	btCompoundShape *compoundShape = static_cast<btCompoundShape *>(shape);
-	int childCount = compoundShape->getNumChildShapes();
+btScalar CPhysCollide_Compound::GetVolume() const {
+	btScalar volume = 0.0f;
+	int childCount = m_Shape.getNumChildShapes();
 	for (int childIndex = 0; childIndex < childCount; ++childIndex) {
-		compoundShape->updateChildTransform(childIndex, transform, false);
+		volume += reinterpret_cast<const CPhysConvex *>(
+				m_Shape.getChildShape(childIndex)->getUserPointer())->GetVolume();
 	}
-	compoundShape->recalculateLocalAabb();
-
-	void *objectPointer = shape->getUserPointer();
-	if (objectPointer != nullptr) {
-		CPhysicsObject *startObject = static_cast<CPhysicsObject *>(
-				reinterpret_cast<IPhysicsObject *>(objectPointer));
-		CPhysicsObject *object = startObject;
-		do {
-			object->NotifyMassCenterChanged(bulletOldMassCenter);
-			object = object->GetNextCollideObject();
-		} while (object != startObject);
-	}
+	return volume;
 }
 
-/************
- * User data
- ************/
-
-void CPhysicsCollision::SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData) {
-	reinterpret_cast<btCollisionShape *>(pConvex)->setUserIndex((int) gameData);
-}
-
-int CPhysicsCollision::CollideIndex(const CPhysCollide *pCollide) {
-	return reinterpret_cast<const btCollisionShape *>(pCollide)->getUserIndex();
-}
-
-void CPhysicsCollision::SetCollideIndex(CPhysCollide *pCollide, int index) {
-	reinterpret_cast<btCollisionShape *>(pCollide)->setUserIndex(index);
-}
-
-bool CPhysicsCollision::IsCollideUsedByObjects(const CPhysCollide *pCollide) const {
-	return reinterpret_cast<const btCollisionShape *>(pCollide)->getUserPointer() != nullptr;
-}
-
-/**********
- * Queries
- **********/
-
-float CPhysicsCollision::ConvexVolume(CPhysConvex *pConvex) {
-	btScalar bulletVolume = 0.0f;
-
-	btCollisionShape *shape = reinterpret_cast<btCollisionShape *>(pConvex);
-	int shapeType = shape->getShapeType();
-	if (shapeType == CONVEX_HULL_SHAPE_PROXYTYPE) {
-		// Tetrahedronalize the hull and compute its volume.
-		const HullResult &hull = reinterpret_cast<const ConvexHullData_t *>(
-				shape->getUserPointer())->m_Hull;
-		const btVector3 *vertices = &hull.m_OutputVertices[0];
-		const btVector3 &v0 = vertices[0];
-		const unsigned int *indices = &hull.m_Indices[0];
-		unsigned int indexCount = hull.mNumIndices;
-		for (int indexIndex = 0; indexIndex < indexCount; indexCount += 3) {
-			btVector3 a = vertices[indices[indexIndex]] - v0;
-			btVector3 b = vertices[indices[indexIndex + 1]] - v0;
-			btVector3 c = vertices[indices[indexIndex + 2]] - v0;
-			bulletVolume += btFabs(a.dot(b.cross(c)));
-		}
-		bulletVolume *= 1.0f / 6.0f;
-	} else if (shapeType == BOX_SHAPE_PROXYTYPE) {
-		const btVector3 &halfExtents =
-				static_cast<const btBoxShape *>(shape)->getHalfExtentsWithoutMargin();
-		bulletVolume = 8.0f * halfExtents.getX() * halfExtents.getY() * halfExtents.getZ();
+btScalar CPhysCollide_Compound::GetSurfaceArea() const {
+	btScalar area = 0.0f;
+	int childCount = m_Shape.getNumChildShapes();
+	for (int childIndex = 0; childIndex < childCount; ++childIndex) {
+		area += reinterpret_cast<const CPhysConvex *>(
+				m_Shape.getChildShape(childIndex)->getUserPointer())->GetSurfaceArea();
 	}
-
-	return (float) bulletVolume * (BULLET2HL_FACTOR * BULLET2HL_FACTOR * BULLET2HL_FACTOR);
+	return area;
 }
 
-float CPhysicsCollision::ConvexSurfaceArea(CPhysConvex *pConvex) {
-	btScalar bulletArea = 0.0f;
-
-	btCollisionShape *shape = reinterpret_cast<btCollisionShape *>(pConvex);
-	int shapeType = shape->getShapeType();
-	if (shapeType == CONVEX_HULL_SHAPE_PROXYTYPE) {
-		bulletArea = reinterpret_cast<const ConvexHullData_t *>(
-				shape->getUserPointer())->m_SurfaceArea;
-	} else if (shapeType == BOX_SHAPE_PROXYTYPE) {
-		const btVector3 &halfExtents =
-				static_cast<const btBoxShape *>(shape)->getHalfExtentsWithoutMargin();
-		bulletArea = 8.0f * halfExtents.getX() * halfExtents.getY() +
-				4.0 * halfExtents.getZ() * (halfExtents.getX() + halfExtents.getY());
+void CPhysCollide_Compound::SetMassCenter(const btVector3 &massCenter) {
+	btVector3 oldMassCenter = m_MassCenter;
+	m_MassCenter = massCenter;
+	int childCount = m_Shape.getNumChildShapes();
+	for (int childIndex = 0; childIndex < childCount; ++childIndex) {
+		btTransform childTransform = m_Shape.getChildTransform(childIndex);
+		childTransform.setOrigin(reinterpret_cast<const CPhysConvex *>(
+				m_Shape.getChildShape(childIndex)->getUserPointer())->GetOriginInCompound() - massCenter);
+		m_Shape.updateChildTransform(childIndex, childTransform, false);
 	}
-
-	return (float) bulletArea * (BULLET2HL_FACTOR * BULLET2HL_FACTOR);
-}
-
-btScalar CPhysicsCollision::ConvexSurfaceAreaAndWeightedAverage(
-		const btCollisionShape *shape, btVector3 &areaWeightedAverage) {
-	int shapeType = shape->getShapeType();
-	void *userPointer = shape->getUserPointer();
-	if (shapeType == CONVEX_HULL_SHAPE_PROXYTYPE) {
-		const ConvexHullData_t &hullData =
-				*reinterpret_cast<const ConvexHullData_t *>(userPointer);
-		areaWeightedAverage = hullData.m_AreaWeightedAverage;
-		return hullData.m_SurfaceArea;
-	}
-	if (shapeType == BOX_SHAPE_PROXYTYPE) {
-		const BBoxCache_t &bboxCache =
-				*reinterpret_cast<const BBoxCache_t *>(userPointer);
-		const btVector3 &halfExtents =
-				static_cast<const btBoxShape *>(shape)->getHalfExtentsWithoutMargin();
-		btScalar area = 8.0f * halfExtents.getX() * halfExtents.getY() +
-				4.0 * halfExtents.getZ() * (halfExtents.getX() + halfExtents.getY());
-		btVector3 origin;
-		ConvertPositionToBullet(bboxCache.m_Origin, origin);
-		areaWeightedAverage = origin * area;
-		return area;
-	}
-	areaWeightedAverage.setZero();
-	return 0.0f;
-}
-
-/**************
- * Destruction
- **************/
-
-void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
-	btCollisionShape *shape = reinterpret_cast<btCollisionShape *>(pConvex);
-	int shapeType = shape->getShapeType();
-	void *userPointer = shape->getUserPointer();
-
-	// All bboxes are cached and must not be freed except for when shutting down.
-	// In this case, the cache pointer is null.
-	if (shapeType == BOX_SHAPE_PROXYTYPE && userPointer != nullptr) {
-		return;
-	}
-
-	// Remove the convex hull.
-	if (shapeType == CONVEX_HULL_SHAPE_PROXYTYPE) {
-		delete reinterpret_cast<ConvexHullData_t *>(userPointer);
-	}
-
-	delete shape;
+	m_Shape.recalculateLocalAabb();
+	NotifyObjectsOfMassCenterChange(oldMassCenter);
 }

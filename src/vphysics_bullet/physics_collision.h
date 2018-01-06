@@ -8,6 +8,189 @@
 #include <LinearMath/btConvexHull.h>
 #include "tier1/utlvector.h"
 
+/************************
+ * Convex shape wrappers
+ ************************/
+
+class CPhysConvex {
+public:
+	enum Owner {
+		OWNER_GAME, // Created and by the game, not added to a compound collideable yet.
+		OWNER_COMPOUND, // Part of a compound created by the game, destroyed with the compound.
+		OWNER_INTERNAL // Managed internally by physics.
+	};
+
+	FORCEINLINE Owner GetOwner() const { return m_Owner; }
+	FORCEINLINE void SetOwner(Owner owner) { m_Owner = owner; }
+
+	virtual btCollisionShape *GetShape() = 0;
+	virtual const btCollisionShape *GetShape() const = 0;
+
+	virtual btScalar GetVolume() const { return 0.0f; }
+	virtual btScalar GetSurfaceArea() const { return 0.0f; }
+	virtual btVector3 GetMassCenter() const { return btVector3(0.0f, 0.0f, 0.0f); }
+
+	virtual btVector3 GetOriginInCompound() const { return btVector3(0.0f, 0.0f, 0.0f); }
+
+protected:
+	CPhysConvex() : m_Owner(OWNER_GAME) {}
+
+	void Initialize() {
+		btCollisionShape *shape = GetShape();
+		shape->setUserPointer(this);
+		shape->setUserIndex(0);
+	}
+
+private:
+	Owner m_Owner;
+};
+
+class CPhysConvex_Hull : public CPhysConvex {
+public:
+	// Takes ownership of the hull.
+	CPhysConvex_Hull(HullResult *hull);
+	static CPhysConvex_Hull *CreateFromBulletPoints(
+			HullLibrary &hullLibrary, const btVector3 *points, int pointCount);
+
+	btCollisionShape *GetShape() { return &m_Shape; }
+	const btCollisionShape *GetShape() const { return &m_Shape; }
+	FORCEINLINE btConvexHullShape *GetHullShape() { return &m_Shape; }
+	FORCEINLINE const btConvexHullShape *GetHullShape() const { return &m_Shape; }
+	inline static bool IsHull(const CPhysConvex *convex) {
+		return convex->GetShape()->getShapeType() == CONVEX_HULL_SHAPE_PROXYTYPE;
+	}
+
+	virtual btScalar GetVolume() const;
+	virtual btScalar GetSurfaceArea() const { return m_SurfaceArea; }
+	virtual btVector3 GetMassCenter() const { return m_MassCenter; }
+
+private:
+	btConvexHullShape m_Shape;
+	HullResult *m_Hull;
+	btScalar m_SurfaceArea;
+	btVector3 m_MassCenter;
+};
+
+class CPhysConvex_Box : public CPhysConvex {
+public:
+	CPhysConvex_Box(const btVector3 &halfExtents, const btVector3 &origin) :
+			m_Shape(halfExtents), m_Origin(origin) {}
+
+	btCollisionShape *GetShape() { return &m_Shape; }
+	const btCollisionShape *GetShape() const { return &m_Shape; }
+	FORCEINLINE btBoxShape *GetBoxShape() { return &m_Shape; }
+	FORCEINLINE const btBoxShape *GetBoxShape() const { return &m_Shape; }
+	inline static bool IsBox(const CPhysConvex *convex) {
+		return convex->GetShape()->getShapeType() == BOX_SHAPE_PROXYTYPE;
+	}
+
+	virtual btScalar GetVolume() const;
+	virtual btScalar GetSurfaceArea() const;
+
+	virtual btVector3 GetOriginInCompound() const { return m_Origin; }
+
+private:
+	btBoxShape m_Shape;
+	btVector3 m_Origin;
+};
+
+/***************
+ * Collideables
+ ***************/
+
+class CPhysCollide {
+public:
+	enum Owner {
+		OWNER_GAME, // Created and to be destroyed by the game.
+		OWNER_INTERNAL // Managed internally by physics.
+	};
+
+	FORCEINLINE Owner GetOwner() const { return m_Owner; }
+	FORCEINLINE void SetOwner(Owner owner) { m_Owner = owner; }
+
+	virtual btCollisionShape *GetShape() = 0;
+	virtual const btCollisionShape *GetShape() const = 0;
+
+	virtual btScalar GetVolume() const { return 0.0f; }
+	virtual btScalar GetSurfaceArea() const { return 0.0f; }
+
+	virtual btVector3 GetMassCenter() const { return btVector3(0.0f, 0.0f, 0.0f); }
+	virtual void SetMassCenter(const btVector3 &massCenter) {}
+
+	FORCEINLINE IPhysicsObject *GetObjectReferenceList() const {
+		return m_ObjectReferenceList;
+	}
+	// For internal use in CPhysicsObject::AddReferenceToCollide!
+	inline IPhysicsObject *AddObjectReference(IPhysicsObject *object) {
+		IPhysicsObject *next = m_ObjectReferenceList;
+		m_ObjectReferenceList = object;
+		return next;
+	}
+	// For internal use in CPhysicsObject::RemoveReferenceToCollide!
+	void RemoveObjectReference(IPhysicsObject *object);
+
+protected:
+	CPhysCollide() : m_Owner(OWNER_GAME) {}
+
+	void Initialize() {
+		btCollisionShape *shape = GetShape();
+		shape->setUserPointer(this);
+		shape->setUserIndex(0);
+	}
+
+	void NotifyObjectsOfMassCenterChange(const btVector3 &oldMassCenter);
+
+private:
+	Owner m_Owner;
+
+	IPhysicsObject *m_ObjectReferenceList;
+};
+
+class CPhysCollide_Compound : public CPhysCollide {
+public:
+	CPhysCollide_Compound(CPhysConvex **pConvex, int convexCount);
+	btCollisionShape *GetShape() { return &m_Shape; }
+	const btCollisionShape *GetShape() const { return &m_Shape; }
+	FORCEINLINE btCompoundShape *GetCompoundShape() { return &m_Shape; }
+	FORCEINLINE const btCompoundShape *GetCompoundShape() const { return &m_Shape; }
+	inline static bool IsCompound(const CPhysCollide *collide) {
+		return collide->GetShape()->getShapeType() == COMPOUND_SHAPE_PROXYTYPE;
+	}
+
+	virtual btScalar GetVolume() const;
+	virtual btScalar GetSurfaceArea() const;
+
+	virtual btVector3 GetMassCenter() const { return m_MassCenter; }
+	virtual void SetMassCenter(const btVector3 &massCenter);
+
+private:
+	btCompoundShape m_Shape;
+	btVector3 m_MassCenter;
+};
+
+class CPhysCollide_Sphere : public CPhysCollide {
+public:
+	CPhysCollide_Sphere(btScalar radius) : m_Shape(radius) {
+		Initialize();
+	}
+	btCollisionShape *GetShape() { return &m_Shape; }
+	const btCollisionShape *GetShape() const { return &m_Shape; }
+	FORCEINLINE btSphereShape *GetSphereShape() { return &m_Shape; }
+	FORCEINLINE const btSphereShape *GetSphereShape() const { return &m_Shape; }
+	inline static bool IsSphere(const CPhysCollide *collide) {
+		return collide->GetShape()->getShapeType() == SPHERE_SHAPE_PROXYTYPE;
+	}
+
+	FORCEINLINE btScalar GetRadius() const { return m_Shape.getRadius(); }
+
+private:
+	btSphereShape m_Shape;
+};
+
+/************
+ * Interface
+ ************/
+
 class CPhysicsCollision : public IPhysicsCollision {
 public:
 
@@ -16,6 +199,8 @@ public:
 	virtual CPhysConvex *ConvexFromVerts(Vector **pVerts, int vertCount);
 	virtual float ConvexVolume(CPhysConvex *pConvex);
 	virtual float ConvexSurfaceArea(CPhysConvex *pConvex);
+	virtual float CollideVolume(CPhysCollide *pCollide);
+	virtual float CollideSurfaceArea(CPhysCollide *pCollide);
 	virtual void CollideGetMassCenter(CPhysCollide *pCollide, Vector *pOutMassCenter);
 	virtual void CollideSetMassCenter(CPhysCollide *pCollide, const Vector &massCenter);
 	virtual void SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData);
@@ -28,45 +213,13 @@ public:
 
 	// Internal methods.
 
-	CPhysCollide *CreateSphere(float radius);
-	float GetSphereRadius(const CPhysCollide *pCollide) const;
-	void SetSphereRadius(CPhysCollide *pCollide, float radius);
-
-	btVector3 CollideGetBulletMassCenter(const btCollisionShape *shape);
-	FORCEINLINE btVector3 CollideGetBulletMassCenter(const CPhysCollide *pCollide) {
-		return CollideGetBulletMassCenter(reinterpret_cast<const btCollisionShape *>(pCollide));
-	}
-
 	void SetCollideIndex(CPhysCollide *pCollide, int index);
 
-	bool IsCollideUsedByObjects(const CPhysCollide *pCollide) const;
-
 private:
-	struct ConvexHullData_t {
-		HullResult m_Hull;
-		btScalar m_SurfaceArea;
-		btVector3 m_AreaWeightedAverage;
-	};
 	HullLibrary m_HullLibrary;
-	btConvexHullShape *ConvexFromBulletPoints(
-			const btVector3 *points, unsigned int pointCount);
 
-	// BBoxes need to be offset when added to compound collides.
-	// User data of bboxes points to this.
-	struct BBoxCache_t {
-		Vector m_HalfExtents;
-		Vector m_Origin;
-		btBoxShape *m_BoxShape; // Returned from BBoxToConvex - zero origin.
-		btCompoundShape *m_CompoundShape; // Returned from BBoxToCollide - correct origin.
-	};
-	CUtlVector<BBoxCache_t> m_BBoxCache;
-	BBoxCache_t *CreateBBox(const Vector &mins, const Vector &maxs);
-	bool IsCollideCachedBBox(const btCollisionShape *shape) const;
-
-	btAlignedObjectArray<btSphereShape> m_SphereCache;
-
-	btScalar ConvexSurfaceAreaAndWeightedAverage(
-			const btCollisionShape *convex, btVector3 &areaWeightedAverage);
+	CPhysCollide_Compound *CreateBBox(const Vector &mins, const Vector &maxs);
+	CUtlVector<CPhysCollide_Compound *> m_BBoxCache;
 };
 
 extern CPhysicsCollision *g_pPhysCollision;

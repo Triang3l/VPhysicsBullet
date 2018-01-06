@@ -9,8 +9,7 @@
 class CPhysicsObject : public IPhysicsObject {
 public:
 	CPhysicsObject(IPhysicsEnvironment *environment,
-			btCollisionShape *collisionShape, bool ownCollisionShape,
-			int materialIndex,
+			CPhysCollide *collide, int materialIndex,
 			const Vector &position, const QAngle &angles,
 			objectparams_t *pParams, bool isStatic);
 	virtual ~CPhysicsObject();
@@ -119,14 +118,12 @@ private:
 
 	btRigidBody *m_RigidBody;
 
-	btCollisionShape *GetCollisionShape() const;
-	bool m_OwnCollisionShape;
+	CPhysCollide *GetCollide();
 	CPhysicsObject *m_CollideObjectNext, *m_CollideObjectPrevious;
 	void AddReferenceToCollide();
 	void RemoveReferenceFromCollide();
 
 	btVector3 m_MassCenterOverride;
-	btCompoundShape *m_MassCenterOverrideShape;
 	const btVector3 &GetBulletMassCenter() const;
 
 	float m_Mass;
