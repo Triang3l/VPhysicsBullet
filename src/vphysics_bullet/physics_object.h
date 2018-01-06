@@ -129,7 +129,7 @@ private:
 	float m_Mass;
 	Vector m_Inertia;
 	int m_HingeAxis;
-	void UpdateMassProps(bool inertiaChanged);
+	void UpdateMassProps();
 
 	float m_Damping, m_RotDamping;
 

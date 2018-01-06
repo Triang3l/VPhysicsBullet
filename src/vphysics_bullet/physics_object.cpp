@@ -126,7 +126,7 @@ bool CPhysicsObject::IsStatic() const {
 	return m_RigidBody->isStaticObject();
 }
 
-void CPhysicsObject::UpdateMassProps(bool inertiaChanged) {
+void CPhysicsObject::UpdateMassProps() {
 	btVector3 bulletInertia;
 	ConvertDirectionToBullet(m_Inertia, bulletInertia);
 	bulletInertia = bulletInertia.absolute();
@@ -134,9 +134,7 @@ void CPhysicsObject::UpdateMassProps(bool inertiaChanged) {
 		bulletInertia[m_HingeAxis] = 50000.0f;
 	}
 	m_RigidBody->setMassProps(m_Mass, bulletInertia);
-	if (inertiaChanged) {
-		m_RigidBody->updateInertiaTensor();
-	}
+	m_RigidBody->updateInertiaTensor();
 }
 
 void CPhysicsObject::SetMass(float mass) {
@@ -144,8 +142,9 @@ void CPhysicsObject::SetMass(float mass) {
 	if (IsStatic()) {
 		return;
 	}
+	m_Inertia *= mass / m_Mass;
 	m_Mass = mass;
-	UpdateMassProps(false);
+	UpdateMassProps();
 }
 
 float CPhysicsObject::GetMass() const {
@@ -176,7 +175,7 @@ void CPhysicsObject::SetInertia(const Vector &inertia) {
 		return;
 	}
 	VectorAbs(inertia, m_Inertia);
-	UpdateMassProps(true);
+	UpdateMassProps();
 }
 
 bool CPhysicsObject::IsHinged() const {
@@ -193,7 +192,7 @@ void CPhysicsObject::BecomeHinged(int localAxis) {
 		return;
 	}
 	m_HingeAxis = bulletAxis;
-	UpdateMassProps(true);
+	UpdateMassProps();
 }
 
 void CPhysicsObject::RemoveHinged() {
@@ -201,7 +200,7 @@ void CPhysicsObject::RemoveHinged() {
 		return;
 	}
 	m_HingeAxis = -1;
-	UpdateMassProps(true);
+	UpdateMassProps();
 }
 
 bool CPhysicsObject::IsMotionEnabled() const {
