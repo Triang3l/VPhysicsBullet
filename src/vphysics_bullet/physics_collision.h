@@ -193,7 +193,6 @@ private:
 
 class CPhysicsCollision : public IPhysicsCollision {
 public:
-
 	// IPhysicsCollision methods.
 
 	virtual CPhysConvex *ConvexFromVerts(Vector **pVerts, int vertCount);

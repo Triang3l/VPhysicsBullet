@@ -72,6 +72,7 @@ CPhysConvex_Hull::CPhysConvex_Hull(HullResult *hull) :
 			aabbMins.setMin(vertex);
 			aabbMaxs.setMax(vertex);
 		}
+		m_MassCenter = (aabbMins + aabbMaxs) * 0.5f;
 	}
 }
 
@@ -278,6 +279,7 @@ CPhysCollide_Compound::CPhysCollide_Compound(CPhysConvex **pConvex, int convexCo
 			area += convexArea;
 			areaWeightedAverage += (convex->GetOriginInCompound() + convex->GetMassCenter()) * convexArea;
 		}
+		// TODO: Do something if area is near 0 (center of AABB?) if needed.
 		m_MassCenter = areaWeightedAverage / area;
 	} else {
 		m_MassCenter = pConvex[0]->GetMassCenter() + pConvex[0]->GetOriginInCompound();
