@@ -336,11 +336,11 @@ CPhysCollide_Compound::CPhysCollide_Compound(CPhysConvex **pConvex, int convexCo
 		btTransform convexAabbTransform(btMatrix3x3::getIdentity());
 		for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
 			const CPhysConvex *convex = pConvex[convexIndex];
-			convexAabbTransform.setOrigin(convex->GetOriginInCompound());
 			btVector3 convexAabbMin, convexAabbMax;
 			convex->GetShape()->getAabb(convexAabbTransform, convexAabbMin, convexAabbMax);
-			aabbMin.setMin(convexAabbMin);
-			aabbMax.setMax(convexAabbMax);
+			const btVector3 &convexOrigin = convex->GetOriginInCompound();
+			aabbMin.setMin(convexAabbMin + convexOrigin);
+			aabbMax.setMax(convexAabbMax + convexOrigin);
 		}
 		m_MassCenter = (aabbMin + aabbMax) * 0.5f;
 	}
