@@ -23,9 +23,11 @@ btVector3 CPhysicsCollision::BoxInertia(const btVector3 &extents) {
 	return (1.0f / 12.0f) * btVector3(l2.y() + l2.z(), l2.x() + l2.z(), l2.x() + l2.y());
 }
 
-btVector3 CPhysicsCollision::OffsetInertia(const btVector3 &inertia, const btVector3 &origin) {
+btVector3 CPhysicsCollision::OffsetInertia(
+		const btVector3 &inertia, const btVector3 &origin, bool absolute) {
 	btScalar o2 = origin.length2();
-	return inertia + btVector3(o2, o2, o2) - (origin * origin);
+	btVector3 newInertia = inertia + btVector3(o2, o2, o2) - (origin * origin);
+	return absolute ? newInertia.absolute() : newInertia;
 }
 
 /***********
@@ -92,7 +94,7 @@ CPhysConvex_Hull::CPhysConvex_Hull(HullResult *hull) :
 			m_Inertia[1] += i[2] + i[0];
 			m_Inertia[2] += i[0] + i[1];
 		}
-		m_Inertia /= m_Volume;
+		m_Inertia = (m_Inertia / m_Volume).absolute();
 	} else {
 		// Use a box approximation.
 		btVector3 aabbMin(BT_LARGE_FLOAT, BT_LARGE_FLOAT, BT_LARGE_FLOAT);
@@ -103,7 +105,6 @@ CPhysConvex_Hull::CPhysConvex_Hull(HullResult *hull) :
 				CPhysicsCollision::BoxInertia(aabbMax - aabbMin),
 				(aabbMin + aabbMax) * 0.5f);
 	}
-	m_Inertia = m_Inertia.absolute();
 }
 
 CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
@@ -411,9 +412,9 @@ void CPhysCollide_Compound::CalculateInertia() {
 					m_Shape.getChildShape(childIndex)->getUserPointer());
 			const btVector3 &origin = m_Shape.getChildTransform(childIndex).getOrigin();
 			m_Inertia += convex->GetVolume() * CPhysicsCollision::OffsetInertia(
-					convex->GetInertia(), m_Shape.getChildTransform(childIndex).getOrigin());
+					convex->GetInertia(), m_Shape.getChildTransform(childIndex).getOrigin(), false);
 		}
-		m_Inertia /= m_Volume;
+		m_Inertia = (m_Inertia / m_Volume).absolute();
 	} else {
 		btVector3 aabbMin, aabbMax;
 		m_Shape.getAabb(btTransform(btMatrix3x3::getIdentity()), aabbMin, aabbMax);
@@ -421,7 +422,6 @@ void CPhysCollide_Compound::CalculateInertia() {
 				CPhysicsCollision::BoxInertia(aabbMax - aabbMin),
 				(aabbMin + aabbMax) * 0.5f);
 	}
-	m_Inertia = m_Inertia.absolute();
 }
 
 /**********

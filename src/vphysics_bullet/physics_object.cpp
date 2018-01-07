@@ -43,15 +43,14 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		constructionInfo.m_collisionShape = massCenterOverrideShape;
 		massCenter = m_MassCenterOverride;
 		constructionInfo.m_localInertia = CPhysicsCollision::OffsetInertia(
-				constructionInfo.m_localInertia, massCenterOffset).absolute();
+				constructionInfo.m_localInertia, massCenterOffset);
 	}
 	constructionInfo.m_localInertia *= pParams->inertia * m_Mass;
 	if (pParams->rotInertiaLimit > 0.0f) {
 		btScalar minInertia = constructionInfo.m_localInertia.length() * pParams->rotInertiaLimit;
 		constructionInfo.m_localInertia.setMax(btVector3(minInertia, minInertia, minInertia));
 	}
-	ConvertDirectionToHL(constructionInfo.m_localInertia, m_Inertia);
-	VectorAbs(m_Inertia, m_Inertia);
+	ConvertInertiaToHL(constructionInfo.m_localInertia, m_Inertia);
 
 	matrix3x4_t startMatrix;
 	AngleMatrix(angles, position, startMatrix);
@@ -128,8 +127,7 @@ bool CPhysicsObject::IsStatic() const {
 
 void CPhysicsObject::UpdateMassProps() {
 	btVector3 bulletInertia;
-	ConvertDirectionToBullet(m_Inertia, bulletInertia);
-	bulletInertia = bulletInertia.absolute();
+	ConvertInertiaToBullet(m_Inertia, bulletInertia);
 	if (m_HingeAxis >= 0) {
 		bulletInertia[m_HingeAxis] = 50000.0f;
 	}
@@ -165,8 +163,7 @@ Vector CPhysicsObject::GetInertia() const {
 
 Vector CPhysicsObject::GetInvInertia() const {
 	Vector inertia;
-	ConvertDirectionToHL(m_RigidBody->getInvInertiaDiagLocal(), inertia);
-	VectorAbs(inertia, inertia);
+	ConvertInertiaToHL(m_RigidBody->getInvInertiaDiagLocal(), inertia);
 	return inertia;
 }
 
@@ -174,7 +171,7 @@ void CPhysicsObject::SetInertia(const Vector &inertia) {
 	if (!IsStatic()) {
 		return;
 	}
-	VectorAbs(inertia, m_Inertia);
+	m_Inertia = inertia;
 	UpdateMassProps();
 }
 
@@ -603,11 +600,14 @@ void CPhysicsObject::AddVelocity(const Vector *velocity, const AngularImpulse *a
 }
 
 float CPhysicsObject::GetEnergy() const {
-	const btVector3 &angularVelocity = m_RigidBody->getAngularVelocity();
+	btVector3 angularVelocity = m_RigidBody->getWorldTransform().getBasis().transpose() *
+			m_RigidBody->getAngularVelocity();
+	btVector3 inertia;
+	ConvertInertiaToBullet(GetInertia(), inertia);
 	// 1/2mv^2 + 1/2Iw^2
 	return ConvertEnergyToHL(0.5f * (
 			btScalar(GetMass()) * m_RigidBody->getLinearVelocity().length2() +
-			(m_RigidBody->getInvInertiaTensorWorld() * angularVelocity).dot(angularVelocity)));
+			(angularVelocity * inertia).dot(angularVelocity)));
 }
 
 void CPhysicsObject::ApplyForceCenter(const Vector &forceVector) {

@@ -49,6 +49,18 @@ inline void ConvertDirectionToHL(const btVector3 &in, Vector &out) {
 	out.z = in.getY();
 }
 
+inline void ConvertInertiaToBullet(const Vector &in, btVector3 &out) {
+	out.setX(in.x);
+	out.setY(in.z);
+	out.setZ(in.y);
+}
+
+inline void ConvertInertiaToHL(const btVector3 &in, Vector &out) {
+	out.x = in.getX();
+	out.y = in.getZ();
+	out.z = in.getY();
+}
+
 inline void ConvertAngularImpulseToBullet(const AngularImpulse &in, btVector3 &out) {
 	out.setX(DEG2RAD(in.x));
 	out.setY(DEG2RAD(in.z));

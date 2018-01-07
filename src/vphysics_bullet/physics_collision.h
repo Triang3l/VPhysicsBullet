@@ -225,7 +225,8 @@ public:
 	// Internal methods.
 
 	static btVector3 BoxInertia(const btVector3 &extents);
-	static btVector3 OffsetInertia(const btVector3 &inertia, const btVector3 &origin);
+	static btVector3 OffsetInertia(
+			const btVector3 &inertia, const btVector3 &origin, bool absolute = true);
 
 	void SetCollideIndex(CPhysCollide *pCollide, int index);
 
