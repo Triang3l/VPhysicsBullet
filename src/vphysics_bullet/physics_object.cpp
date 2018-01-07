@@ -568,17 +568,13 @@ void CPhysicsObject::GetVelocity(Vector *velocity, AngularImpulse *angularVeloci
 
 void CPhysicsObject::GetVelocityAtPoint(const Vector &worldPosition, Vector *pVelocity) const {
 	const btTransform &worldTransform = m_RigidBody->getWorldTransform();
-
 	btVector3 angularVelocity = m_RigidBody->getAngularVelocity() +
 			(worldTransform.getBasis() * m_LocalAngularVelocityChange);
-
+	// Position is relative to the center of mass (the rigid body's position).
 	btVector3 bulletWorldPosition;
 	ConvertPositionToBullet(worldPosition, bulletWorldPosition);
-	btVector3 relativePosition = bulletWorldPosition - (worldTransform.getOrigin() -
-			worldTransform.getBasis() * GetBulletMassCenter());
-
-	btVector3 speed = m_RigidBody->getLinearVelocity() +
-			angularVelocity.cross(relativePosition) + m_LinearVelocityChange;
+	btVector3 speed = m_RigidBody->getLinearVelocity() + angularVelocity.cross(
+			bulletWorldPosition - worldTransform.getOrigin()) + m_LinearVelocityChange;
 	ConvertPositionToHL(speed, *pVelocity);
 }
 
@@ -625,21 +621,19 @@ void CPhysicsObject::ApplyForceOffset(const Vector &forceVector, const Vector &w
 		return;
 	}
 
-	btVector3 bulletWorldForce;
-	ConvertForceImpulseToBullet(forceVector, bulletWorldForce);
-	m_LinearVelocityChange += bulletWorldForce * m_RigidBody->getInvMass();
+	btVector3 worldSpaceForce;
+	ConvertForceImpulseToBullet(forceVector, worldSpaceForce);
+	m_LinearVelocityChange += worldSpaceForce * m_RigidBody->getInvMass();
 
-	Vector localForce;
-	WorldToLocalVector(&localForce, forceVector);
-	btVector3 bulletLocalForce;
-	ConvertForceImpulseToBullet(localForce, bulletLocalForce);
-	Vector localPosition;
-	WorldToLocal(&localPosition, worldPosition);
-	btVector3 bulletLocalPosition;
-	ConvertPositionToBullet(localPosition, bulletLocalPosition);
-	bulletLocalPosition -= GetBulletMassCenter();
-	m_LocalAngularVelocityChange += bulletLocalPosition.cross(bulletLocalForce) *
-			m_RigidBody->getInvInertiaDiagLocal();
+	// Transform the position to the mass center space - aligned with local space,
+	// but with the origin at the mass center (at the rigid body's position).
+	const btTransform &transform = m_RigidBody->getWorldTransform();
+	btMatrix3x3 worldToLocalRotation = transform.getBasis().transpose();
+	btVector3 centerSpacePosition;
+	ConvertPositionToBullet(worldPosition, centerSpacePosition);
+	centerSpacePosition = worldToLocalRotation * (centerSpacePosition - transform.getOrigin());
+	m_LocalAngularVelocityChange += centerSpacePosition.cross(
+			worldToLocalRotation * worldSpaceForce) * m_RigidBody->getInvInertiaDiagLocal();
 
 	Wake();
 }
