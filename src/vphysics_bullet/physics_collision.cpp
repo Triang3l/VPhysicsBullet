@@ -56,9 +56,27 @@ void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
  * Convex hulls
  ***************/
 
-CPhysConvex_Hull::CPhysConvex_Hull(HullResult *hull) :
-		m_Shape(&hull->m_OutputVertices[0][0], hull->mNumOutputVertices),
-		m_Hull(hull) {
+void CPhysConvex_TriangleMesh::StridingMeshInterface::getLockedReadOnlyVertexIndexBase(
+		const unsigned char **vertexbase, int &numverts, PHY_ScalarType &type, int &stride,
+		const unsigned char **indexbase, int &indexstride, int &numfaces, PHY_ScalarType &indicestype,
+		int subpart) const {
+	Assert(subpart == 0);
+	*vertexbase = reinterpret_cast<const unsigned char *>(&m_Hull->m_OutputVertices[0][0]);
+	numverts = m_Hull->mNumOutputVertices;
+#ifdef BT_USE_DOUBLE_PRECISION
+	type = PHY_DOUBLE;
+#else
+	type = PHY_FLOAT;
+#endif
+	stride = sizeof(btVector3);
+	*indexbase = reinterpret_cast<const unsigned char *>(&m_Hull->m_Indices[0]);
+	indexstride = 3 * sizeof(unsigned int);
+	numfaces = m_Hull->mNumFaces;
+	indicestype = PHY_INTEGER;
+}
+
+CPhysConvex_TriangleMesh::CPhysConvex_TriangleMesh(HullResult *hull) :
+		m_StridingMeshInterface(hull), m_Shape(&m_StridingMeshInterface) {
 	Initialize();
 
 	// Based on btConvexTriangleMeshShape::calculatePrincipalAxisTransform, but without rotation.
@@ -107,7 +125,7 @@ CPhysConvex_Hull::CPhysConvex_Hull(HullResult *hull) :
 	}
 }
 
-CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
+CPhysConvex_TriangleMesh *CPhysConvex_TriangleMesh::CreateFromBulletPoints(
 		HullLibrary &hullLibrary, const btVector3 *points, int pointCount) {
 	if (pointCount == 0) {
 		return nullptr;
@@ -120,16 +138,17 @@ CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
 		delete hull;
 		return nullptr;
 	}
-	return new CPhysConvex_Hull(hull);
+	return new CPhysConvex_TriangleMesh(hull);
 }
 
-btScalar CPhysConvex_Hull::GetVolume() const {
+btScalar CPhysConvex_TriangleMesh::GetVolume() const {
 	// Tetrahedronalize the hull and compute its volume.
+	const HullResult *hull = m_StridingMeshInterface.GetHull();
 	btScalar volume = 0.0f;
-	const btVector3 *vertices = &m_Hull->m_OutputVertices[0];
+	const btVector3 *vertices = &hull->m_OutputVertices[0];
 	const btVector3 &v0 = vertices[0];
-	const unsigned int *indices = &m_Hull->m_Indices[0];
-	unsigned int indexCount = m_Hull->mNumIndices;
+	const unsigned int *indices = &hull->m_Indices[0];
+	unsigned int indexCount = hull->mNumIndices;
 	for (int indexIndex = 3; indexIndex < indexCount; indexCount += 3) {
 		btVector3 a = vertices[indices[indexIndex]] - v0;
 		btVector3 b = vertices[indices[indexIndex + 1]] - v0;
@@ -139,11 +158,12 @@ btScalar CPhysConvex_Hull::GetVolume() const {
 	volume *= 1.0f / 6.0f;
 }
 
-btScalar CPhysConvex_Hull::GetSurfaceArea() const {
-	const btVector3 *vertices = &m_Hull->m_OutputVertices[0];
-	unsigned int vertexCount = m_Hull->mNumOutputVertices;
-	const unsigned int *indices = &m_Hull->m_Indices[0];
-	unsigned int indexCount = m_Hull->mNumIndices;
+btScalar CPhysConvex_TriangleMesh::GetSurfaceArea() const {
+	const HullResult *hull = m_StridingMeshInterface.GetHull();
+	const btVector3 *vertices = &hull->m_OutputVertices[0];
+	unsigned int vertexCount = hull->mNumOutputVertices;
+	const unsigned int *indices = &hull->m_Indices[0];
+	unsigned int indexCount = hull->mNumIndices;
 	btScalar area = 0.0f;
 	for (unsigned int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
 		const btVector3 &v0 = vertices[indices[indexIndex]];
@@ -163,7 +183,7 @@ CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) 
 		ConvertPositionToBullet(*pVerts[vertIndex], points[vertIndex]);
 	}
 	BEGIN_BULLET_ALLOCATION();
-	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(
+	CPhysConvex_TriangleMesh *convex = CPhysConvex_TriangleMesh::CreateFromBulletPoints(
 			m_HullLibrary, &points[0], points.size());
 	END_BULLET_ALLOCATION();
 	return convex;
@@ -179,7 +199,7 @@ CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &Co
 		ConvertPositionToBullet(verts[vertIndex], points[vertIndex]);
 	}
 	BEGIN_BULLET_ALLOCATION();
-	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(
+	CPhysConvex_TriangleMesh *convex = CPhysConvex_TriangleMesh::CreateFromBulletPoints(
 			m_HullLibrary, &points[0], points.size());
 	END_BULLET_ALLOCATION();
 	return convex;

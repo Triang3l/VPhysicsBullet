@@ -46,19 +46,19 @@ private:
 	Owner m_Owner;
 };
 
-class CPhysConvex_Hull : public CPhysConvex {
+class CPhysConvex_TriangleMesh : public CPhysConvex {
 public:
 	// Takes ownership of the hull.
-	CPhysConvex_Hull(HullResult *hull);
-	static CPhysConvex_Hull *CreateFromBulletPoints(
+	CPhysConvex_TriangleMesh(HullResult *hull);
+	static CPhysConvex_TriangleMesh *CreateFromBulletPoints(
 			HullLibrary &hullLibrary, const btVector3 *points, int pointCount);
 
 	btCollisionShape *GetShape() { return &m_Shape; }
 	const btCollisionShape *GetShape() const { return &m_Shape; }
-	FORCEINLINE btConvexHullShape *GetHullShape() { return &m_Shape; }
-	FORCEINLINE const btConvexHullShape *GetHullShape() const { return &m_Shape; }
-	inline static bool IsHull(const CPhysConvex *convex) {
-		return convex->GetShape()->getShapeType() == CONVEX_HULL_SHAPE_PROXYTYPE;
+	FORCEINLINE btConvexTriangleMeshShape *GetTriangleMeshShape() { return &m_Shape; }
+	FORCEINLINE const btConvexTriangleMeshShape *GetTriangleMeshShape() const { return &m_Shape; }
+	inline static bool IsTriangleMesh(const CPhysConvex *convex) {
+		return convex->GetShape()->getShapeType() == CONVEX_TRIANGLEMESH_SHAPE_PROXYTYPE;
 	}
 
 	virtual btScalar GetVolume() const;
@@ -67,8 +67,29 @@ public:
 	virtual btVector3 GetInertia() const { return m_Inertia; }
 
 private:
-	btConvexHullShape m_Shape;
-	HullResult *m_Hull;
+	class StridingMeshInterface : public btStridingMeshInterface {
+	public:
+		StridingMeshInterface(const HullResult *hull) : m_Hull(hull) {}
+		virtual void getLockedVertexIndexBase(
+				unsigned char **vertexbase, int &numverts, PHY_ScalarType &type, int &stride,
+				unsigned char **indexbase, int &indexstride, int &numfaces, PHY_ScalarType &indicestype,
+				int subpart) { Assert(false); }
+		virtual void getLockedReadOnlyVertexIndexBase(
+				const unsigned char **vertexbase, int &numverts, PHY_ScalarType &type, int &stride,
+				const unsigned char **indexbase, int &indexstride, int &numfaces, PHY_ScalarType &indicestype,
+				int subpart) const;
+		virtual void unLockVertexBase(int subpart) { Assert(false); }
+		virtual void unLockReadOnlyVertexBase(int subpart) const { Assert(subpart == 0); }
+		virtual int getNumSubParts() const { return 1; }
+		virtual void preallocateVertices(int numverts) {}
+		virtual void preallocateIndices(int numindices) {}
+		const HullResult *GetHull() const { return m_Hull; }
+	private:
+		const HullResult *m_Hull;
+	};
+
+	StridingMeshInterface m_StridingMeshInterface; // Must precede m_Shape.
+	btConvexTriangleMeshShape m_Shape;
 	btScalar m_Volume;
 	btVector3 m_MassCenter;
 	btVector3 m_Inertia;
