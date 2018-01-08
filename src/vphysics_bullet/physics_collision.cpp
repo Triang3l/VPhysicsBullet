@@ -56,56 +56,37 @@ void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
  * Convex hulls
  ***************/
 
-void CPhysConvex_TriangleMesh::StridingMeshInterface::getLockedReadOnlyVertexIndexBase(
-		const unsigned char **vertexbase, int &numverts, PHY_ScalarType &type, int &stride,
-		const unsigned char **indexbase, int &indexstride, int &numfaces, PHY_ScalarType &indicestype,
-		int subpart) const {
-	Assert(subpart == 0);
-	*vertexbase = reinterpret_cast<const unsigned char *>(&m_Hull->m_OutputVertices[0][0]);
-	numverts = m_Hull->mNumOutputVertices;
-#ifdef BT_USE_DOUBLE_PRECISION
-	type = PHY_DOUBLE;
-#else
-	type = PHY_FLOAT;
-#endif
-	stride = sizeof(btVector3);
-	*indexbase = reinterpret_cast<const unsigned char *>(&m_Hull->m_Indices[0]);
-	indexstride = 3 * sizeof(unsigned int);
-	numfaces = m_Hull->mNumFaces;
-	indicestype = PHY_INTEGER;
-}
-
-CPhysConvex_TriangleMesh::CPhysConvex_TriangleMesh(HullResult *hull) :
-		m_StridingMeshInterface(hull), m_Shape(&m_StridingMeshInterface) {
+CPhysConvex_Hull::CPhysConvex_Hull(const btVector3 *points, int pointCount,
+		const unsigned int *indices, int triangleCount) :
+		m_Shape(&points[0][0], pointCount) {
 	Initialize();
 
-	// Based on btConvexTriangleMeshShape::calculatePrincipalAxisTransform, but without rotation.
+	int indexCount = triangleCount * 3;
+	m_TriangleIndices.resizeNoInitialize(indexCount);
+	memcpy(&m_TriangleIndices[0], indices, indexCount * sizeof(indices[0]));
 
-	const btVector3 *vertices = &hull->m_OutputVertices[0];
-	unsigned int vertexCount = hull->mNumOutputVertices;
-	const unsigned int *indices = &hull->m_Indices[0];
-	unsigned int indexCount = hull->mNumIndices;
+	// Calculations based on btConvexTriangleMeshShape::calculatePrincipalAxisTransform, but without rotation.
 
 	// Volume and center of mass.
-	const btVector3 &ref = vertices[indices[0]];
+	const btVector3 &ref = points[indices[0]];
 	btVector3 massCenterSum(0.0f, 0.0f, 0.0f);
 	btScalar sixVolume = 0.0f;
-	for (unsigned int indexIndex = 3; indexIndex < indexCount; indexIndex += 3) {
-		const btVector3 &v0 = vertices[indices[indexIndex]];
-		const btVector3 &v1 = vertices[indices[indexIndex + 1]];
-		const btVector3 &v2 = vertices[indices[indexIndex + 2]];
-		btScalar tetrahedronSixVolume = btFabs((v0 - ref).triple(v1 - ref, v2 - ref));
-		massCenterSum += (0.25f * tetrahedronSixVolume) * (v0 + v1 + v2 + ref);
+	for (int indexIndex = 3; indexIndex < indexCount; indexIndex += 3) {
+		const btVector3 &p0 = points[indices[indexIndex]];
+		const btVector3 &p1 = points[indices[indexIndex + 1]];
+		const btVector3 &p2 = points[indices[indexIndex + 2]];
+		btScalar tetrahedronSixVolume = btFabs((p0 - ref).triple(p1 - ref, p2 - ref));
+		massCenterSum += (0.25f * tetrahedronSixVolume) * (p0 + p1 + p2 + ref);
 		sixVolume += tetrahedronSixVolume;
 	}
 	m_Volume = (1.0f / 6.0f) * sixVolume;
 	if (m_Volume > 0.0f) {
 		m_MassCenter = massCenterSum / sixVolume;
 		m_Inertia.setZero();
-		for (unsigned int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
-			btVector3 a = vertices[indices[indexIndex]] - m_MassCenter;
-			btVector3 b = vertices[indices[indexIndex + 1]] - m_MassCenter;
-			btVector3 c = vertices[indices[indexIndex + 2]] - m_MassCenter;
+		for (int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
+			btVector3 a = points[indices[indexIndex]] - m_MassCenter;
+			btVector3 b = points[indices[indexIndex + 1]] - m_MassCenter;
+			btVector3 c = points[indices[indexIndex + 2]] - m_MassCenter;
 			btVector3 i = btFabs(a.triple(b, c)) * (0.1f / 6.0f) *
 					(a * a + b * b + c * c + a * b + a * c + b * c);
 			m_Inertia[0] += i[1] + i[2];
@@ -125,51 +106,46 @@ CPhysConvex_TriangleMesh::CPhysConvex_TriangleMesh(HullResult *hull) :
 	}
 }
 
-CPhysConvex_TriangleMesh *CPhysConvex_TriangleMesh::CreateFromBulletPoints(
+CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
 		HullLibrary &hullLibrary, const btVector3 *points, int pointCount) {
 	if (pointCount == 0) {
 		return nullptr;
 	}
-	HullResult *hull = new HullResult;
+	HullResult hull;
 	HullError hullError = hullLibrary.CreateConvexHull(
-			HullDesc(QF_TRIANGLES, pointCount, points), *hull);
-	if (hullError != QE_OK || hull->mNumIndices < 3) {
+			HullDesc(QF_TRIANGLES, pointCount, points), hull);
+	if (hullError != QE_OK || hull.mNumFaces == 0) {
 		AssertMsg(false, "Convex hull creation failed");
-		delete hull;
 		return nullptr;
 	}
-	return new CPhysConvex_TriangleMesh(hull);
+	return new CPhysConvex_Hull(&hull.m_OutputVertices[0], hull.mNumOutputVertices,
+			&hull.m_Indices[0], hull.mNumFaces);
 }
 
-btScalar CPhysConvex_TriangleMesh::GetVolume() const {
+btScalar CPhysConvex_Hull::GetVolume() const {
 	// Tetrahedronalize the hull and compute its volume.
-	const HullResult *hull = m_StridingMeshInterface.GetHull();
 	btScalar volume = 0.0f;
-	const btVector3 *vertices = &hull->m_OutputVertices[0];
-	const btVector3 &v0 = vertices[0];
-	const unsigned int *indices = &hull->m_Indices[0];
-	unsigned int indexCount = hull->mNumIndices;
+	const btVector3 *points = m_Shape.getPoints();
+	const btVector3 &p0 = points[0];
+	int indexCount = m_TriangleIndices.size();
 	for (int indexIndex = 3; indexIndex < indexCount; indexCount += 3) {
-		btVector3 a = vertices[indices[indexIndex]] - v0;
-		btVector3 b = vertices[indices[indexIndex + 1]] - v0;
-		btVector3 c = vertices[indices[indexIndex + 2]] - v0;
+		btVector3 a = points[m_TriangleIndices[indexIndex]] - p0;
+		btVector3 b = points[m_TriangleIndices[indexIndex + 1]] - p0;
+		btVector3 c = points[m_TriangleIndices[indexIndex + 2]] - p0;
 		volume += btFabs(a.dot(b.cross(c)));
 	}
 	volume *= 1.0f / 6.0f;
 }
 
-btScalar CPhysConvex_TriangleMesh::GetSurfaceArea() const {
-	const HullResult *hull = m_StridingMeshInterface.GetHull();
-	const btVector3 *vertices = &hull->m_OutputVertices[0];
-	unsigned int vertexCount = hull->mNumOutputVertices;
-	const unsigned int *indices = &hull->m_Indices[0];
-	unsigned int indexCount = hull->mNumIndices;
+btScalar CPhysConvex_Hull::GetSurfaceArea() const {
+	const btVector3 *points = m_Shape.getPoints();
+	int indexCount = m_TriangleIndices.size();
 	btScalar area = 0.0f;
-	for (unsigned int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
-		const btVector3 &v0 = vertices[indices[indexIndex]];
-		const btVector3 &v1 = vertices[indices[indexIndex + 1]];
-		const btVector3 &v2 = vertices[indices[indexIndex + 2]];
-		area += (v1 - v0).cross(v2 - v0).length();
+	for (int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
+		const btVector3 &p0 = points[m_TriangleIndices[indexIndex]];
+		const btVector3 &p1 = points[m_TriangleIndices[indexIndex + 1]];
+		const btVector3 &p2 = points[m_TriangleIndices[indexIndex + 2]];
+		area += (p1 - p0).cross(p2 - p0).length();
 	}
 	return 0.5f * area;
 }
@@ -183,7 +159,7 @@ CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) 
 		ConvertPositionToBullet(*pVerts[vertIndex], points[vertIndex]);
 	}
 	BEGIN_BULLET_ALLOCATION();
-	CPhysConvex_TriangleMesh *convex = CPhysConvex_TriangleMesh::CreateFromBulletPoints(
+	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(
 			m_HullLibrary, &points[0], points.size());
 	END_BULLET_ALLOCATION();
 	return convex;
@@ -199,7 +175,7 @@ CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &Co
 		ConvertPositionToBullet(verts[vertIndex], points[vertIndex]);
 	}
 	BEGIN_BULLET_ALLOCATION();
-	CPhysConvex_TriangleMesh *convex = CPhysConvex_TriangleMesh::CreateFromBulletPoints(
+	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(
 			m_HullLibrary, &points[0], points.size());
 	END_BULLET_ALLOCATION();
 	return convex;
