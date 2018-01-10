@@ -4,6 +4,7 @@
 #include "physics_collision.h"
 #include "physics_object.h"
 #include "mathlib/polyhedron.h"
+#include "tier1/byteswap.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -13,6 +14,155 @@
 
 static CPhysicsCollision s_PhysCollision;
 CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
+
+/*****************************
+ * VCollide import structures
+ *****************************/
+
+#ifdef _X360
+#pragma bitfield_order(push, lsb_to_msb)
+#endif
+
+struct VCollide_IVP_U_Float_Point {
+	DECLARE_BYTESWAP_DATADESC();
+	float k[3];
+	float hesse_val;
+};
+
+struct VCollide_IVP_Compact_Edge {
+	DECLARE_BYTESWAP_DATADESC();
+	BEGIN_BITFIELD(bf)
+	unsigned int start_point_index : 16;
+	signed int opposite_index : 15;
+	unsigned int is_virtual : 1;
+	END_BITFIELD()
+};
+
+struct VCollide_IVP_Compact_Triangle {
+	DECLARE_BYTESWAP_DATADESC();
+	BEGIN_BITFIELD(bf)
+	unsigned int tri_index : 12;
+	unsigned int pierce_index : 12;
+	unsigned int material_index : 7;
+	unsigned int is_virtual : 1;
+	END_BITFIELD()
+	VCollide_IVP_Compact_Edge c_three_edges[3];
+};
+
+struct VCollide_IVP_Compact_Ledge {
+	DECLARE_BYTESWAP_DATADESC();
+	int c_point_offset;
+	union {
+		int ledgetree_node_offset;
+		int client_data;
+	};
+	BEGIN_BITFIELD(bf)
+	unsigned int has_children_flag : 2;
+	unsigned int is_compact_flag : 2;
+	unsigned int dummy : 4;
+	unsigned int size_div_16 : 24;
+	END_BITFIELD()
+	short n_triangles;
+	short for_future_use;
+
+	FORCEINLINE const VCollide_IVP_U_Float_Point *get_point_array() const {
+		return reinterpret_cast<const VCollide_IVP_U_Float_Point *>(
+				reinterpret_cast<const byte *>(this) + c_point_offset);
+	}
+	FORCEINLINE const VCollide_IVP_Compact_Triangle *get_first_triangle() const {
+		return reinterpret_cast<const VCollide_IVP_Compact_Triangle *>(this + 1);
+	}
+	FORCEINLINE int get_n_points() const {
+		return size_div_16 - n_triangles - 1;
+	}
+};
+
+struct VCollide_IVP_Compact_Ledgetree_Node {
+	DECLARE_BYTESWAP_DATADESC();
+	int offset_right_node;
+	int offset_compact_ledge;
+	float center[3];
+	float radius;
+	unsigned char box_sizes[3];
+	unsigned char free_0;
+
+	FORCEINLINE const VCollide_IVP_Compact_Ledge *get_compact_ledge() const {
+		return reinterpret_cast<const VCollide_IVP_Compact_Ledge *>(
+				reinterpret_cast<const byte *>(this) + offset_compact_ledge);
+	}
+	FORCEINLINE const VCollide_IVP_Compact_Ledgetree_Node *left_son() const {
+		return this + 1;
+	}
+	FORCEINLINE const VCollide_IVP_Compact_Ledgetree_Node *right_son() const {
+		return reinterpret_cast<const VCollide_IVP_Compact_Ledgetree_Node *>(
+				reinterpret_cast<const byte *>(this) + offset_right_node);
+	}
+	FORCEINLINE bool is_terminal() const {
+		return offset_right_node == 0;
+	}
+};
+
+struct VCollide_IVP_Compact_Surface {
+	DECLARE_BYTESWAP_DATADESC();
+	float mass_center[3];
+	float rotation_inertia[3];
+	float upper_limit_radius;
+	BEGIN_BITFIELD(bf)
+	unsigned int max_factor_surface_deviation : 8;
+	int byte_size : 24;
+	END_BITFIELD()
+	int offset_ledgetree_root;
+	int dummy[3];
+
+	FORCEINLINE const VCollide_IVP_Compact_Ledgetree_Node *get_compact_ledge_tree_root() const {
+		return reinterpret_cast<const VCollide_IVP_Compact_Ledgetree_Node *>(
+				reinterpret_cast<const byte *>(this) + offset_ledgetree_root);
+	}
+};
+
+#ifdef _X360
+#pragma bitfield_order(pop)
+#endif
+
+BEGIN_BYTESWAP_DATADESC(VCollide_IVP_U_Float_Point)
+	DEFINE_ARRAY(k, FIELD_FLOAT, 3),
+	DEFINE_FIELD(hesse_val, FIELD_FLOAT)
+END_BYTESWAP_DATADESC()
+
+BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Edge)
+	DEFINE_BITFIELD(bf, FIELD_INTEGER, 32)
+END_BYTESWAP_DATADESC()
+
+BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Triangle)
+	DEFINE_BITFIELD(bf, FIELD_INTEGER, 32),
+	DEFINE_EMBEDDED_ARRAY(c_three_edges, 3)
+END_BYTESWAP_DATADESC()
+
+BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Ledge)
+	DEFINE_FIELD(c_point_offset, FIELD_INTEGER),
+	DEFINE_FIELD(ledgetree_node_offset, FIELD_INTEGER),
+	DEFINE_BITFIELD(bf, FIELD_INTEGER, 32),
+	DEFINE_FIELD(n_triangles, FIELD_SHORT),
+	DEFINE_FIELD(for_future_use, FIELD_SHORT)
+END_BYTESWAP_DATADESC()
+
+BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Ledgetree_Node)
+	DEFINE_FIELD(offset_right_node, FIELD_INTEGER),
+	DEFINE_FIELD(offset_compact_ledge, FIELD_INTEGER),
+	DEFINE_ARRAY(center, FIELD_FLOAT, 3),
+	DEFINE_FIELD(radius, FIELD_FLOAT)
+END_BYTESWAP_DATADESC()
+
+BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Surface)
+	DEFINE_ARRAY(mass_center, FIELD_FLOAT, 3),
+	DEFINE_ARRAY(rotation_inertia, FIELD_FLOAT, 3),
+	DEFINE_FIELD(upper_limit_radius, FIELD_FLOAT),
+	DEFINE_BITFIELD(bf, FIELD_INTEGER, 32),
+	DEFINE_FIELD(offset_ledgetree_root, FIELD_INTEGER),
+	DEFINE_ARRAY(dummy, FIELD_INTEGER, 3)
+END_BYTESWAP_DATADESC()
+
+#define VCOLLIDE_IVP_COMPACT_SURFACE_ID MAKEID('I', 'V', 'P', 'S')
 
 /****************************************
  * Utility for convexes and collideables
@@ -58,15 +208,11 @@ void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
 
 CPhysConvex_Hull::CPhysConvex_Hull(const btVector3 *points, int pointCount,
 		const unsigned int *indices, int triangleCount) :
-		m_Shape(&points[0][0], pointCount),
-		m_Volume(-1.0f) /* To force CalculateVolumeProperties */ {
+		m_Shape(&points[0][0], pointCount), m_Volume(-1.0f) {
 	Initialize();
-
 	int indexCount = triangleCount * 3;
 	m_TriangleIndices.resizeNoInitialize(indexCount);
 	memcpy(&m_TriangleIndices[0], indices, indexCount * sizeof(indices[0]));
-
-	CalculateVolumeProperties();
 }
 
 CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
@@ -91,14 +237,15 @@ void CPhysConvex_Hull::CalculateVolumeProperties() {
 	}
 	// Based on btConvexTriangleMeshShape::calculatePrincipalAxisTransform, but without rotation.
 	const btVector3 *points = &m_Shape.getPoints[0][0];
-	const btVector3 &ref = points[m_TriangleIndices[0]];
+	const unsigned int *indices = &m_TriangleIndices[0];
+	const btVector3 &ref = points[indices[0]];
 	int indexCount = m_TriangleIndices.size();
 	btScalar sixVolume = 0.0f;
 	btVector3 massCenterSum(0.0f, 0.0f, 0.0f);
 	for (int indexIndex = 3; indexIndex < indexCount; indexIndex += 3) {
-		const btVector3 &p0 = points[m_TriangleIndices[indexIndex]];
-		const btVector3 &p1 = points[m_TriangleIndices[indexIndex + 1]];
-		const btVector3 &p2 = points[m_TriangleIndices[indexIndex + 2]];
+		const btVector3 &p0 = points[indices[indexIndex]];
+		const btVector3 &p1 = points[indices[indexIndex + 1]];
+		const btVector3 &p2 = points[indices[indexIndex + 2]];
 		btScalar tetrahedronSixVolume = btFabs((p0 - ref).triple(p1 - ref, p2 - ref));
 		sixVolume += tetrahedronSixVolume;
 		massCenterSum += (0.25f * tetrahedronSixVolume) * (p0 + p1 + p2 + ref);
@@ -108,9 +255,9 @@ void CPhysConvex_Hull::CalculateVolumeProperties() {
 		m_MassCenter = massCenterSum / sixVolume;
 		m_Inertia.setZero();
 		for (int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
-			btVector3 a = points[m_TriangleIndices[indexIndex]] - m_MassCenter;
-			btVector3 b = points[m_TriangleIndices[indexIndex + 1]] - m_MassCenter;
-			btVector3 c = points[m_TriangleIndices[indexIndex + 2]] - m_MassCenter;
+			btVector3 a = points[indices[indexIndex]] - m_MassCenter;
+			btVector3 b = points[indices[indexIndex + 1]] - m_MassCenter;
+			btVector3 c = points[indices[indexIndex + 2]] - m_MassCenter;
 			btVector3 i = btFabs(a.triple(b, c)) * (0.1f / 6.0f) *
 					(a * a + b * b + c * c + a * b + a * c + b * c);
 			m_Inertia[0] += i[1] + i[2];
@@ -135,12 +282,13 @@ btScalar CPhysConvex_Hull::GetVolume() const {
 
 btScalar CPhysConvex_Hull::GetSurfaceArea() const {
 	const btVector3 *points = m_Shape.getPoints();
+	const unsigned int *indices = &m_TriangleIndices[0];
 	int indexCount = m_TriangleIndices.size();
 	btScalar area = 0.0f;
 	for (int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
-		const btVector3 &p0 = points[m_TriangleIndices[indexIndex]];
-		const btVector3 &p1 = points[m_TriangleIndices[indexIndex + 1]];
-		const btVector3 &p2 = points[m_TriangleIndices[indexIndex + 2]];
+		const btVector3 &p0 = points[indices[indexIndex]];
+		const btVector3 &p1 = points[indices[indexIndex + 1]];
+		const btVector3 &p2 = points[indices[indexIndex + 2]];
 		area += (p1 - p0).cross(p2 - p0).length();
 	}
 	return 0.5f * area;
@@ -154,6 +302,30 @@ btVector3 CPhysConvex_Hull::GetMassCenter() const {
 btVector3 CPhysConvex_Hull::GetInertia() const {
 	const_cast<CPhysConvex_Hull *>(this)->CalculateVolumeProperties();
 	return m_Inertia;
+}
+
+// This is a hack, gives per-plane surface index, not per-triangle,
+// as Bullet doesn't do per-triangle collision detection for convexes.
+// However, per-triangle materials are used only by world brushes,
+// which can't have coplanar triangles with different materials.
+// It also assumes the contact point is very close to the surface.
+int CPhysConvex_Hull::GetTriangleSurface(const btVector3 &point) const {
+	int triangleCount = m_TriangleMaterials.size();
+	if (triangleCount == 0) {
+		return 0;
+	}
+	const btVector4 *planes = &m_TrianglePlanes[0];
+	int closestTriangle = 0;
+	btScalar closestTriangleDistance = btFabs(planes[0].dot(point) - planes[0].getW());
+	for (int triangleIndex = 1; triangleCount < triangleIndex; ++triangleIndex) {
+		const btVector4 &plane = planes[triangleIndex];
+		btScalar distance = btFabs(plane.dot(point) - plane.getW());
+		if (distance < closestTriangleDistance) {
+			closestTriangleDistance = distance;
+			closestTriangle = triangleIndex;
+		}
+	}
+	return m_TriangleMaterials[closestTriangle];
 }
 
 CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) {

@@ -67,10 +67,22 @@ public:
 	virtual btVector3 GetMassCenter() const;
 	virtual btVector3 GetInertia() const;
 
+	FORCEINLINE bool HasPerTriangleSurfaces() const {
+		return m_TriangleMaterials.size() > 0;
+	}
+	// Returns an unremapped surface index, or 0 if no triangle-specific material.
+	// Doesn't remap just in case the non-zero indices are mapped to 0.
+	int GetTriangleSurface(const btVector3 &point) const;
+
 private:
 	btConvexHullShape m_Shape;
 
 	btAlignedObjectArray<unsigned int> m_TriangleIndices;
+
+	// For per-triangle materials.
+	btAlignedObjectArray<btVector4> m_TrianglePlanes;
+	// These are not remapped, as material table may be loaded after the collide.
+	btAlignedObjectArray<unsigned char> m_TriangleMaterials;
 
 	void CalculateVolumeProperties();
 	btScalar m_Volume;
