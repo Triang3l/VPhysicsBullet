@@ -61,16 +61,18 @@ public:
 		return convex->GetShape()->getShapeType() == CONVEX_HULL_SHAPE_PROXYTYPE;
 	}
 
+	// For IVP ledges, first calls to these will calculate the values.
 	virtual btScalar GetVolume() const;
-	virtual btScalar GetSurfaceArea() const; // Slow.
-	virtual btVector3 GetMassCenter() const { return m_MassCenter; }
-	virtual btVector3 GetInertia() const { return m_Inertia; }
+	virtual btScalar GetSurfaceArea() const; // Slow, only needed for tools.
+	virtual btVector3 GetMassCenter() const;
+	virtual btVector3 GetInertia() const;
 
 private:
 	btConvexHullShape m_Shape;
 
 	btAlignedObjectArray<unsigned int> m_TriangleIndices;
 
+	void CalculateVolumeProperties();
 	btScalar m_Volume;
 	btVector3 m_MassCenter;
 	btVector3 m_Inertia;

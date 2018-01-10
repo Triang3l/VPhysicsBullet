@@ -58,52 +58,15 @@ void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
 
 CPhysConvex_Hull::CPhysConvex_Hull(const btVector3 *points, int pointCount,
 		const unsigned int *indices, int triangleCount) :
-		m_Shape(&points[0][0], pointCount) {
+		m_Shape(&points[0][0], pointCount),
+		m_Volume(-1.0f) /* To force CalculateVolumeProperties */ {
 	Initialize();
 
 	int indexCount = triangleCount * 3;
 	m_TriangleIndices.resizeNoInitialize(indexCount);
 	memcpy(&m_TriangleIndices[0], indices, indexCount * sizeof(indices[0]));
 
-	// Calculations based on btConvexTriangleMeshShape::calculatePrincipalAxisTransform, but without rotation.
-
-	// Volume and center of mass.
-	const btVector3 &ref = points[indices[0]];
-	btVector3 massCenterSum(0.0f, 0.0f, 0.0f);
-	btScalar sixVolume = 0.0f;
-	for (int indexIndex = 3; indexIndex < indexCount; indexIndex += 3) {
-		const btVector3 &p0 = points[indices[indexIndex]];
-		const btVector3 &p1 = points[indices[indexIndex + 1]];
-		const btVector3 &p2 = points[indices[indexIndex + 2]];
-		btScalar tetrahedronSixVolume = btFabs((p0 - ref).triple(p1 - ref, p2 - ref));
-		massCenterSum += (0.25f * tetrahedronSixVolume) * (p0 + p1 + p2 + ref);
-		sixVolume += tetrahedronSixVolume;
-	}
-	m_Volume = (1.0f / 6.0f) * sixVolume;
-	if (m_Volume > 0.0f) {
-		m_MassCenter = massCenterSum / sixVolume;
-		m_Inertia.setZero();
-		for (int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
-			btVector3 a = points[indices[indexIndex]] - m_MassCenter;
-			btVector3 b = points[indices[indexIndex + 1]] - m_MassCenter;
-			btVector3 c = points[indices[indexIndex + 2]] - m_MassCenter;
-			btVector3 i = btFabs(a.triple(b, c)) * (0.1f / 6.0f) *
-					(a * a + b * b + c * c + a * b + a * c + b * c);
-			m_Inertia[0] += i[1] + i[2];
-			m_Inertia[1] += i[2] + i[0];
-			m_Inertia[2] += i[0] + i[1];
-		}
-		m_Inertia = (m_Inertia / m_Volume).absolute();
-	} else {
-		// Use a box approximation.
-		btVector3 aabbMin(BT_LARGE_FLOAT, BT_LARGE_FLOAT, BT_LARGE_FLOAT);
-		btVector3 aabbMax(-BT_LARGE_FLOAT, -BT_LARGE_FLOAT, -BT_LARGE_FLOAT);
-		m_Shape.getAabb(btTransform(btMatrix3x3::getIdentity()), aabbMin, aabbMax);
-		m_MassCenter = (aabbMin + aabbMax) * 0.5f;
-		m_Inertia = CPhysicsCollision::OffsetInertia(
-				CPhysicsCollision::BoxInertia(aabbMax - aabbMin),
-				(aabbMin + aabbMax) * 0.5f);
-	}
+	CalculateVolumeProperties();
 }
 
 CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
@@ -122,19 +85,52 @@ CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
 			&hull.m_Indices[0], hull.mNumFaces);
 }
 
-btScalar CPhysConvex_Hull::GetVolume() const {
-	// Tetrahedronalize the hull and compute its volume.
-	btScalar volume = 0.0f;
-	const btVector3 *points = m_Shape.getPoints();
-	const btVector3 &p0 = points[0];
-	int indexCount = m_TriangleIndices.size();
-	for (int indexIndex = 3; indexIndex < indexCount; indexCount += 3) {
-		btVector3 a = points[m_TriangleIndices[indexIndex]] - p0;
-		btVector3 b = points[m_TriangleIndices[indexIndex + 1]] - p0;
-		btVector3 c = points[m_TriangleIndices[indexIndex + 2]] - p0;
-		volume += btFabs(a.dot(b.cross(c)));
+void CPhysConvex_Hull::CalculateVolumeProperties() {
+	if (m_Volume >= 0.0f) {
+		return;
 	}
-	volume *= 1.0f / 6.0f;
+	// Based on btConvexTriangleMeshShape::calculatePrincipalAxisTransform, but without rotation.
+	const btVector3 *points = &m_Shape.getPoints[0][0];
+	const btVector3 &ref = points[m_TriangleIndices[0]];
+	int indexCount = m_TriangleIndices.size();
+	btScalar sixVolume = 0.0f;
+	btVector3 massCenterSum(0.0f, 0.0f, 0.0f);
+	for (int indexIndex = 3; indexIndex < indexCount; indexIndex += 3) {
+		const btVector3 &p0 = points[m_TriangleIndices[indexIndex]];
+		const btVector3 &p1 = points[m_TriangleIndices[indexIndex + 1]];
+		const btVector3 &p2 = points[m_TriangleIndices[indexIndex + 2]];
+		btScalar tetrahedronSixVolume = btFabs((p0 - ref).triple(p1 - ref, p2 - ref));
+		sixVolume += tetrahedronSixVolume;
+		massCenterSum += (0.25f * tetrahedronSixVolume) * (p0 + p1 + p2 + ref);
+	}
+	m_Volume = (1.0f / 6.0f) * sixVolume;
+	if (m_Volume > 0.0f) {
+		m_MassCenter = massCenterSum / sixVolume;
+		m_Inertia.setZero();
+		for (int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
+			btVector3 a = points[m_TriangleIndices[indexIndex]] - m_MassCenter;
+			btVector3 b = points[m_TriangleIndices[indexIndex + 1]] - m_MassCenter;
+			btVector3 c = points[m_TriangleIndices[indexIndex + 2]] - m_MassCenter;
+			btVector3 i = btFabs(a.triple(b, c)) * (0.1f / 6.0f) *
+					(a * a + b * b + c * c + a * b + a * c + b * c);
+			m_Inertia[0] += i[1] + i[2];
+			m_Inertia[1] += i[2] + i[0];
+			m_Inertia[2] += i[0] + i[1];
+		}
+		m_Inertia = (m_Inertia / m_Volume).absolute();
+	} else {
+		// Use a box approximation.
+		btVector3 aabbMin, aabbMax;
+		m_Shape.getAabb(btTransform(btMatrix3x3::getIdentity()), aabbMin, aabbMax);
+		m_MassCenter = (aabbMin + aabbMax) * 0.5f;
+		m_Inertia = CPhysicsCollision::OffsetInertia(
+				CPhysicsCollision::BoxInertia(aabbMax - aabbMin), m_MassCenter);
+	}
+}
+
+btScalar CPhysConvex_Hull::GetVolume() const {
+	const_cast<CPhysConvex_Hull *>(this)->CalculateVolumeProperties();
+	return m_Volume;
 }
 
 btScalar CPhysConvex_Hull::GetSurfaceArea() const {
@@ -148,6 +144,16 @@ btScalar CPhysConvex_Hull::GetSurfaceArea() const {
 		area += (p1 - p0).cross(p2 - p0).length();
 	}
 	return 0.5f * area;
+}
+
+btVector3 CPhysConvex_Hull::GetMassCenter() const {
+	const_cast<CPhysConvex_Hull *>(this)->CalculateVolumeProperties();
+	return m_MassCenter;
+}
+
+btVector3 CPhysConvex_Hull::GetInertia() const {
+	const_cast<CPhysConvex_Hull *>(this)->CalculateVolumeProperties();
+	return m_Inertia;
 }
 
 CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) {
