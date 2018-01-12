@@ -34,12 +34,10 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	const Vector *massCenterOverride = pParams->massCenterOverride;
 	if (massCenterOverride != nullptr && *massCenterOverride != vec3_origin) {
 		ConvertPositionToBullet(*massCenterOverride, m_MassCenterOverride);
-		BEGIN_BULLET_ALLOCATION();
 		btCompoundShape *massCenterOverrideShape = new btCompoundShape(false, 1);
 		btVector3 massCenterOffset = m_MassCenterOverride - massCenter;
 		massCenterOverrideShape->addChildShape(btTransform(btMatrix3x3::getIdentity(),
 				-massCenterOffset), collide->GetShape());
-		END_BULLET_ALLOCATION();
 		constructionInfo.m_collisionShape = massCenterOverrideShape;
 		massCenter = m_MassCenterOverride;
 		constructionInfo.m_localInertia = CPhysicsCollision::OffsetInertia(
@@ -58,9 +56,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	ConvertMatrixToBullet(startMatrix, startWorldTransform);
 	startWorldTransform.getOrigin() += startWorldTransform.getBasis() * massCenter;
 
-	BEGIN_BULLET_ALLOCATION();
 	m_RigidBody = new btRigidBody(constructionInfo);
-	END_BULLET_ALLOCATION();
 	m_RigidBody->setUserPointer(this);
 
 	AddReferenceToCollide();

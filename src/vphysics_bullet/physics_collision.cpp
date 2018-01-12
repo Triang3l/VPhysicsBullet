@@ -242,7 +242,6 @@ CPhysConvex_Hull *CPhysConvex_Hull::CreateFromIVPCompactLedge(
 	byteswap.SwapBufferToTargetEndian(&swappedLedge, const_cast<VCollide_IVP_Compact_Ledge *>(ledge));
 	const VCollide_IVP_U_Float_Point *ivpPoints = reinterpret_cast<const VCollide_IVP_U_Float_Point *>(
 			reinterpret_cast<const byte *>(ledge) + swappedLedge.c_point_offset);
-	BEGIN_BULLET_ALLOCATION();
 	btAlignedObjectArray<btVector3> pointArray;
 	int pointCount = swappedLedge.get_n_points();
 	if (pointCount < 3 || swappedLedge.n_triangles <= 0) {
@@ -255,9 +254,7 @@ CPhysConvex_Hull *CPhysConvex_Hull::CreateFromIVPCompactLedge(
 		byteswap.SwapBufferToTargetEndian(&swappedPoint, const_cast<VCollide_IVP_U_Float_Point *>(&ivpPoints[pointIndex]));
 		points[pointIndex].setValue(swappedPoint.k[0], -swappedPoint.k[1], -swappedPoint.k[2]);
 	}
-	CPhysConvex_Hull *hull = new CPhysConvex_Hull(ledge, byteswap, points, pointCount);
-	END_BULLET_ALLOCATION();
-	return hull;
+	return new CPhysConvex_Hull(ledge, byteswap, points, pointCount);
 }
 
 void CPhysConvex_Hull::CalculateVolumeProperties() {
@@ -376,34 +373,25 @@ void CPhysConvex_Hull::CalculateTrianglePlanes() {
 }
 
 CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) {
-	BEGIN_BULLET_ALLOCATION();
 	btAlignedObjectArray<btVector3> pointArray;
 	pointArray.resizeNoInitialize(vertCount);
 	btVector3 *points = &pointArray[0];
-	END_BULLET_ALLOCATION();
 	for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex) {
 		ConvertPositionToBullet(*pVerts[vertIndex], points[vertIndex]);
 	}
-	BEGIN_BULLET_ALLOCATION();
-	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(m_HullLibrary, points, vertCount);
-	END_BULLET_ALLOCATION();
-	return convex;
+	return CPhysConvex_Hull::CreateFromBulletPoints(m_HullLibrary, points, vertCount);
 }
 
 CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &ConvexPolyhedron) {
 	const Vector *verts = ConvexPolyhedron.pVertices;
 	int vertCount = ConvexPolyhedron.iVertexCount;
-	BEGIN_BULLET_ALLOCATION();
 	btAlignedObjectArray<btVector3> pointArray;
 	pointArray.resizeNoInitialize(vertCount);
 	btVector3 *points = &pointArray[0];
 	for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex) {
 		ConvertPositionToBullet(verts[vertIndex], points[vertIndex]);
 	}
-	BEGIN_BULLET_ALLOCATION();
-	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(m_HullLibrary, points, vertCount);
-	END_BULLET_ALLOCATION();
-	return convex;
+	return CPhysConvex_Hull::CreateFromBulletPoints(m_HullLibrary, points, vertCount);
 }
 
 /***********************************************
@@ -457,12 +445,10 @@ CPhysCollide_Compound *CPhysicsCollision::CreateBBox(const Vector &mins, const V
 		}
 	}
 
-	BEGIN_BULLET_ALLOCATION();
 	CPhysConvex *box = new CPhysConvex_Box(halfExtents, origin);
 	box->SetOwner(CPhysConvex::OWNER_INTERNAL);
 	CPhysCollide_Compound *compound = new CPhysCollide_Compound(&box, 1);
 	compound->SetOwner(CPhysCollide::OWNER_INTERNAL);
-	END_BULLET_ALLOCATION();
 	m_BBoxCache.AddToTail(compound);
 	return compound;
 }
@@ -609,10 +595,7 @@ CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, i
 	if (convexCount == 0 || pConvex == nullptr) {
 		return nullptr;
 	}
-	BEGIN_BULLET_ALLOCATION();
-	CPhysCollide_Compound *compound = new CPhysCollide_Compound(pConvex, convexCount);
-	END_BULLET_ALLOCATION();
-	return compound;
+	return new CPhysCollide_Compound(pConvex, convexCount);
 }
 
 btScalar CPhysCollide_Compound::GetVolume() const {

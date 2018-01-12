@@ -9,14 +9,6 @@
 #include "mathlib/mathlib.h"
 #include "tier0/memalloc.h"
 
-#ifdef _DEBUG
-#define BEGIN_BULLET_ALLOCATION() g_pMemAlloc->PushAllocDbgInfo("Bullet", 0)
-#define END_BULLET_ALLOCATION() g_pMemAlloc->PopAllocDbgInfo()
-#else
-#define BEGIN_BULLET_ALLOCATION() 0
-#define END_BULLET_ALLOCATION() 0
-#endif
-
 #define HL2BULLET_FACTOR METERS_PER_INCH
 #define BULLET2HL_FACTOR (1.0f / HL2BULLET_FACTOR)
 #define HL2BULLET(x) ((btScalar) ((x) * HL2BULLET_FACTOR))

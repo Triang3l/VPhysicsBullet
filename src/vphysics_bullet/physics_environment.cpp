@@ -11,13 +11,11 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_CollisionEvents(nullptr) {
 	m_PerformanceSettings.Defaults();
 
-	BEGIN_BULLET_ALLOCATION();
 	m_CollisionConfiguration = new btDefaultCollisionConfiguration();
 	m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
 	m_Broadphase = new btDbvtBroadphase();
 	m_Solver = new btSequentialImpulseConstraintSolver();
 	m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_Broadphase, m_Solver, m_CollisionConfiguration);
-	END_BULLET_ALLOCATION();
 
 	m_TriggerTouches.SetLessFunc(TriggerTouchLessFunc);
 
