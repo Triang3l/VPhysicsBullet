@@ -177,6 +177,9 @@ private:
 class CPhysCollide_Compound : public CPhysCollide {
 public:
 	CPhysCollide_Compound(CPhysConvex **pConvex, int convexCount);
+	CPhysCollide_Compound(
+			const struct VCollide_IVP_Compact_Ledgetree_Node *root, CByteswap &byteswap,
+			const btVector3 &massCenter, const btVector3 &inertia);
 	btCollisionShape *GetShape() { return &m_Shape; }
 	const btCollisionShape *GetShape() const { return &m_Shape; }
 	FORCEINLINE btCompoundShape *GetCompoundShape() { return &m_Shape; }
@@ -185,7 +188,7 @@ public:
 		return collide->GetShape()->getShapeType() == COMPOUND_SHAPE_PROXYTYPE;
 	}
 
-	virtual btScalar GetVolume() const { return m_Volume; }
+	virtual btScalar GetVolume() const;
 	virtual btScalar GetSurfaceArea() const;
 
 	virtual btVector3 GetMassCenter() const { return m_MassCenter; }
@@ -193,11 +196,14 @@ public:
 
 private:
 	btCompoundShape m_Shape;
+
+	void AddIVPCompactLedgetreeNode(
+			const struct VCollide_IVP_Compact_Ledgetree_Node *node, CByteswap &byteswap);
+
+	void CalculateInertia();
 	btScalar m_Volume;
 	btVector3 m_MassCenter;
 	btVector3 m_Inertia;
-
-	void CalculateInertia();
 };
 
 class CPhysCollide_Sphere : public CPhysCollide {

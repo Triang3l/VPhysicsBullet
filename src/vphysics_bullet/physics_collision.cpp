@@ -77,10 +77,6 @@ struct VCollide_IVP_Compact_Ledgetree_Node {
 	float radius;
 	unsigned char box_sizes[3];
 	unsigned char free_0;
-
-	FORCEINLINE bool is_terminal() const {
-		return offset_right_node == 0;
-	}
 };
 
 struct VCollide_IVP_Compact_Surface {
@@ -195,6 +191,7 @@ CPhysConvex_Hull::CPhysConvex_Hull(const VCollide_IVP_Compact_Ledge *ledge, CByt
 		const btVector3 *ledgePoints, int ledgePointCount) :
 		m_Shape(&ledgePoints[0][0], ledgePointCount), m_Volume(-1.0f) {
 	Initialize();
+	m_Shape.setUserIndex(ledge->client_data);
 	VCollide_IVP_Compact_Ledge swappedLedge;
 	byteswap.SwapBufferToTargetEndian(&swappedLedge, const_cast<VCollide_IVP_Compact_Ledge *>(ledge));
 	const VCollide_IVP_Compact_Triangle *triangles =
@@ -205,7 +202,7 @@ CPhysConvex_Hull::CPhysConvex_Hull(const VCollide_IVP_Compact_Ledge *ledge, CByt
 	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
 		VCollide_IVP_Compact_Triangle swappedTriangle;
 		byteswap.SwapBufferToTargetEndian(&swappedTriangle,
-				const_cast<VCollide_IVP_Compact_Triangle *>(&triangles[triangleIndex]);
+				const_cast<VCollide_IVP_Compact_Triangle *>(&triangles[triangleIndex]));
 		int indexIndex = triangleIndex * 3;
 		indices[indexIndex] = swappedTriangle.c_three_edges[0].start_point_index;
 		indices[indexIndex + 1] = swappedTriangle.c_three_edges[1].start_point_index;
@@ -582,6 +579,32 @@ CPhysCollide_Compound::CPhysCollide_Compound(CPhysConvex **pConvex, int convexCo
 	CalculateInertia();
 }
 
+CPhysCollide_Compound::CPhysCollide_Compound(
+		const VCollide_IVP_Compact_Ledgetree_Node *root, CByteswap &byteswap,
+		const btVector3 &massCenter, const btVector3 &inertia) :
+		m_Shape(root->offset_right_node != 0 /* Swap not required */),
+		m_Volume(-1.0f), m_MassCenter(massCenter), m_Inertia(inertia) {
+	AddIVPCompactLedgetreeNode(root, byteswap);
+}
+
+void CPhysCollide_Compound::AddIVPCompactLedgetreeNode(
+		const VCollide_IVP_Compact_Ledgetree_Node *node, CByteswap &byteswap) {
+	VCollide_IVP_Compact_Ledgetree_Node swappedNode;
+	byteswap.SwapBufferToTargetEndian(&swappedNode, const_cast<VCollide_IVP_Compact_Ledgetree_Node *>(node));
+	if (swappedNode.offset_right_node == 0) {
+		CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromIVPCompactLedge(
+				reinterpret_cast<const VCollide_IVP_Compact_Ledge *>(
+						reinterpret_cast<const byte *>(node) + swappedNode.offset_compact_ledge), byteswap);
+		convex->SetOwner(CPhysConvex::OWNER_COMPOUND);
+		m_Shape.addChildShape(btTransform(btMatrix3x3::getIdentity(),
+				convex->GetOriginInCompound() - m_MassCenter), convex->GetShape());
+	} else {
+		AddIVPCompactLedgetreeNode(node + 1, byteswap);
+		AddIVPCompactLedgetreeNode(reinterpret_cast<const VCollide_IVP_Compact_Ledgetree_Node *>(
+						reinterpret_cast<const byte *>(node) + swappedNode.offset_right_node), byteswap);
+	}
+}
+
 CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, int convexCount) {
 	if (convexCount == 0 || pConvex == nullptr) {
 		return nullptr;
@@ -593,13 +616,16 @@ CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, i
 }
 
 btScalar CPhysCollide_Compound::GetVolume() const {
-	btScalar volume = 0.0f;
-	int childCount = m_Shape.getNumChildShapes();
-	for (int childIndex = 0; childIndex < childCount; ++childIndex) {
-		volume += reinterpret_cast<const CPhysConvex *>(
-				m_Shape.getChildShape(childIndex)->getUserPointer())->GetVolume();
+	if (m_Volume < 0.0f) {
+		btScalar &volume = const_cast<CPhysCollide_Compound *>(this)->m_Volume;
+		volume = 0.0f;
+		int childCount = m_Shape.getNumChildShapes();
+		for (int childIndex = 0; childIndex < childCount; ++childIndex) {
+			volume += reinterpret_cast<const CPhysConvex *>(
+					m_Shape.getChildShape(childIndex)->getUserPointer())->GetVolume();
+		}
 	}
-	return volume;
+	return m_Volume;
 }
 
 btScalar CPhysCollide_Compound::GetSurfaceArea() const {
@@ -628,17 +654,17 @@ void CPhysCollide_Compound::SetMassCenter(const btVector3 &massCenter) {
 }
 
 void CPhysCollide_Compound::CalculateInertia() {
-	if (m_Volume >= 0) {
+	btScalar volume = GetVolume(); // Not necessarily precalculated.
+	if (volume >= 0) {
 		m_Inertia.setZero();
 		int childCount = m_Shape.getNumChildShapes();
 		for (int childIndex = 0; childIndex < childCount; ++childIndex) {
 			const CPhysConvex *convex = reinterpret_cast<const CPhysConvex *>(
 					m_Shape.getChildShape(childIndex)->getUserPointer());
-			const btVector3 &origin = m_Shape.getChildTransform(childIndex).getOrigin();
 			m_Inertia += convex->GetVolume() * CPhysicsCollision::OffsetInertia(
 					convex->GetInertia(), m_Shape.getChildTransform(childIndex).getOrigin(), false);
 		}
-		m_Inertia = (m_Inertia / m_Volume).absolute();
+		m_Inertia = (m_Inertia / volume).absolute();
 	} else {
 		btVector3 aabbMin, aabbMax;
 		m_Shape.getAabb(btTransform(btMatrix3x3::getIdentity()), aabbMin, aabbMax);
