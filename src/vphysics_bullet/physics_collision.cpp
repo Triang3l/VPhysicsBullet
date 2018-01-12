@@ -4,7 +4,6 @@
 #include "physics_collision.h"
 #include "physics_object.h"
 #include "mathlib/polyhedron.h"
-#include "tier1/byteswap.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -65,13 +64,6 @@ struct VCollide_IVP_Compact_Ledge {
 	short n_triangles;
 	short for_future_use;
 
-	FORCEINLINE const VCollide_IVP_U_Float_Point *get_point_array() const {
-		return reinterpret_cast<const VCollide_IVP_U_Float_Point *>(
-				reinterpret_cast<const byte *>(this) + c_point_offset);
-	}
-	FORCEINLINE const VCollide_IVP_Compact_Triangle *get_first_triangle() const {
-		return reinterpret_cast<const VCollide_IVP_Compact_Triangle *>(this + 1);
-	}
 	FORCEINLINE int get_n_points() const {
 		return size_div_16 - n_triangles - 1;
 	}
@@ -86,17 +78,6 @@ struct VCollide_IVP_Compact_Ledgetree_Node {
 	unsigned char box_sizes[3];
 	unsigned char free_0;
 
-	FORCEINLINE const VCollide_IVP_Compact_Ledge *get_compact_ledge() const {
-		return reinterpret_cast<const VCollide_IVP_Compact_Ledge *>(
-				reinterpret_cast<const byte *>(this) + offset_compact_ledge);
-	}
-	FORCEINLINE const VCollide_IVP_Compact_Ledgetree_Node *left_son() const {
-		return this + 1;
-	}
-	FORCEINLINE const VCollide_IVP_Compact_Ledgetree_Node *right_son() const {
-		return reinterpret_cast<const VCollide_IVP_Compact_Ledgetree_Node *>(
-				reinterpret_cast<const byte *>(this) + offset_right_node);
-	}
 	FORCEINLINE bool is_terminal() const {
 		return offset_right_node == 0;
 	}
@@ -113,11 +94,6 @@ struct VCollide_IVP_Compact_Surface {
 	END_BITFIELD()
 	int offset_ledgetree_root;
 	int dummy[3];
-
-	FORCEINLINE const VCollide_IVP_Compact_Ledgetree_Node *get_compact_ledge_tree_root() const {
-		return reinterpret_cast<const VCollide_IVP_Compact_Ledgetree_Node *>(
-				reinterpret_cast<const byte *>(this) + offset_ledgetree_root);
-	}
 };
 
 #ifdef _X360
@@ -215,9 +191,41 @@ CPhysConvex_Hull::CPhysConvex_Hull(const btVector3 *points, int pointCount,
 	memcpy(&m_TriangleIndices[0], indices, indexCount * sizeof(indices[0]));
 }
 
+CPhysConvex_Hull::CPhysConvex_Hull(const VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap,
+		const btVector3 *ledgePoints, int ledgePointCount) :
+		m_Shape(&ledgePoints[0][0], ledgePointCount), m_Volume(-1.0f) {
+	Initialize();
+	VCollide_IVP_Compact_Ledge swappedLedge;
+	byteswap.SwapBufferToTargetEndian(&swappedLedge, const_cast<VCollide_IVP_Compact_Ledge *>(ledge));
+	const VCollide_IVP_Compact_Triangle *triangles =
+			reinterpret_cast<const VCollide_IVP_Compact_Triangle *>(ledge + 1);
+	int triangleCount = swappedLedge.n_triangles;
+	m_TriangleIndices.resizeNoInitialize(triangleCount * 3);
+	unsigned int *indices = &m_TriangleIndices[0];
+	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
+		VCollide_IVP_Compact_Triangle swappedTriangle;
+		byteswap.SwapBufferToTargetEndian(&swappedTriangle,
+				const_cast<VCollide_IVP_Compact_Triangle *>(&triangles[triangleIndex]);
+		int indexIndex = triangleIndex * 3;
+		indices[indexIndex] = swappedTriangle.c_three_edges[0].start_point_index;
+		indices[indexIndex + 1] = swappedTriangle.c_three_edges[1].start_point_index;
+		indices[indexIndex + 2] = swappedTriangle.c_three_edges[2].start_point_index;
+		if (swappedTriangle.material_index > 0) {
+			if (m_TriangleMaterials.size() == 0) {
+				m_TriangleMaterials.resizeNoInitialize(triangleCount);
+				memset(&m_TriangleMaterials[0], 0, triangleCount * sizeof(m_TriangleMaterials[0]));
+			}
+			m_TriangleMaterials[triangleIndex] = swappedTriangle.material_index;
+		}
+	}
+	if (m_TriangleMaterials.size() != 0) {
+		CalculateTrianglePlanes();
+	}
+}
+
 CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
 		HullLibrary &hullLibrary, const btVector3 *points, int pointCount) {
-	if (pointCount == 0) {
+	if (pointCount < 3) {
 		return nullptr;
 	}
 	HullResult hull;
@@ -229,6 +237,30 @@ CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
 	}
 	return new CPhysConvex_Hull(&hull.m_OutputVertices[0], hull.mNumOutputVertices,
 			&hull.m_Indices[0], hull.mNumFaces);
+}
+
+CPhysConvex_Hull *CPhysConvex_Hull::CreateFromIVPCompactLedge(
+		const VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap) {
+	VCollide_IVP_Compact_Ledge swappedLedge;
+	byteswap.SwapBufferToTargetEndian(&swappedLedge, const_cast<VCollide_IVP_Compact_Ledge *>(ledge));
+	const VCollide_IVP_U_Float_Point *ivpPoints = reinterpret_cast<const VCollide_IVP_U_Float_Point *>(
+			reinterpret_cast<const byte *>(ledge) + swappedLedge.c_point_offset);
+	BEGIN_BULLET_ALLOCATION();
+	btAlignedObjectArray<btVector3> pointArray;
+	int pointCount = swappedLedge.get_n_points();
+	if (pointCount < 3 || swappedLedge.n_triangles <= 0) {
+		return nullptr;
+	}
+	pointArray.resizeNoInitialize(pointCount);
+	btVector3 *points = &pointArray[0];
+	for (int pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
+		VCollide_IVP_U_Float_Point swappedPoint;
+		byteswap.SwapBufferToTargetEndian(&swappedPoint, const_cast<VCollide_IVP_U_Float_Point *>(&ivpPoints[pointIndex]));
+		points[pointIndex].setValue(swappedPoint.k[0], -swappedPoint.k[1], -swappedPoint.k[2]);
+	}
+	CPhysConvex_Hull *hull = new CPhysConvex_Hull(ledge, byteswap, points, pointCount);
+	END_BULLET_ALLOCATION();
+	return hull;
 }
 
 void CPhysConvex_Hull::CalculateVolumeProperties() {
@@ -309,7 +341,7 @@ btVector3 CPhysConvex_Hull::GetInertia() const {
 // However, per-triangle materials are used only by world brushes,
 // which can't have coplanar triangles with different materials.
 // It also assumes the contact point is very close to the surface.
-int CPhysConvex_Hull::GetTriangleSurface(const btVector3 &point) const {
+int CPhysConvex_Hull::GetTriangleMaterialIndex(const btVector3 &point) const {
 	int triangleCount = m_TriangleMaterials.size();
 	if (triangleCount == 0) {
 		return 0;
@@ -328,17 +360,35 @@ int CPhysConvex_Hull::GetTriangleSurface(const btVector3 &point) const {
 	return m_TriangleMaterials[closestTriangle];
 }
 
+void CPhysConvex_Hull::CalculateTrianglePlanes() {
+	if (m_TrianglePlanes.size() != 0) {
+		return;
+	}
+	int triangleCount = m_TriangleIndices.size() / 3;
+	m_TrianglePlanes.resizeNoInitialize(triangleCount);
+	btVector4 *planes = &m_TrianglePlanes[0];
+	const btVector3 *points = &m_Shape.getPoints[0][0];
+	const unsigned int *indices = &m_TriangleIndices[0];
+	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
+		int indexIndex = triangleIndex * 3;
+		const btVector3 &v1 = points[indices[indexIndex]];
+		btVector3 normal = points[indices[indexIndex + 1]].cross(points[indices[indexIndex + 2]]);
+		normal.normalize();
+		planes[triangleIndex].setValue(normal.getX(), normal.getY(), normal.getZ(), v1.dot(normal));
+	}
+}
+
 CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) {
 	BEGIN_BULLET_ALLOCATION();
-	btAlignedObjectArray<btVector3> points;
-	points.resizeNoInitialize(vertCount);
+	btAlignedObjectArray<btVector3> pointArray;
+	pointArray.resizeNoInitialize(vertCount);
+	btVector3 *points = &pointArray[0];
 	END_BULLET_ALLOCATION();
 	for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex) {
 		ConvertPositionToBullet(*pVerts[vertIndex], points[vertIndex]);
 	}
 	BEGIN_BULLET_ALLOCATION();
-	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(
-			m_HullLibrary, &points[0], points.size());
+	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(m_HullLibrary, points, vertCount);
 	END_BULLET_ALLOCATION();
 	return convex;
 }
@@ -347,14 +397,14 @@ CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &Co
 	const Vector *verts = ConvexPolyhedron.pVertices;
 	int vertCount = ConvexPolyhedron.iVertexCount;
 	BEGIN_BULLET_ALLOCATION();
-	btAlignedObjectArray<btVector3> points;
-	points.resizeNoInitialize(vertCount);
+	btAlignedObjectArray<btVector3> pointArray;
+	pointArray.resizeNoInitialize(vertCount);
+	btVector3 *points = &pointArray[0];
 	for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex) {
 		ConvertPositionToBullet(verts[vertIndex], points[vertIndex]);
 	}
 	BEGIN_BULLET_ALLOCATION();
-	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(
-			m_HullLibrary, &points[0], points.size());
+	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(m_HullLibrary, points, vertCount);
 	END_BULLET_ALLOCATION();
 	return convex;
 }

@@ -6,6 +6,7 @@
 
 #include "physics_internal.h"
 #include <LinearMath/btConvexHull.h>
+#include "tier1/byteswap.h"
 #include "tier1/utlvector.h"
 
 /************************
@@ -52,6 +53,8 @@ public:
 			const unsigned int *indices, int triangleCount);
 	static CPhysConvex_Hull *CreateFromBulletPoints(
 			HullLibrary &hullLibrary, const btVector3 *points, int pointCount);
+	static CPhysConvex_Hull *CreateFromIVPCompactLedge(
+			const struct VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap);
 
 	btCollisionShape *GetShape() { return &m_Shape; }
 	const btCollisionShape *GetShape() const { return &m_Shape; }
@@ -67,18 +70,22 @@ public:
 	virtual btVector3 GetMassCenter() const;
 	virtual btVector3 GetInertia() const;
 
-	FORCEINLINE bool HasPerTriangleSurfaces() const {
+	FORCEINLINE bool HasPerTriangleMaterials() const {
 		return m_TriangleMaterials.size() > 0;
 	}
 	// Returns an unremapped surface index, or 0 if no triangle-specific material.
 	// Doesn't remap just in case the non-zero indices are mapped to 0.
-	int GetTriangleSurface(const btVector3 &point) const;
+	int GetTriangleMaterialIndex(const btVector3 &point) const;
 
 private:
+	CPhysConvex_Hull(const struct VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap,
+			const btVector3 *ledgePoints, int ledgePointCount);
+
 	btConvexHullShape m_Shape;
 
 	btAlignedObjectArray<unsigned int> m_TriangleIndices;
 
+	void CalculateTrianglePlanes();
 	// For per-triangle materials.
 	btAlignedObjectArray<btVector4> m_TrianglePlanes;
 	// These are not remapped, as material table may be loaded after the collide.
