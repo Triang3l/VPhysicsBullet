@@ -83,6 +83,7 @@ IPhysicsObject *CPhysicsEnvironment::CreateSphereObject(float radius, int materi
 			collide = freeCollide;
 		} else {
 			collide = g_pPhysCollision->CreateSphereCollide(bulletRadius);
+			collide->SetOwner(CPhysCollide::OWNER_INTERNAL);
 			m_SphereCache.AddToTail(collide);
 		}
 	}
