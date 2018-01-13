@@ -50,6 +50,9 @@ public:
 	virtual void SetDamping(const float *speed, const float *rot);
 	virtual void GetDamping(float *speed, float *rot) const;
 
+	virtual int GetMaterialIndex() const;
+	virtual void SetMaterialIndex(int materialIndex);
+
 	virtual unsigned int GetContents() const;
 	virtual void SetContents(unsigned int contents);
 
@@ -79,6 +82,8 @@ public:
 
 	virtual const CPhysCollide *GetCollide() const;
 
+	virtual const char *GetName() const;
+
 	virtual void BecomeTrigger();
 	virtual void RemoveTrigger();
 
@@ -86,6 +91,8 @@ public:
 	virtual void RemoveHinged();
 
 	// Internal methods.
+
+	FORCEINLINE btRigidBody *GetRigidBody() const { return m_RigidBody; }
 
 	// Bullet doesn't allow damping factors over 1, so it has to be done manually.
 	// Also applies damping in a way more similar to how IVP VPhysics does it.
@@ -136,9 +143,11 @@ private:
 	void *m_GameData;
 	unsigned short m_GameFlags;
 	unsigned short m_GameIndex;
+	char m_Name[128];
 
 	unsigned short m_Callbacks;
 
+	int m_MaterialIndex;
 	unsigned int m_ContentsMask;
 
 	btVector3 m_LinearVelocityChange;

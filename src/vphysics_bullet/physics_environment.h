@@ -19,6 +19,15 @@ public:
 	virtual void SetGravity(const Vector &gravityVector);
 	virtual void GetGravity(Vector *pGravityVector) const;
 
+	virtual IPhysicsObject *CreatePolyObject(
+			const CPhysCollide *pCollisionModel, int materialIndex,
+			const Vector &position, const QAngle &angles, objectparams_t *pParams);
+	virtual IPhysicsObject *CreatePolyObjectStatic(
+			const CPhysCollide *pCollisionModel, int materialIndex,
+			const Vector &position, const QAngle &angles, objectparams_t *pParams);
+	virtual IPhysicsObject *CreateSphereObject(float radius, int materialIndex,
+			const Vector &position, const QAngle &angles, objectparams_t *pParams, bool isStatic);
+
 	virtual void SetCollisionEventHandler(IPhysicsCollisionEvent *pCollisionEvents);
 
 	virtual void GetPerformanceSettings(physics_performanceparams_t *pOutput) const;
@@ -53,6 +62,8 @@ private:
 
 	CUtlVector<CPhysCollide *> m_SphereCache;
 
+	void AddObject(IPhysicsObject *object);
+	CUtlVector<IPhysicsObject *> m_Objects;
 	CUtlVector<IPhysicsObject *> m_NonStaticObjects;
 
 	IPhysicsCollisionEvent *m_CollisionEvents;

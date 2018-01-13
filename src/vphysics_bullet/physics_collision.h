@@ -259,6 +259,8 @@ public:
 
 	void SetCollideIndex(CPhysCollide *pCollide, int index);
 
+	CPhysCollide_Sphere *CreateSphereCollide(btScalar radius);
+
 private:
 	HullLibrary m_HullLibrary;
 

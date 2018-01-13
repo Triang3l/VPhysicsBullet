@@ -676,3 +676,7 @@ btVector3 CPhysCollide_Sphere::GetInertia() const {
 	elem *= elem * 0.4;
 	return btVector3(elem, elem, elem);
 }
+
+CPhysCollide_Sphere *CPhysicsCollision::CreateSphereCollide(btScalar radius) {
+	return new CPhysCollide_Sphere(radius);
+}

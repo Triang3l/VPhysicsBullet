@@ -2,6 +2,7 @@
 // Bullet integration by Triang3l, derivative work, in public domain if detached from Valve's work.
 
 #include "physics_environment.h"
+#include "physics_collision.h"
 #include "physics_object.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -29,6 +30,66 @@ CPhysicsEnvironment::~CPhysicsEnvironment() {
 	delete m_Broadphase;
 	delete m_Dispatcher;
 	delete m_CollisionConfiguration;
+}
+
+/********************
+ * Object management
+ ********************/
+
+void CPhysicsEnvironment::AddObject(IPhysicsObject *object) {
+	m_DynamicsWorld->addRigidBody(static_cast<CPhysicsObject *>(object)->GetRigidBody());
+	m_Objects.AddToTail(object);
+	if (!object->IsStatic()) {
+		m_NonStaticObjects.AddToTail(object);
+	}
+}
+
+IPhysicsObject *CPhysicsEnvironment::CreatePolyObject(
+		const CPhysCollide *pCollisionModel, int materialIndex,
+		const Vector &position, const QAngle &angles, objectparams_t *pParams) {
+	IPhysicsObject *object = new CPhysicsObject(this, pCollisionModel, materialIndex,
+			position, angles, pParams);
+	AddObject(object);
+	return object;
+}
+
+IPhysicsObject *CPhysicsEnvironment::CreatePolyObjectStatic(
+		const CPhysCollide *pCollisionModel, int materialIndex,
+		const Vector &position, const QAngle &angles, objectparams_t *pParams) {
+	IPhysicsObject *object = new CPhysicsObject(this, pCollisionModel, materialIndex,
+			position, angles, pParams, true);
+	AddObject(object);
+	return object;
+}
+
+IPhysicsObject *CPhysicsEnvironment::CreateSphereObject(float radius, int materialIndex,
+		const Vector &position, const QAngle &angles, objectparams_t *pParams, bool isStatic) {
+	btScalar bulletRadius = HL2BULLET(radius);
+	const btScalar bulletRadiusThreshold = HL2BULLET(0.1f);
+	CPhysCollide_Sphere *collide = nullptr, *freeCollide = nullptr;
+	for (int cacheIndex = m_SphereCache.Count() - 1; cacheIndex >= 0; --cacheIndex) {
+		CPhysCollide_Sphere *cacheCollide = static_cast<CPhysCollide_Sphere *>(m_SphereCache[cacheIndex]);
+		if (btFabs(cacheCollide->GetSphereShape()->getRadius() - bulletRadius) < bulletRadiusThreshold) {
+			collide = cacheCollide;
+			break;
+		}
+		if (freeCollide == nullptr && cacheCollide->GetObjectReferenceList() == nullptr) {
+			freeCollide = cacheCollide;
+		}
+	}
+	if (collide == nullptr) {
+		if (freeCollide != nullptr) {
+			freeCollide->GetSphereShape()->setUnscaledRadius(bulletRadius);
+			collide = freeCollide;
+		} else {
+			collide = g_pPhysCollision->CreateSphereCollide(bulletRadius);
+			m_SphereCache.AddToTail(collide);
+		}
+	}
+	IPhysicsObject *object = new CPhysicsObject(this, collide, materialIndex,
+			position, angles, pParams, isStatic);
+	AddObject(object);
+	return object;
 }
 
 void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {

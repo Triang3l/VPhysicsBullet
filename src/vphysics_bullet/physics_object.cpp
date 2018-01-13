@@ -4,6 +4,7 @@
 #include "physics_object.h"
 #include "physics_collision.h"
 #include "physics_environment.h"
+#include "physics_material.h"
 #include "bspflags.h"
 #include "tier0/dbg.h"
 
@@ -24,9 +25,15 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
 				CALLBACK_GLOBAL_COLLIDE_STATIC | CALLBACK_DO_FLUID_SIMULATION),
-		m_ContentsMask(CONTENTS_SOLID),
+		m_MaterialIndex(materialIndex), m_ContentsMask(CONTENTS_SOLID),
 		m_LinearVelocityChange(0.0f, 0.0f, 0.0f),
 		m_LocalAngularVelocityChange(0.0f, 0.0f, 0.0f) {
+	if (pParams->pName != nullptr) {
+		V_strncpy(m_Name, pParams->pName, sizeof(m_Name));
+	} else {
+		m_Name[0] = '\0';
+	}
+
 	btRigidBody::btRigidBodyConstructionInfo constructionInfo(
 			m_Mass, nullptr, collide->GetShape(), collide->GetInertia());
 
@@ -50,6 +57,11 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	}
 	ConvertInertiaToHL(constructionInfo.m_localInertia, m_Inertia);
 
+	float friction, elasticity;
+	g_pPhysSurfaceProps->GetPhysicsProperties(materialIndex, nullptr, nullptr, &friction, &elasticity);
+	constructionInfo.m_friction = friction;
+	constructionInfo.m_restitution = elasticity;
+
 	matrix3x4_t startMatrix;
 	AngleMatrix(angles, position, startMatrix);
 	btTransform &startWorldTransform = constructionInfo.m_startWorldTransform;
@@ -60,6 +72,8 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	m_RigidBody->setUserPointer(this);
 
 	AddReferenceToCollide();
+
+	Sleep();
 }
 
 CPhysicsObject::~CPhysicsObject() {
@@ -298,7 +312,7 @@ void CPhysicsObject::GetDamping(float *speed, float *rot) const {
 }
 
 void CPhysicsObject::ApplyDamping(float timeStep) {
-	if (m_RigidBody->isStaticOrKinematicObject() || !IsGravityEnabled()) {
+	if (!IsGravityEnabled()) {
 		return;
 	}
 
@@ -370,6 +384,26 @@ unsigned int CPhysicsObject::GetContents() const {
 
 void CPhysicsObject::SetContents(unsigned int contents) {
 	m_ContentsMask = contents;
+}
+
+const char *CPhysicsObject::GetName() const {
+	return m_Name;
+}
+
+/*************
+ * Collisions
+ *************/
+
+int CPhysicsObject::GetMaterialIndex() const {
+	return m_MaterialIndex;
+}
+
+void CPhysicsObject::SetMaterialIndex(int materialIndex) {
+	m_MaterialIndex = materialIndex;
+	float friction, elasticity;
+	g_pPhysSurfaceProps->GetPhysicsProperties(materialIndex, nullptr, nullptr, &friction, &elasticity);
+	m_RigidBody->setFriction(friction);
+	m_RigidBody->setRestitution(elasticity);
 }
 
 /**********************
