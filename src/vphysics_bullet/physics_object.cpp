@@ -464,7 +464,7 @@ void CPhysicsObject::SetPositionMatrix(const matrix3x4_t &matrix, bool isTelepor
 }
 
 void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
-	const btTransform &transform = m_RigidBody->getWorldTransform();
+	const btTransform &transform = m_RigidBody->getInterpolationWorldTransform();
 	const btMatrix3x3 &basis = transform.getBasis();
 	if (worldPosition != nullptr) {
 		ConvertPositionToHL(transform.getOrigin() - basis * GetBulletMassCenter(), *worldPosition);
@@ -475,7 +475,7 @@ void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
 }
 
 void CPhysicsObject::GetPositionMatrix(matrix3x4_t *positionMatrix) const {
-	const btTransform &transform = m_RigidBody->getWorldTransform();
+	const btTransform &transform = m_RigidBody->getInterpolationWorldTransform();
 	const btMatrix3x3 &basis = transform.getBasis();
 	btVector3 origin = transform.getOrigin() - basis * GetBulletMassCenter();
 	ConvertMatrixToHL(basis, origin, *positionMatrix);
@@ -589,10 +589,8 @@ void CPhysicsObject::GetVelocity(Vector *velocity, AngularImpulse *angularVeloci
 	}
 	if (angularVelocity != nullptr) {
 		AngularImpulse worldAngularVelocity;
-		ConvertAngularImpulseToHL(m_RigidBody->getAngularVelocity() +
-				(m_RigidBody->getWorldTransform().getBasis() * m_LocalAngularVelocityChange),
-				worldAngularVelocity);
-		WorldToLocalVector(angularVelocity, worldAngularVelocity);
+		ConvertAngularImpulseToHL(m_RigidBody->getWorldTransform().getBasis().transpose() *
+				m_RigidBody->getAngularVelocity() + m_LocalAngularVelocityChange, *angularVelocity);
 	}
 }
 
@@ -672,12 +670,10 @@ void CPhysicsObject::ApplyTorqueCenter(const AngularImpulse &torque) {
 	if (!IsMoveable()) {
 		return;
 	}
-	AngularImpulse localTorque;
-	WorldToLocalVector(&localTorque, torque);
-	btVector3 bulletLocalTorque;
-	ConvertAngularImpulseToBullet(localTorque, bulletLocalTorque);
-	m_LocalAngularVelocityChange += bulletLocalTorque *
-			m_RigidBody->getInvInertiaDiagLocal();
+	btVector3 bulletWorldTorque;
+	ConvertAngularImpulseToBullet(torque, bulletWorldTorque);
+	m_LocalAngularVelocityChange += (m_RigidBody->getWorldTransform().getBasis().transpose() *
+			bulletWorldTorque) * m_RigidBody->getInvInertiaDiagLocal();
 	Wake();
 }
 
