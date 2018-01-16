@@ -26,8 +26,10 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
 				CALLBACK_GLOBAL_COLLIDE_STATIC | CALLBACK_DO_FLUID_SIMULATION),
 		m_MaterialIndex(materialIndex), m_ContentsMask(CONTENTS_SOLID),
+		m_WasAsleep(true),
 		m_LinearVelocityChange(0.0f, 0.0f, 0.0f),
-		m_LocalAngularVelocityChange(0.0f, 0.0f, 0.0f) {
+		m_LocalAngularVelocityChange(0.0f, 0.0f, 0.0f),
+		m_TouchingTriggers(0) {
 	if (pParams->pName != nullptr) {
 		V_strncpy(m_Name, pParams->pName, sizeof(m_Name));
 	} else {

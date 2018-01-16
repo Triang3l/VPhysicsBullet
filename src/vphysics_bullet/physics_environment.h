@@ -29,6 +29,11 @@ public:
 			const Vector &position, const QAngle &angles, objectparams_t *pParams, bool isStatic);
 
 	virtual void SetCollisionEventHandler(IPhysicsCollisionEvent *pCollisionEvents);
+	virtual void SetObjectEventHandler(IPhysicsObjectEvent *pObjectEvents);
+
+	virtual int GetActiveObjectCount() const;
+	virtual void GetActiveObjects(IPhysicsObject **pOutputObjectList) const;
+	virtual const IPhysicsObject **GetObjectList(int *pOutputObjectCount) const;
 
 	virtual void GetPerformanceSettings(physics_performanceparams_t *pOutput) const;
 	virtual void SetPerformanceSettings(const physics_performanceparams_t *pSettings);
@@ -63,8 +68,11 @@ private:
 	CUtlVector<CPhysCollide *> m_SphereCache;
 
 	void AddObject(IPhysicsObject *object);
+	void UpdateActiveObjects();
 	CUtlVector<IPhysicsObject *> m_Objects;
 	CUtlVector<IPhysicsObject *> m_NonStaticObjects;
+	CUtlVector<IPhysicsObject *> m_ActiveNonStaticObjects;
+	IPhysicsObjectEvent *m_ObjectEvents;
 
 	IPhysicsCollisionEvent *m_CollisionEvents;
 

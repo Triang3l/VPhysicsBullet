@@ -94,6 +94,13 @@ public:
 
 	FORCEINLINE btRigidBody *GetRigidBody() const { return m_RigidBody; }
 
+	inline bool WasAsleep() const { return m_WasAsleep; }
+	inline bool UpdateEventSleepState() {
+		bool wasAsleep = m_WasAsleep;
+		m_WasAsleep = IsAsleep();
+		return wasAsleep;
+	}
+
 	// Bullet doesn't allow damping factors over 1, so it has to be done manually.
 	// Also applies damping in a way more similar to how IVP VPhysics does it.
 	void ApplyDamping(float timeStep);
@@ -121,6 +128,8 @@ public:
 	void NotifyTransferred(IPhysicsEnvironment *newEnvironment);
 
 private:
+	// Properties.
+
 	IPhysicsEnvironment *m_Environment;
 
 	btRigidBody *m_RigidBody;
@@ -149,6 +158,11 @@ private:
 
 	int m_MaterialIndex;
 	unsigned int m_ContentsMask;
+
+	// State variables.
+
+	// Was the object active in the previous PSI - used to trigger sleep events.
+	bool m_WasAsleep;
 
 	btVector3 m_LinearVelocityChange;
 	btVector3 m_LocalAngularVelocityChange;

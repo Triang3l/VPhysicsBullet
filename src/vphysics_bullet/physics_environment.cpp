@@ -9,7 +9,7 @@
 #include "tier0/memdbgon.h"
 
 CPhysicsEnvironment::CPhysicsEnvironment() :
-		m_CollisionEvents(nullptr) {
+		m_ObjectEvents(nullptr), m_CollisionEvents(nullptr) {
 	m_PerformanceSettings.Defaults();
 
 	m_CollisionConfiguration = new btDefaultCollisionConfiguration();
@@ -38,10 +38,14 @@ CPhysicsEnvironment::~CPhysicsEnvironment() {
  ********************/
 
 void CPhysicsEnvironment::AddObject(IPhysicsObject *object) {
-	m_DynamicsWorld->addRigidBody(static_cast<CPhysicsObject *>(object)->GetRigidBody());
+	CPhysicsObject *physicsObject = static_cast<CPhysicsObject *>(object);
+	m_DynamicsWorld->addRigidBody(physicsObject->GetRigidBody());
 	m_Objects.AddToTail(object);
 	if (!object->IsStatic()) {
 		m_NonStaticObjects.AddToTail(object);
+		if (!physicsObject->WasAsleep()) {
+			m_ActiveNonStaticObjects.AddToTail(object);
+		}
 	}
 }
 
@@ -94,6 +98,50 @@ IPhysicsObject *CPhysicsEnvironment::CreateSphereObject(float radius, int materi
 	return object;
 }
 
+void CPhysicsEnvironment::SetObjectEventHandler(IPhysicsObjectEvent *pObjectEvents) {
+	m_ObjectEvents = pObjectEvents;
+}
+
+void CPhysicsEnvironment::UpdateActiveObjects() {
+	for (int objectIndex = 0; objectIndex < m_ActiveNonStaticObjects.Count(); ++objectIndex) {
+		CPhysicsObject *object = static_cast<CPhysicsObject *>(m_ActiveNonStaticObjects[objectIndex]);
+		if (object->UpdateEventSleepState() != object->IsAsleep()) {
+			Assert(object->IsAsleep());
+			m_ActiveNonStaticObjects.FastRemove(objectIndex--);
+			if (m_ObjectEvents != nullptr) {
+				m_ObjectEvents->ObjectSleep(object);
+			}
+		}
+	}
+	int nonStaticObjectCount = m_NonStaticObjects.Count();
+	for (int objectIndex = 0; objectIndex < nonStaticObjectCount; ++objectIndex) {
+		CPhysicsObject *object = static_cast<CPhysicsObject *>(m_NonStaticObjects[objectIndex]);
+		if (object->UpdateEventSleepState() != object->IsAsleep()) {
+			Assert(!object->IsAsleep());
+			m_ActiveNonStaticObjects.AddToTail(object);
+			if (m_ObjectEvents != nullptr) {
+				m_ObjectEvents->ObjectWake(object);
+			}
+		}
+	}
+}
+
+int CPhysicsEnvironment::GetActiveObjectCount() const {
+	return m_ActiveNonStaticObjects.Count();
+}
+
+void CPhysicsEnvironment::GetActiveObjects(IPhysicsObject **pOutputObjectList) const {
+	memcpy(pOutputObjectList, m_ActiveNonStaticObjects.Base(),
+			m_ActiveNonStaticObjects.Count() * sizeof(IPhysicsObject *));
+}
+
+const IPhysicsObject **CPhysicsEnvironment::GetObjectList(int *pOutputObjectCount) const {
+	if (pOutputObjectCount != nullptr) {
+		*pOutputObjectCount = m_Objects.Count();
+	}
+	return const_cast<const IPhysicsObject **>(m_Objects.Base());
+}
+
 void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {
 	CPhysicsObject *physicsObject = static_cast<CPhysicsObject *>(object);
 
@@ -119,6 +167,9 @@ void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {
 
 	if (!object->IsStatic()) {
 		m_NonStaticObjects.FindAndFastRemove(object);
+		if (!physicsObject->WasAsleep()) {
+			m_ActiveNonStaticObjects.FindAndFastRemove(object);
+		}
 	}
 }
 
@@ -265,4 +316,5 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 void CPhysicsEnvironment::TickCallback(btDynamicsWorld *world, btScalar timeStep) {
 	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(world->getWorldUserInfo());
 	environment->CheckTriggerTouches();
+	environment->UpdateActiveObjects();
 }
