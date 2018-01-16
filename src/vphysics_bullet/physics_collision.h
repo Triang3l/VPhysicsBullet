@@ -9,6 +9,8 @@
 #include "tier1/byteswap.h"
 #include "tier1/utlvector.h"
 
+#define VPHYSICS_CONVEX_DISTANCE_MARGIN HL2BULLET(0.25f)
+
 /************************
  * Convex shape wrappers
  ************************/
@@ -37,11 +39,7 @@ public:
 protected:
 	CPhysConvex() : m_Owner(OWNER_GAME) {}
 
-	void Initialize() {
-		btCollisionShape *shape = GetShape();
-		shape->setUserPointer(this);
-		shape->setUserIndex(0);
-	}
+	virtual void Initialize();
 
 private:
 	Owner m_Owner;
@@ -77,6 +75,9 @@ public:
 	// Doesn't remap just in case the non-zero indices are mapped to 0.
 	int GetTriangleMaterialIndex(const btVector3 &point) const;
 
+protected:
+	virtual void Initialize();
+
 private:
 	CPhysConvex_Hull(const struct VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap,
 			const btVector3 *ledgePoints, int ledgePointCount);
@@ -99,8 +100,7 @@ private:
 
 class CPhysConvex_Box : public CPhysConvex {
 public:
-	CPhysConvex_Box(const btVector3 &halfExtents, const btVector3 &origin) :
-			m_Shape(halfExtents), m_Origin(origin) {}
+	CPhysConvex_Box(const btVector3 &halfExtents, const btVector3 &origin);
 
 	btCollisionShape *GetShape() { return &m_Shape; }
 	const btCollisionShape *GetShape() const { return &m_Shape; }

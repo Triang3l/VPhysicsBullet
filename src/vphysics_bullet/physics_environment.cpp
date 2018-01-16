@@ -17,6 +17,7 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 	m_Broadphase = new btDbvtBroadphase();
 	m_Solver = new btSequentialImpulseConstraintSolver();
 	m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_Broadphase, m_Solver, m_CollisionConfiguration);
+	m_DynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = VPHYSICS_CONVEX_DISTANCE_MARGIN;
 
 	m_TriggerTouches.SetLessFunc(TriggerTouchLessFunc);
 

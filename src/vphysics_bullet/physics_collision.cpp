@@ -156,6 +156,12 @@ btVector3 CPhysicsCollision::OffsetInertia(
  * Convexes
  ***********/
 
+void CPhysCollide::Initialize() {
+	btCollisionShape *shape = GetShape();
+	shape->setUserPointer(this);
+	shape->setUserIndex(0);
+}
+
 float CPhysicsCollision::ConvexVolume(CPhysConvex *pConvex) {
 	return (float) pConvex->GetVolume() * (BULLET2HL_FACTOR * BULLET2HL_FACTOR * BULLET2HL_FACTOR);
 }
@@ -178,9 +184,15 @@ void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
  * Convex hulls
  ***************/
 
+void CPhysConvex_Hull::Initialize() {
+	CPhysConvex::Initialize();
+	m_Volume = -1.0;
+	m_Shape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
+}
+
 CPhysConvex_Hull::CPhysConvex_Hull(const btVector3 *points, int pointCount,
 		const unsigned int *indices, int triangleCount) :
-		m_Shape(&points[0][0], pointCount), m_Volume(-1.0f) {
+		m_Shape(&points[0][0], pointCount) {
 	Initialize();
 	int indexCount = triangleCount * 3;
 	m_TriangleIndices.resizeNoInitialize(indexCount);
@@ -189,7 +201,7 @@ CPhysConvex_Hull::CPhysConvex_Hull(const btVector3 *points, int pointCount,
 
 CPhysConvex_Hull::CPhysConvex_Hull(const VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap,
 		const btVector3 *ledgePoints, int ledgePointCount) :
-		m_Shape(&ledgePoints[0][0], ledgePointCount), m_Volume(-1.0f) {
+		m_Shape(&ledgePoints[0][0], ledgePointCount) {
 	Initialize();
 	m_Shape.setUserIndex(ledge->client_data);
 	VCollide_IVP_Compact_Ledge swappedLedge;
@@ -397,6 +409,12 @@ CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &Co
 /***********************************************
  * Bounding boxes (both convex and collideable)
  ***********************************************/
+
+CPhysConvex_Box::CPhysConvex_Box(const btVector3 &halfExtents, const btVector3 &origin) :
+		m_Shape(halfExtents), m_Origin(origin) {
+	Initialize();
+	m_Shape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
+}
 
 btScalar CPhysConvex_Box::GetVolume() const {
 	const btVector3 &halfExtents = m_Shape.getHalfExtentsWithoutMargin();
