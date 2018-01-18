@@ -3,6 +3,7 @@
 
 #include "physics_collision.h"
 #include "physics_object.h"
+#include <LinearMath/btGeometryUtil.h>
 #include "mathlib/polyhedron.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -392,6 +393,21 @@ CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) 
 		ConvertPositionToBullet(*pVerts[vertIndex], points[vertIndex]);
 	}
 	return CPhysConvex_Hull::CreateFromBulletPoints(m_HullLibrary, points, vertCount);
+}
+
+CPhysConvex *CPhysicsCollision::ConvexFromPlanes(float *pPlanes, int planeCount, float mergeDistance) {
+	btAlignedObjectArray<btVector3> planeArray;
+	planeArray.resizeNoInitialize(planeCount);
+	btVector4 *bulletPlanes = static_cast<btVector4 *>(&planeArray[0]);
+	for (int planeIndex = 0; planeIndex < planeCount; ++planeIndex) {
+		const float *listPlane = &pPlanes[planeIndex * 4];
+		btVector4 &bulletPlane = bulletPlanes[planeIndex];
+		ConvertDirectionToBullet(Vector(listPlane[0], listPlane[1], listPlane[2]), bulletPlane);
+		bulletPlane.setW(-HL2BULLET(listPlane[3]));
+	}
+	btAlignedObjectArray<btVector3> pointArray;
+	btGeometryUtil::getVerticesFromPlaneEquations(planeArray, pointArray);
+	return CPhysConvex_Hull::CreateFromBulletPoints(m_HullLibrary, &pointArray[0], pointArray.size());
 }
 
 CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &ConvexPolyhedron) {

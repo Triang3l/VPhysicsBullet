@@ -242,6 +242,7 @@ public:
 	// IPhysicsCollision methods.
 
 	virtual CPhysConvex *ConvexFromVerts(Vector **pVerts, int vertCount);
+	virtual CPhysConvex *ConvexFromPlanes(float *pPlanes, int planeCount, float mergeDistance);
 	virtual float ConvexVolume(CPhysConvex *pConvex);
 	virtual float ConvexSurfaceArea(CPhysConvex *pConvex);
 	virtual float CollideVolume(CPhysCollide *pCollide);
