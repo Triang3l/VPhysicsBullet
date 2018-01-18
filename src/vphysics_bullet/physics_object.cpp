@@ -14,14 +14,14 @@
 CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		CPhysCollide *collide, int materialIndex,
 		const Vector &position, const QAngle &angles,
-		objectparams_t *pParams, bool isStatic) :
+		objectparams_t *params, bool isStatic) :
 		m_Environment(environment),
 		m_CollideObjectNext(this), m_CollideObjectPrevious(this),
 		m_MassCenterOverride(0.0f, 0.0f, 0.0f),
-		m_Mass((!isStatic && !collide->GetShape()->isNonMoving()) ? pParams->mass : 0.0f),
+		m_Mass((!isStatic && !collide->GetShape()->isNonMoving()) ? params->mass : 0.0f),
 		m_HingeAxis(-1),
-		m_Damping(pParams->damping), m_RotDamping(pParams->rotdamping),
-		m_GameData(pParams->pGameData), m_GameFlags(0), m_GameIndex(0),
+		m_Damping(params->damping), m_RotDamping(params->rotdamping),
+		m_GameData(params->pGameData), m_GameFlags(0), m_GameIndex(0),
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
 				CALLBACK_GLOBAL_COLLIDE_STATIC | CALLBACK_DO_FLUID_SIMULATION),
@@ -30,8 +30,8 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_LinearVelocityChange(0.0f, 0.0f, 0.0f),
 		m_LocalAngularVelocityChange(0.0f, 0.0f, 0.0f),
 		m_TouchingTriggers(0) {
-	if (pParams->pName != nullptr) {
-		V_strncpy(m_Name, pParams->pName, sizeof(m_Name));
+	if (params->pName != nullptr) {
+		V_strncpy(m_Name, params->pName, sizeof(m_Name));
 	} else {
 		m_Name[0] = '\0';
 	}
@@ -40,7 +40,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 			m_Mass, nullptr, collide->GetShape(), collide->GetInertia());
 
 	btVector3 massCenter = collide->GetMassCenter();
-	const Vector *massCenterOverride = pParams->massCenterOverride;
+	const Vector *massCenterOverride = params->massCenterOverride;
 	if (massCenterOverride != nullptr && *massCenterOverride != vec3_origin) {
 		ConvertPositionToBullet(*massCenterOverride, m_MassCenterOverride);
 		btCompoundShape *massCenterOverrideShape = new btCompoundShape(false, 1);
@@ -52,9 +52,9 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		constructionInfo.m_localInertia = CPhysicsCollision::OffsetInertia(
 				constructionInfo.m_localInertia, massCenterOffset);
 	}
-	constructionInfo.m_localInertia *= pParams->inertia * m_Mass;
-	if (pParams->rotInertiaLimit > 0.0f) {
-		btScalar minInertia = constructionInfo.m_localInertia.length() * pParams->rotInertiaLimit;
+	constructionInfo.m_localInertia *= params->inertia * m_Mass;
+	if (params->rotInertiaLimit > 0.0f) {
+		btScalar minInertia = constructionInfo.m_localInertia.length() * params->rotInertiaLimit;
 		constructionInfo.m_localInertia.setMax(btVector3(minInertia, minInertia, minInertia));
 	}
 	ConvertInertiaToHL(constructionInfo.m_localInertia, m_Inertia);
@@ -72,6 +72,29 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 
 	m_RigidBody = new btRigidBody(constructionInfo);
 	m_RigidBody->setUserPointer(this);
+
+	if (!IsStatic()) {
+		m_DragCoefficient = m_AngularDragCoefficient = params->dragCoefficient;
+		btVector3 aabbMin, aabbMax;
+		collide->GetShape()->getAabb(btTransform::getIdentity(), aabbMin, aabbMax);
+		btVector3 extents = aabbMax - aabbMin;
+		m_DragBasis.setValue(
+				extents.getY() * extents.getZ(),
+				extents.getX() * extents.getZ(),
+				extents.getX() * extents.getY());
+		extents *= 0.5f;
+		m_AngularDragBasis.setValue(
+				AngularDragIntegral(extents.getX(), extents.getY(), extents.getZ()) +
+						AngularDragIntegral(extents.getX(), extents.getZ(), extents.getY()),
+				AngularDragIntegral(extents.getY(), extents.getX(), extents.getZ()) +
+						AngularDragIntegral(extents.getY(), extents.getZ(), extents.getX()),
+				AngularDragIntegral(extents.getZ(), extents.getX(), extents.getY()) +
+						AngularDragIntegral(extents.getZ(), extents.getY(), extents.getX()));
+	} else {
+		m_DragCoefficient = m_AngularDragCoefficient = 0.0f;
+		m_DragBasis.setZero();
+		m_AngularDragBasis.setZero();
+	}
 
 	AddReferenceToCollide();
 
@@ -342,6 +365,48 @@ void CPhysicsObject::ApplyDamping(float timeStep) {
 		rotDamping = btExp(-rotDamping);
 	}
 	m_RigidBody->setAngularVelocity(angularVelocity * rotDamping);
+}
+
+/*******
+ * Drag
+ *******/
+
+btScalar CPhysicsObject::AngularDragIntegral(btScalar l, btScalar w, btScalar h) {
+	btScalar w2 = w * w, l2 = l * l, h2 = h * h;
+	return (1.0f / 3.0f) * w2 * l * l2 + 0.5f * w2 * w2 * l + l * w2 * h2;
+}
+
+void CPhysicsObject::SetDragCoefficient(float *pDrag, float *pAngularDrag) {
+	if (pDrag != nullptr) {
+		m_DragCoefficient = *pDrag;
+	}
+	if (pAngularDrag != nullptr) {
+		m_AngularDragCoefficient = *pAngularDrag;
+	}
+}
+
+btScalar CPhysicsObject::CalculateLinearDrag(const btVector3 &unitDirection) const {
+	btVector3 drag = ((unitDirection * m_RigidBody->getWorldTransform().getBasis()) *
+			m_DragBasis).absolute();
+	return m_DragCoefficient * m_RigidBody->getInvMass() * (drag.getX() + drag.getY() + drag.getZ());
+}
+
+float CPhysicsObject::CalculateLinearDrag(const Vector &unitDirection) const {
+	btVector3 bulletUnitDirection;
+	ConvertDirectionToBullet(unitDirection, bulletUnitDirection);
+	return CalculateLinearDrag(bulletUnitDirection);
+}
+
+btScalar CPhysicsObject::CalculateAngularDrag(const btVector3 &objectSpaceRotationAxis) const {
+	btVector3 drag = (objectSpaceRotationAxis * m_AngularDragBasis *
+			m_RigidBody->getInvInertiaDiagLocal()).absolute();
+	return m_AngularDragCoefficient * (drag.getX() + drag.getY() + drag.getZ());
+}
+
+float CPhysicsObject::CalculateAngularDrag(const Vector &objectSpaceRotationAxis) const {
+	btVector3 bulletAxis;
+	ConvertDirectionToBullet(objectSpaceRotationAxis, bulletAxis);
+	return DEG2RAD(CalculateAngularDrag(bulletAxis));
 }
 
 /************

@@ -11,7 +11,7 @@ public:
 	CPhysicsObject(IPhysicsEnvironment *environment,
 			CPhysCollide *collide, int materialIndex,
 			const Vector &position, const QAngle &angles,
-			objectparams_t *pParams, bool isStatic);
+			objectparams_t *params, bool isStatic);
 	virtual ~CPhysicsObject();
 
 	// IPhysicsObject methods.
@@ -50,6 +50,8 @@ public:
 	virtual void SetDamping(const float *speed, const float *rot);
 	virtual void GetDamping(float *speed, float *rot) const;
 
+	virtual void SetDragCoefficient(float *pDrag, float *pAngularDrag);
+
 	virtual int GetMaterialIndex() const;
 	virtual void SetMaterialIndex(int materialIndex);
 
@@ -85,6 +87,9 @@ public:
 	virtual void CalculateVelocityOffset(const Vector &forceVector, const Vector &worldPosition,
 			Vector *centerVelocity, AngularImpulse *centerAngularVelocity) const;
 
+	virtual float CalculateLinearDrag(const Vector &unitDirection) const;
+	virtual float CalculateAngularDrag(const Vector &objectSpaceRotationAxis) const;
+
 	virtual const CPhysCollide *GetCollide() const;
 
 	virtual const char *GetName() const;
@@ -110,6 +115,9 @@ public:
 	// Also applies damping in a way more similar to how IVP VPhysics does it.
 	void ApplyDamping(float timeStep);
 
+	btScalar CalculateLinearDrag(const btVector3 &unitDirection) const;
+	btScalar CalculateAngularDrag(const btVector3 &objectSpaceRotationAxis) const;
+
 	// Bullet integrates forces and torques over time, in IVP async pushes are applied fully.
 	void ApplyForcesAndSpeedLimit();
 
@@ -133,6 +141,8 @@ public:
 	void NotifyTransferred(IPhysicsEnvironment *newEnvironment);
 
 private:
+	static btScalar AngularDragIntegral(btScalar l, btScalar w, btScalar h);
+
 	// Properties.
 
 	IPhysicsEnvironment *m_Environment;
@@ -153,6 +163,9 @@ private:
 	void UpdateMassProps();
 
 	float m_Damping, m_RotDamping;
+
+	btScalar m_DragCoefficient, m_AngularDragCoefficient;
+	btVector3 m_DragBasis, m_AngularDragBasis;
 
 	void *m_GameData;
 	unsigned short m_GameFlags;

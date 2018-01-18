@@ -306,7 +306,7 @@ void CPhysConvex_Hull::CalculateVolumeProperties() {
 	} else {
 		// Use a box approximation.
 		btVector3 aabbMin, aabbMax;
-		m_Shape.getAabb(btTransform(btMatrix3x3::getIdentity()), aabbMin, aabbMax);
+		m_Shape.getAabb(btTransform::getIdentity(), aabbMin, aabbMax);
 		m_MassCenter = (aabbMin + aabbMax) * 0.5f;
 		m_Inertia = CPhysicsCollision::OffsetInertia(
 				CPhysicsCollision::BoxInertia(aabbMax - aabbMin), m_MassCenter);
@@ -558,7 +558,7 @@ CPhysCollide_Compound::CPhysCollide_Compound(CPhysConvex **pConvex, int convexCo
 	} else {
 		btVector3 aabbMin(BT_LARGE_FLOAT, BT_LARGE_FLOAT, BT_LARGE_FLOAT);
 		btVector3 aabbMax(-BT_LARGE_FLOAT, -BT_LARGE_FLOAT, -BT_LARGE_FLOAT);
-		btTransform convexAabbTransform(btMatrix3x3::getIdentity());
+		const btTransform &convexAabbTransform = btTransform::getIdentity();
 		for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
 			const CPhysConvex *convex = pConvex[convexIndex];
 			btVector3 convexAabbMin, convexAabbMax;
@@ -668,7 +668,7 @@ void CPhysCollide_Compound::CalculateInertia() {
 		m_Inertia = (m_Inertia / volume).absolute();
 	} else {
 		btVector3 aabbMin, aabbMax;
-		m_Shape.getAabb(btTransform(btMatrix3x3::getIdentity()), aabbMin, aabbMax);
+		m_Shape.getAabb(btTransform::getIdentity(), aabbMin, aabbMax);
 		m_Inertia = CPhysicsCollision::OffsetInertia(
 				CPhysicsCollision::BoxInertia(aabbMax - aabbMin),
 				(aabbMin + aabbMax) * 0.5f);
