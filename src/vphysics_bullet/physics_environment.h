@@ -38,6 +38,12 @@ public:
 	virtual void GetActiveObjects(IPhysicsObject **pOutputObjectList) const;
 	virtual const IPhysicsObject **GetObjectList(int *pOutputObjectCount) const;
 
+	virtual bool IsCollisionModelUsed(CPhysCollide *pCollide) const;
+
+	virtual void TraceRay(const Ray_t &ray, unsigned int fMask, IPhysicsTraceFilter *pTraceFilter, trace_t *pTrace);
+	virtual void SweepCollideable(const CPhysCollide *pCollide, const Vector &vecAbsStart, const Vector &vecAbsEnd,
+			const QAngle &vecAngles, unsigned int fMask, IPhysicsTraceFilter *pTraceFilter, trace_t *pTrace);
+
 	virtual void GetPerformanceSettings(physics_performanceparams_t *pOutput) const;
 	virtual void SetPerformanceSettings(const physics_performanceparams_t *pSettings);
 

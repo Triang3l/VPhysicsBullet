@@ -143,6 +143,10 @@ const IPhysicsObject **CPhysicsEnvironment::GetObjectList(int *pOutputObjectCoun
 	return const_cast<const IPhysicsObject **>(m_Objects.Base());
 }
 
+bool CPhysicsEnvironment::IsCollisionModelUsed(CPhysCollide *pCollide) const {
+	return pCollide->GetObjectReferenceList() != nullptr;
+}
+
 void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {
 	CPhysicsObject *physicsObject = static_cast<CPhysicsObject *>(object);
 
@@ -293,6 +297,20 @@ void CPhysicsEnvironment::NotifyTriggerRemoved(IPhysicsObject *trigger) {
 		}
 		index = next;
 	}
+}
+
+/******************
+ * Traces (unused)
+ ******************/
+
+void CPhysicsEnvironment::TraceRay(const Ray_t &ray, unsigned int fMask, IPhysicsTraceFilter *pTraceFilter, trace_t *pTrace) {
+	// Not implemented in IVP VPhysics, can be implemented using rayTest.
+}
+
+void CPhysicsEnvironment::SweepCollideable(const CPhysCollide *pCollide, const Vector &vecAbsStart, const Vector &vecAbsEnd,
+		const QAngle &vecAngles, unsigned int fMask, IPhysicsTraceFilter *pTraceFilter, trace_t *pTrace) {
+	// Not implemented in IVP VPhysics.
+	// For compound objects, possibly the closest hit of every child can be returned.
 }
 
 /***********************
