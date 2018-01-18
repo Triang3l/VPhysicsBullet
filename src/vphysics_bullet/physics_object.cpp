@@ -469,7 +469,7 @@ void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
 	const btTransform &transform = m_RigidBody->getInterpolationWorldTransform();
 	const btMatrix3x3 &basis = transform.getBasis();
 	if (worldPosition != nullptr) {
-		ConvertPositionToHL(transform.getOrigin() - basis * GetBulletMassCenter(), *worldPosition);
+		ConvertPositionToHL(transform.getOrigin() - (basis * GetBulletMassCenter()), *worldPosition);
 	}
 	if (angles != nullptr) {
 		ConvertRotationToHL(basis, *angles);
@@ -479,7 +479,7 @@ void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
 void CPhysicsObject::GetPositionMatrix(matrix3x4_t *positionMatrix) const {
 	const btTransform &transform = m_RigidBody->getInterpolationWorldTransform();
 	const btMatrix3x3 &basis = transform.getBasis();
-	btVector3 origin = transform.getOrigin() - basis * GetBulletMassCenter();
+	btVector3 origin = transform.getOrigin() - (basis * GetBulletMassCenter());
 	ConvertMatrixToHL(basis, origin, *positionMatrix);
 }
 
@@ -591,8 +591,9 @@ void CPhysicsObject::GetVelocity(Vector *velocity, AngularImpulse *angularVeloci
 	}
 	if (angularVelocity != nullptr) {
 		AngularImpulse worldAngularVelocity;
-		ConvertAngularImpulseToHL(m_RigidBody->getWorldTransform().getBasis().transpose() *
-				m_RigidBody->getAngularVelocity() + m_LocalAngularVelocityChange, *angularVelocity);
+		ConvertAngularImpulseToHL((m_RigidBody->getAngularVelocity() * 
+				m_RigidBody->getWorldTransform().getBasis()) +
+				m_LocalAngularVelocityChange, *angularVelocity);
 	}
 }
 
@@ -626,8 +627,8 @@ void CPhysicsObject::AddVelocity(const Vector *velocity, const AngularImpulse *a
 }
 
 float CPhysicsObject::GetEnergy() const {
-	btVector3 angularVelocity = m_RigidBody->getWorldTransform().getBasis().transpose() *
-			m_RigidBody->getAngularVelocity();
+	btVector3 angularVelocity = m_RigidBody->getAngularVelocity() *
+			m_RigidBody->getWorldTransform().getBasis();
 	btVector3 inertia;
 	ConvertInertiaToBullet(GetInertia(), inertia);
 	// 1/2mv^2 + 1/2Iw^2
@@ -651,19 +652,15 @@ void CPhysicsObject::ApplyForceOffset(const Vector &forceVector, const Vector &w
 		return;
 	}
 
-	btVector3 worldSpaceForce;
-	ConvertForceImpulseToBullet(forceVector, worldSpaceForce);
-	m_LinearVelocityChange += worldSpaceForce * m_RigidBody->getInvMass();
+	btVector3 bulletWorldForce;
+	ConvertForceImpulseToBullet(forceVector, bulletWorldForce);
+	m_LinearVelocityChange += bulletWorldForce * m_RigidBody->getInvMass();
 
-	// Transform the position to the mass center space - aligned with local space,
-	// but with the origin at the mass center (at the rigid body's position).
+	btVector3 bulletWorldPosition;
+	ConvertPositionToBullet(worldPosition, bulletWorldPosition);
 	const btTransform &transform = m_RigidBody->getWorldTransform();
-	btMatrix3x3 worldToLocalRotation = transform.getBasis().transpose();
-	btVector3 centerSpacePosition;
-	ConvertPositionToBullet(worldPosition, centerSpacePosition);
-	centerSpacePosition = worldToLocalRotation * (centerSpacePosition - transform.getOrigin());
-	m_LocalAngularVelocityChange += centerSpacePosition.cross(
-			worldToLocalRotation * worldSpaceForce) * m_RigidBody->getInvInertiaDiagLocal();
+	m_LocalAngularVelocityChange += ((bulletWorldPosition - transform.getOrigin()).cross(
+			bulletWorldForce) * transform.getBasis()) * m_RigidBody->getInvInertiaDiagLocal();
 
 	Wake();
 }
@@ -674,9 +671,43 @@ void CPhysicsObject::ApplyTorqueCenter(const AngularImpulse &torque) {
 	}
 	btVector3 bulletWorldTorque;
 	ConvertAngularImpulseToBullet(torque, bulletWorldTorque);
-	m_LocalAngularVelocityChange += (m_RigidBody->getWorldTransform().getBasis().transpose() *
-			bulletWorldTorque) * m_RigidBody->getInvInertiaDiagLocal();
+	m_LocalAngularVelocityChange += (bulletWorldTorque *
+			m_RigidBody->getWorldTransform().getBasis()) * m_RigidBody->getInvInertiaDiagLocal();
 	Wake();
+}
+
+void CPhysicsObject::CalculateForceOffset(const Vector &forceVector, const Vector &worldPosition,
+		Vector *centerForce, AngularImpulse *centerTorque) const {
+	if (centerForce != nullptr) {
+		*centerForce = forceVector;
+	}
+	if (centerTorque != nullptr) {
+		btVector3 bulletWorldForce, bulletWorldPosition;
+		ConvertPositionToBullet(forceVector, bulletWorldForce);
+		ConvertPositionToBullet(worldPosition, bulletWorldPosition);
+		// Center torque is in mass center-relative space (for motion controllers, not ApplyTorqueCenter).
+		const btTransform &transform = m_RigidBody->getWorldTransform();
+		btVector3 bulletCenterTorque = (bulletWorldPosition - transform.getOrigin()).cross(
+				bulletWorldForce) * transform.getBasis();
+		ConvertAngularImpulseToHL(bulletCenterTorque, *centerTorque);
+	}
+}
+
+void CPhysicsObject::CalculateVelocityOffset(const Vector &forceVector, const Vector &worldPosition,
+		Vector *centerVelocity, AngularImpulse *centerAngularVelocity) const {
+	if (centerVelocity != nullptr) {
+		*centerVelocity = forceVector * (float) m_RigidBody->getInvMass();
+	}
+	if (centerAngularVelocity != nullptr) {
+		btVector3 bulletWorldForce, bulletWorldPosition;
+		ConvertPositionToBullet(forceVector, bulletWorldForce);
+		ConvertPositionToBullet(worldPosition, bulletWorldPosition);
+		// Center angular velocity is in mass center-relative space.
+		const btTransform &transform = m_RigidBody->getWorldTransform();
+		btVector3 bulletCenterAngularVelocity = ((bulletWorldPosition - transform.getOrigin()).cross(
+				bulletWorldForce) * transform.getBasis()) * m_RigidBody->getInvInertiaDiagLocal();
+		ConvertAngularImpulseToHL(bulletCenterAngularVelocity, *centerAngularVelocity);
+	}
 }
 
 /***********

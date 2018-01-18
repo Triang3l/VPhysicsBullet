@@ -80,6 +80,11 @@ public:
 	virtual void ApplyForceOffset(const Vector &forceVector, const Vector &worldPosition);
 	virtual void ApplyTorqueCenter(const AngularImpulse &torque);
 
+	virtual void CalculateForceOffset(const Vector &forceVector, const Vector &worldPosition,
+			Vector *centerForce, AngularImpulse *centerTorque) const;
+	virtual void CalculateVelocityOffset(const Vector &forceVector, const Vector &worldPosition,
+			Vector *centerVelocity, AngularImpulse *centerAngularVelocity) const;
+
 	virtual const CPhysCollide *GetCollide() const;
 
 	virtual const char *GetName() const;
