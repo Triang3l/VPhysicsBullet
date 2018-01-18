@@ -31,6 +31,9 @@ public:
 	virtual IPhysicsObject *CreateSphereObject(float radius, int materialIndex,
 			const Vector &position, const QAngle &angles, objectparams_t *pParams, bool isStatic);
 
+	virtual float GetSimulationTimestep() const;
+	virtual void SetSimulationTimestep(float timestep);
+
 	virtual void SetCollisionEventHandler(IPhysicsCollisionEvent *pCollisionEvents);
 	virtual void SetObjectEventHandler(IPhysicsObjectEvent *pObjectEvents);
 
@@ -85,6 +88,11 @@ private:
 	CUtlVector<IPhysicsObject *> m_ActiveNonStaticObjects;
 	IPhysicsObjectEvent *m_ObjectEvents;
 
+	btScalar m_SimulationTimeStep;
+	int m_MaxSimulationSubSteps;
+	static void PreTickCallback(btDynamicsWorld *world, btScalar timeStep);
+	static void TickCallback(btDynamicsWorld *world, btScalar timeStep);
+
 	IPhysicsCollisionEvent *m_CollisionEvents;
 
 	struct TriggerTouch_t {
@@ -107,9 +115,6 @@ private:
 	void CheckTriggerTouches();
 
 	physics_performanceparams_t m_PerformanceSettings;
-
-	static void PreTickCallback(btDynamicsWorld *world, btScalar timeStep);
-	static void TickCallback(btDynamicsWorld *world, btScalar timeStep);
 };
 
 #endif

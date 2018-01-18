@@ -4,13 +4,17 @@
 #include "physics_environment.h"
 #include "physics_collision.h"
 #include "physics_object.h"
+#include "const.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_AirDensity(2.0f),
-		m_ObjectEvents(nullptr), m_CollisionEvents(nullptr) {
+		m_ObjectEvents(nullptr),
+		m_SimulationTimeStep(DEFAULT_TICK_INTERVAL),
+		m_MaxSimulationSubSteps((int) (0.1f / DEFAULT_TICK_INTERVAL) + 1),
+		m_CollisionEvents(nullptr) {
 	m_PerformanceSettings.Defaults();
 
 	m_CollisionConfiguration = new btDefaultCollisionConfiguration();
@@ -201,6 +205,37 @@ float CPhysicsEnvironment::GetAirDensity() const {
 }
 
 /*******************
+ * Simulation steps
+ *******************/
+
+float CPhysicsEnvironment::GetSimulationTimestep() const {
+	return m_SimulationTimeStep;
+}
+
+void CPhysicsEnvironment::SetSimulationTimestep(float timestep) {
+	m_SimulationTimeStep = MAX(timestep, MINIMUM_TICK_INTERVAL);
+	m_MaxSimulationSubSteps = (int) (0.1f / m_SimulationTimeStep) + 1;
+}
+
+void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeStep) {
+	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(world->getWorldUserInfo());
+	IPhysicsObject * const *objects = environment->m_NonStaticObjects.Base();
+	int objectCount = environment->m_NonStaticObjects.Count();
+	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
+		CPhysicsObject *object = static_cast<CPhysicsObject *>(objects[objectIndex]);
+		object->ApplyDamping(timeStep);
+		object->ApplyDrag(timeStep);
+		object->ApplyForcesAndSpeedLimit();
+	}
+}
+
+void CPhysicsEnvironment::TickCallback(btDynamicsWorld *world, btScalar timeStep) {
+	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(world->getWorldUserInfo());
+	environment->CheckTriggerTouches();
+	environment->UpdateActiveObjects();
+}
+
+/*******************
  * Collision events
  *******************/
 
@@ -323,26 +358,4 @@ void CPhysicsEnvironment::GetPerformanceSettings(physics_performanceparams_t *pO
 
 void CPhysicsEnvironment::SetPerformanceSettings(const physics_performanceparams_t *pSettings) {
 	m_PerformanceSettings = *pSettings;
-}
-
-/*****************
- * Tick callbacks
- *****************/
-
-void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeStep) {
-	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(world->getWorldUserInfo());
-	IPhysicsObject * const *objects = environment->m_NonStaticObjects.Base();
-	int objectCount = environment->m_NonStaticObjects.Count();
-	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
-		CPhysicsObject *object = static_cast<CPhysicsObject *>(objects[objectIndex]);
-		object->ApplyDamping(timeStep);
-		object->ApplyDrag(timeStep);
-		object->ApplyForcesAndSpeedLimit();
-	}
-}
-
-void CPhysicsEnvironment::TickCallback(btDynamicsWorld *world, btScalar timeStep) {
-	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(world->getWorldUserInfo());
-	environment->CheckTriggerTouches();
-	environment->UpdateActiveObjects();
 }
