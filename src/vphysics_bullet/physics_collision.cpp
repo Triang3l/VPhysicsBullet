@@ -623,7 +623,7 @@ void CPhysCollide_Compound::AddIVPCompactLedgetreeNode(
 	} else {
 		AddIVPCompactLedgetreeNode(node + 1, byteswap);
 		AddIVPCompactLedgetreeNode(reinterpret_cast<const VCollide_IVP_Compact_Ledgetree_Node *>(
-						reinterpret_cast<const byte *>(node) + swappedNode.offset_right_node), byteswap);
+				reinterpret_cast<const byte *>(node) + swappedNode.offset_right_node), byteswap);
 	}
 }
 
