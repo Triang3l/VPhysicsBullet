@@ -9,6 +9,7 @@
 #include "tier0/memdbgon.h"
 
 CPhysicsEnvironment::CPhysicsEnvironment() :
+		m_AirDensity(2.0f),
 		m_ObjectEvents(nullptr), m_CollisionEvents(nullptr) {
 	m_PerformanceSettings.Defaults();
 
@@ -187,6 +188,14 @@ void CPhysicsEnvironment::GetGravity(Vector *pGravityVector) const {
 	ConvertPositionToHL(m_DynamicsWorld->getGravity(), *pGravityVector);
 }
 
+void CPhysicsEnvironment::SetAirDensity(float density) {
+	m_AirDensity = density;
+}
+
+float CPhysicsEnvironment::GetAirDensity() const {
+	return m_AirDensity;
+}
+
 /*******************
  * Collision events
  *******************/
@@ -308,7 +317,8 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 	int objectCount = environment->m_NonStaticObjects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
 		CPhysicsObject *object = static_cast<CPhysicsObject *>(objects[objectIndex]);
-		object->ApplyDamping((float) timeStep);
+		object->ApplyDamping(timeStep);
+		object->ApplyDrag(timeStep);
 		object->ApplyForcesAndSpeedLimit();
 	}
 }

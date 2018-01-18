@@ -19,6 +19,9 @@ public:
 	virtual void SetGravity(const Vector &gravityVector);
 	virtual void GetGravity(Vector *pGravityVector) const;
 
+	virtual void SetAirDensity(float density);
+	virtual float GetAirDensity() const;
+
 	virtual IPhysicsObject *CreatePolyObject(
 			const CPhysCollide *pCollisionModel, int materialIndex,
 			const Vector &position, const QAngle &angles, objectparams_t *pParams);
@@ -64,6 +67,8 @@ private:
 	btBroadphaseInterface *m_Broadphase;
 	btSequentialImpulseConstraintSolver *m_Solver;
 	btDiscreteDynamicsWorld *m_DynamicsWorld;
+
+	float m_AirDensity;
 
 	CUtlVector<CPhysCollide *> m_SphereCache;
 

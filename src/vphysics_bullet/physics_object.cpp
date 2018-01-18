@@ -90,10 +90,12 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 						AngularDragIntegral(extents.getY(), extents.getZ(), extents.getX()),
 				AngularDragIntegral(extents.getZ(), extents.getX(), extents.getY()) +
 						AngularDragIntegral(extents.getZ(), extents.getY(), extents.getX()));
+		m_DragEnabled = (m_DragCoefficient != 0.0f);
 	} else {
 		m_DragCoefficient = m_AngularDragCoefficient = 0.0f;
 		m_DragBasis.setZero();
 		m_AngularDragBasis.setZero();
+		m_DragEnabled = false;
 	}
 
 	AddReferenceToCollide();
@@ -336,7 +338,7 @@ void CPhysicsObject::GetDamping(float *speed, float *rot) const {
 	}
 }
 
-void CPhysicsObject::ApplyDamping(float timeStep) {
+void CPhysicsObject::ApplyDamping(btScalar timeStep) {
 	if (!IsGravityEnabled()) {
 		return;
 	}
@@ -376,6 +378,17 @@ btScalar CPhysicsObject::AngularDragIntegral(btScalar l, btScalar w, btScalar h)
 	return (1.0f / 3.0f) * w2 * l * l2 + 0.5f * w2 * w2 * l + l * w2 * h2;
 }
 
+bool CPhysicsObject::IsDragEnabled() const {
+	return m_DragEnabled;
+}
+
+void CPhysicsObject::EnableDrag(bool enable) {
+	if (IsStatic()) {
+		return;
+	}
+	m_DragEnabled = enable;
+}
+
 void CPhysicsObject::SetDragCoefficient(float *pDrag, float *pAngularDrag) {
 	if (pDrag != nullptr) {
 		m_DragCoefficient = *pDrag;
@@ -385,8 +398,8 @@ void CPhysicsObject::SetDragCoefficient(float *pDrag, float *pAngularDrag) {
 	}
 }
 
-btScalar CPhysicsObject::CalculateLinearDrag(const btVector3 &unitDirection) const {
-	btVector3 drag = ((unitDirection * m_RigidBody->getWorldTransform().getBasis()) *
+btScalar CPhysicsObject::CalculateLinearDrag(const btVector3 &velocity) const {
+	btVector3 drag = ((velocity * m_RigidBody->getWorldTransform().getBasis()) *
 			m_DragBasis).absolute();
 	return m_DragCoefficient * m_RigidBody->getInvMass() * (drag.getX() + drag.getY() + drag.getZ());
 }
@@ -407,6 +420,29 @@ float CPhysicsObject::CalculateAngularDrag(const Vector &objectSpaceRotationAxis
 	btVector3 bulletAxis;
 	ConvertDirectionToBullet(objectSpaceRotationAxis, bulletAxis);
 	return DEG2RAD(CalculateAngularDrag(bulletAxis));
+}
+
+void CPhysicsObject::ApplyDrag(btScalar timeStep) {
+	if (!IsDragEnabled()) {
+		return;
+	}
+
+	btScalar dragForceScale = m_Environment->GetAirDensity() * timeStep;
+
+	const btVector3 &linearVelocity = m_RigidBody->getLinearVelocity();
+	btScalar dragForce = -0.5f * CalculateLinearDrag(linearVelocity) * dragForceScale;
+	if (dragForce < 0.0f) {
+		btSetMax(dragForce, btScalar(-1.0f));
+		m_RigidBody->setLinearVelocity(linearVelocity + (linearVelocity * dragForce));
+	}
+
+	const btVector3 &angularVelocity = m_RigidBody->getAngularVelocity();
+	float angularDragForce = -CalculateAngularDrag(angularVelocity *
+			m_RigidBody->getWorldTransform().getBasis()) * dragForceScale;
+	if (angularDragForce < 0.0f) {
+		btSetMax(angularDragForce, btScalar(-1.0f));
+		m_RigidBody->setAngularVelocity(angularVelocity + (angularVelocity * angularDragForce));
+	}
 }
 
 /************

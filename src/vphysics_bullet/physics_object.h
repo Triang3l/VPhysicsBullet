@@ -21,10 +21,12 @@ public:
 	virtual bool IsTrigger() const;
 	virtual bool IsHinged() const;
 	virtual bool IsGravityEnabled() const;
+	virtual bool IsDragEnabled() const;
 	virtual bool IsMotionEnabled() const;
 	virtual bool IsMoveable() const;
 
 	virtual void EnableGravity(bool enable);
+	virtual void EnableDrag(bool enable);
 	virtual void EnableMotion(bool enable);
 
 	virtual void SetGameData(void *pGameData);
@@ -113,10 +115,11 @@ public:
 
 	// Bullet doesn't allow damping factors over 1, so it has to be done manually.
 	// Also applies damping in a way more similar to how IVP VPhysics does it.
-	void ApplyDamping(float timeStep);
+	void ApplyDamping(btScalar timeStep);
 
-	btScalar CalculateLinearDrag(const btVector3 &unitDirection) const;
+	btScalar CalculateLinearDrag(const btVector3 &velocity) const;
 	btScalar CalculateAngularDrag(const btVector3 &objectSpaceRotationAxis) const;
+	void ApplyDrag(btScalar timeStep);
 
 	// Bullet integrates forces and torques over time, in IVP async pushes are applied fully.
 	void ApplyForcesAndSpeedLimit();
@@ -166,6 +169,7 @@ private:
 
 	btScalar m_DragCoefficient, m_AngularDragCoefficient;
 	btVector3 m_DragBasis, m_AngularDragBasis;
+	bool m_DragEnabled;
 
 	void *m_GameData;
 	unsigned short m_GameFlags;
