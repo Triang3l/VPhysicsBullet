@@ -339,7 +339,7 @@ void CPhysicsObject::GetDamping(float *speed, float *rot) const {
 }
 
 void CPhysicsObject::ApplyDamping(btScalar timeStep) {
-	if (!IsGravityEnabled()) {
+	if (!IsMoveable() || !IsGravityEnabled()) {
 		return;
 	}
 
@@ -423,7 +423,7 @@ float CPhysicsObject::CalculateAngularDrag(const Vector &objectSpaceRotationAxis
 }
 
 void CPhysicsObject::ApplyDrag(btScalar timeStep) {
-	if (!IsDragEnabled()) {
+	if (!IsMoveable() || !IsDragEnabled()) {
 		return;
 	}
 
