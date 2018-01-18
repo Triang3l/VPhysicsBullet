@@ -145,6 +145,9 @@ public:
 	virtual void SetMassCenter(const btVector3 &massCenter) {}
 	virtual btVector3 GetInertia() const { return btVector3(1.0f, 1.0f, 1.0f); }
 
+	// Returns the true number of convexes, not clamped, for possibility of multiple calls.
+	virtual int GetConvexes(CPhysConvex **output, int limit) const { return 0; }
+
 	FORCEINLINE IPhysicsObject *GetObjectReferenceList() const {
 		return m_ObjectReferenceList;
 	}
@@ -193,6 +196,8 @@ public:
 
 	virtual btVector3 GetMassCenter() const { return m_MassCenter; }
 	virtual void SetMassCenter(const btVector3 &massCenter);
+
+	virtual int GetConvexes(CPhysConvex **output, int limit) const;
 
 private:
 	btCompoundShape m_Shape;
@@ -250,14 +255,14 @@ public:
 	virtual CPhysCollide *ConvertConvexToCollide(CPhysConvex **pConvex, int convexCount);
 	virtual int CollideIndex(const CPhysCollide *pCollide);
 	virtual CPhysCollide *BBoxToCollide(const Vector &mins, const Vector &maxs);
+	virtual int GetConvexesUsedInCollideable(const CPhysCollide *pCollideable,
+			CPhysConvex **pOutputArray, int iOutputArrayLimit);
 
 	// Internal methods.
 
 	static btVector3 BoxInertia(const btVector3 &extents);
 	static btVector3 OffsetInertia(
 			const btVector3 &inertia, const btVector3 &origin, bool absolute = true);
-
-	void SetCollideIndex(CPhysCollide *pCollide, int index);
 
 	CPhysCollide_Sphere *CreateSphereCollide(btScalar radius);
 

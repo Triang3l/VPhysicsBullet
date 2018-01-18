@@ -23,13 +23,13 @@ CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
 #endif
 
 struct VCollide_IVP_U_Float_Point {
-	DECLARE_BYTESWAP_DATADESC();
+	DECLARE_BYTESWAP_DATADESC()
 	float k[3];
 	float hesse_val;
 };
 
 struct VCollide_IVP_Compact_Edge {
-	DECLARE_BYTESWAP_DATADESC();
+	DECLARE_BYTESWAP_DATADESC()
 	BEGIN_BITFIELD(bf)
 	unsigned int start_point_index : 16;
 	signed int opposite_index : 15;
@@ -38,7 +38,7 @@ struct VCollide_IVP_Compact_Edge {
 };
 
 struct VCollide_IVP_Compact_Triangle {
-	DECLARE_BYTESWAP_DATADESC();
+	DECLARE_BYTESWAP_DATADESC()
 	BEGIN_BITFIELD(bf)
 	unsigned int tri_index : 12;
 	unsigned int pierce_index : 12;
@@ -49,7 +49,7 @@ struct VCollide_IVP_Compact_Triangle {
 };
 
 struct VCollide_IVP_Compact_Ledge {
-	DECLARE_BYTESWAP_DATADESC();
+	DECLARE_BYTESWAP_DATADESC()
 	int c_point_offset;
 	union {
 		int ledgetree_node_offset;
@@ -70,7 +70,7 @@ struct VCollide_IVP_Compact_Ledge {
 };
 
 struct VCollide_IVP_Compact_Ledgetree_Node {
-	DECLARE_BYTESWAP_DATADESC();
+	DECLARE_BYTESWAP_DATADESC()
 	int offset_right_node;
 	int offset_compact_ledge;
 	float center[3];
@@ -80,7 +80,7 @@ struct VCollide_IVP_Compact_Ledgetree_Node {
 };
 
 struct VCollide_IVP_Compact_Surface {
-	DECLARE_BYTESWAP_DATADESC();
+	DECLARE_BYTESWAP_DATADESC()
 	float mass_center[3];
 	float rotation_inertia[3];
 	float upper_limit_radius;
@@ -98,16 +98,16 @@ struct VCollide_IVP_Compact_Surface {
 
 BEGIN_BYTESWAP_DATADESC(VCollide_IVP_U_Float_Point)
 	DEFINE_ARRAY(k, FIELD_FLOAT, 3),
-	DEFINE_FIELD(hesse_val, FIELD_FLOAT)
+	DEFINE_FIELD(hesse_val, FIELD_FLOAT),
 END_BYTESWAP_DATADESC()
 
 BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Edge)
-	DEFINE_BITFIELD(bf, FIELD_INTEGER, 32)
+	DEFINE_BITFIELD(bf, FIELD_INTEGER, 32),
 END_BYTESWAP_DATADESC()
 
 BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Triangle)
 	DEFINE_BITFIELD(bf, FIELD_INTEGER, 32),
-	DEFINE_EMBEDDED_ARRAY(c_three_edges, 3)
+	DEFINE_EMBEDDED_ARRAY(c_three_edges, 3),
 END_BYTESWAP_DATADESC()
 
 BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Ledge)
@@ -115,14 +115,14 @@ BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Ledge)
 	DEFINE_FIELD(ledgetree_node_offset, FIELD_INTEGER),
 	DEFINE_BITFIELD(bf, FIELD_INTEGER, 32),
 	DEFINE_FIELD(n_triangles, FIELD_SHORT),
-	DEFINE_FIELD(for_future_use, FIELD_SHORT)
+	DEFINE_FIELD(for_future_use, FIELD_SHORT),
 END_BYTESWAP_DATADESC()
 
 BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Ledgetree_Node)
 	DEFINE_FIELD(offset_right_node, FIELD_INTEGER),
 	DEFINE_FIELD(offset_compact_ledge, FIELD_INTEGER),
 	DEFINE_ARRAY(center, FIELD_FLOAT, 3),
-	DEFINE_FIELD(radius, FIELD_FLOAT)
+	DEFINE_FIELD(radius, FIELD_FLOAT),
 END_BYTESWAP_DATADESC()
 
 BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Surface)
@@ -131,7 +131,7 @@ BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Surface)
 	DEFINE_FIELD(upper_limit_radius, FIELD_FLOAT),
 	DEFINE_BITFIELD(bf, FIELD_INTEGER, 32),
 	DEFINE_FIELD(offset_ledgetree_root, FIELD_INTEGER),
-	DEFINE_ARRAY(dummy, FIELD_INTEGER, 3)
+	DEFINE_ARRAY(dummy, FIELD_INTEGER, 3),
 END_BYTESWAP_DATADESC()
 
 #define VCOLLIDE_IVP_COMPACT_SURFACE_ID MAKEID('I', 'V', 'P', 'S')
@@ -156,7 +156,7 @@ btVector3 CPhysicsCollision::OffsetInertia(
  * Convexes
  ***********/
 
-void CPhysCollide::Initialize() {
+void CPhysConvex::Initialize() {
 	btCollisionShape *shape = GetShape();
 	shape->setUserPointer(this);
 	shape->setUserIndex(0);
@@ -530,8 +530,10 @@ int CPhysicsCollision::CollideIndex(const CPhysCollide *pCollide) {
 	return pCollide->GetShape()->getUserIndex();
 }
 
-void CPhysicsCollision::SetCollideIndex(CPhysCollide *pCollide, int index) {
-	pCollide->GetShape()->setUserIndex(index);
+int CPhysicsCollision::GetConvexesUsedInCollideable(const CPhysCollide *pCollideable,
+		CPhysConvex **pOutputArray, int iOutputArrayLimit) {
+	int convexCount = pCollideable->GetConvexes(pOutputArray, iOutputArrayLimit);
+	return MIN(convexCount, iOutputArrayLimit);
 }
 
 /******************
@@ -673,6 +675,18 @@ void CPhysCollide_Compound::CalculateInertia() {
 				CPhysicsCollision::BoxInertia(aabbMax - aabbMin),
 				(aabbMin + aabbMax) * 0.5f);
 	}
+}
+
+int CPhysCollide_Compound::GetConvexes(CPhysConvex **output, int limit) const {
+	int childCount = m_Shape.getNumChildShapes();
+	if (childCount < limit) {
+		limit = childCount;
+	}
+	for (int childIndex = 0; childIndex < limit; ++childIndex) {
+		output[childIndex] = reinterpret_cast<CPhysConvex *>(
+				m_Shape.getChildShape(childIndex)->getUserPointer());
+	}
+	return childCount;
 }
 
 /**********
