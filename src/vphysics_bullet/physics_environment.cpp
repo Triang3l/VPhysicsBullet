@@ -224,9 +224,18 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 	int objectCount = environment->m_NonStaticObjects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
 		CPhysicsObject *object = static_cast<CPhysicsObject *>(objects[objectIndex]);
-		object->ApplyDampingAndGravity(timeStep);
-		object->ApplyDrag(timeStep);
+
+		// Async force fields.
+
+		// Gravity.
+		object->ApplyDamping(timeStep);
 		object->ApplyForcesAndSpeedLimit();
+		object->ApplyGravity(timeStep);
+
+		// Unconstrained motion.
+		object->ApplyDrag(timeStep);
+
+		// Vehicles.
 	}
 }
 

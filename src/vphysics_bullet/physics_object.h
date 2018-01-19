@@ -114,9 +114,9 @@ public:
 	}
 
 	// Bullet doesn't allow damping factors over 1, so it has to be done manually.
-	// Also applies damping in a way more similar to how IVP VPhysics does it,
-	// and gives more gravity control, and Bullet doesn't apply gravity every sub-step.
-	void ApplyDampingAndGravity(btScalar timeStep);
+	// Also applies damping in a way more similar to how IVP VPhysics does it.
+	void ApplyDamping(btScalar timeStep);
+	void ApplyGravity(btScalar timeStep);
 
 	btScalar CalculateLinearDrag(const btVector3 &velocity) const;
 	btScalar CalculateAngularDrag(const btVector3 &objectSpaceRotationAxis) const;

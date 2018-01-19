@@ -327,7 +327,7 @@ void CPhysicsObject::GetDamping(float *speed, float *rot) const {
 	}
 }
 
-void CPhysicsObject::ApplyDampingAndGravity(btScalar timeStep) {
+void CPhysicsObject::ApplyDamping(btScalar timeStep) {
 	if (!IsMoveable() || !IsGravityEnabled()) {
 		return;
 	}
@@ -348,8 +348,7 @@ void CPhysicsObject::ApplyDampingAndGravity(btScalar timeStep) {
 	} else {
 		damping = btExp(-damping);
 	}
-	m_RigidBody->setLinearVelocity((linearVelocity * damping) +
-			static_cast<const CPhysicsEnvironment *>(m_Environment)->GetBulletGravity() * timeStep);
+	m_RigidBody->setLinearVelocity(linearVelocity * damping);
 
 	if (rotDamping < 0.4f) {
 		rotDamping = btScalar(1.0f) - rotDamping;
@@ -357,6 +356,14 @@ void CPhysicsObject::ApplyDampingAndGravity(btScalar timeStep) {
 		rotDamping = btExp(-rotDamping);
 	}
 	m_RigidBody->setAngularVelocity(angularVelocity * rotDamping);
+}
+
+void CPhysicsObject::ApplyGravity(btScalar timeStep) {
+	if (!IsMoveable() || !IsGravityEnabled()) {
+		return;
+	}
+	m_RigidBody->setLinearVelocity(m_RigidBody->getLinearVelocity() +
+			static_cast<const CPhysicsEnvironment *>(m_Environment)->GetBulletGravity() * timeStep);
 }
 
 /*******
