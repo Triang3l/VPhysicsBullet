@@ -74,6 +74,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	m_RigidBody->setUserPointer(this);
 
 	if (!IsStatic()) {
+		m_GravityEnabled = true;
 		m_DragCoefficient = m_AngularDragCoefficient = params->dragCoefficient;
 		btVector3 aabbMin, aabbMax;
 		collide->GetShape()->getAabb(btTransform::getIdentity(), aabbMin, aabbMax);
@@ -92,6 +93,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 						AngularDragIntegral(extents.getZ(), extents.getY(), extents.getX()));
 		m_DragEnabled = (m_DragCoefficient != 0.0f);
 	} else {
+		m_GravityEnabled = false;
 		m_DragCoefficient = m_AngularDragCoefficient = 0.0f;
 		m_DragBasis.setZero();
 		m_AngularDragBasis.setZero();
@@ -297,27 +299,14 @@ void CPhysicsObject::Sleep() {
  **********************/
 
 bool CPhysicsObject::IsGravityEnabled() const {
-	return !IsStatic() && !(m_RigidBody->getFlags() & BT_DISABLE_WORLD_GRAVITY);
+	return m_GravityEnabled;
 }
 
 void CPhysicsObject::EnableGravity(bool enable) {
 	if (IsStatic()) {
 		return;
 	}
-
-	int flags = m_RigidBody->getFlags();
-	if (enable == !(flags & BT_DISABLE_WORLD_GRAVITY)) {
-		return;
-	}
-
-	if (enable) {
-		const CPhysicsEnvironment *environment = static_cast<CPhysicsEnvironment *>(m_Environment);
-		m_RigidBody->setGravity(environment->GetDynamicsWorld()->getGravity());
-		m_RigidBody->setFlags(flags & ~BT_DISABLE_WORLD_GRAVITY);
-	} else {
-		m_RigidBody->setGravity(btVector3(0.0f, 0.0f, 0.0f));
-		m_RigidBody->setFlags(flags | BT_DISABLE_WORLD_GRAVITY);
-	}
+	m_GravityEnabled = enable;
 }
 
 void CPhysicsObject::SetDamping(const float *speed, const float *rot) {
@@ -338,7 +327,7 @@ void CPhysicsObject::GetDamping(float *speed, float *rot) const {
 	}
 }
 
-void CPhysicsObject::ApplyDamping(btScalar timeStep) {
+void CPhysicsObject::ApplyDampingAndGravity(btScalar timeStep) {
 	if (!IsMoveable() || !IsGravityEnabled()) {
 		return;
 	}
@@ -359,7 +348,8 @@ void CPhysicsObject::ApplyDamping(btScalar timeStep) {
 	} else {
 		damping = btExp(-damping);
 	}
-	m_RigidBody->setLinearVelocity(linearVelocity * damping);
+	m_RigidBody->setLinearVelocity((linearVelocity * damping) +
+			static_cast<const CPhysicsEnvironment *>(m_Environment)->GetBulletGravity() * timeStep);
 
 	if (rotDamping < 0.4f) {
 		rotDamping = btScalar(1.0f) - rotDamping;

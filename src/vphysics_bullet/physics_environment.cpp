@@ -10,6 +10,7 @@
 #include "tier0/memdbgon.h"
 
 CPhysicsEnvironment::CPhysicsEnvironment() :
+		m_Gravity(0.0f, 0.0f, 0.0f),
 		m_AirDensity(2.0f),
 		m_ObjectEvents(nullptr),
 		m_SimulationTimeStep(DEFAULT_TICK_INTERVAL),
@@ -23,6 +24,8 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 	m_Solver = new btSequentialImpulseConstraintSolver();
 	m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_Broadphase, m_Solver, m_CollisionConfiguration);
 	m_DynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = VPHYSICS_CONVEX_DISTANCE_MARGIN;
+
+	m_DynamicsWorld->setGravity(btVector3(0.0f, 0.0f, 0.0f)); // Gravity is applied by CPhysicsObjects.
 
 	m_TriggerTouches.SetLessFunc(TriggerTouchLessFunc);
 
@@ -187,13 +190,11 @@ void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {
  ****************/
 
 void CPhysicsEnvironment::SetGravity(const Vector &gravityVector) {
-	btVector3 gravity;
-	ConvertPositionToBullet(gravityVector, gravity);
-	m_DynamicsWorld->setGravity(gravity);
+	ConvertPositionToBullet(gravityVector, m_Gravity);
 }
 
 void CPhysicsEnvironment::GetGravity(Vector *pGravityVector) const {
-	ConvertPositionToHL(m_DynamicsWorld->getGravity(), *pGravityVector);
+	ConvertPositionToHL(m_Gravity, *pGravityVector);
 }
 
 void CPhysicsEnvironment::SetAirDensity(float density) {
@@ -223,7 +224,7 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 	int objectCount = environment->m_NonStaticObjects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
 		CPhysicsObject *object = static_cast<CPhysicsObject *>(objects[objectIndex]);
-		object->ApplyDamping(timeStep);
+		object->ApplyDampingAndGravity(timeStep);
 		object->ApplyDrag(timeStep);
 		object->ApplyForcesAndSpeedLimit();
 	}

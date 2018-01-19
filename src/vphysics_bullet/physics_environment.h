@@ -59,6 +59,10 @@ public:
 		return m_DynamicsWorld;
 	}
 
+	FORCEINLINE const btVector3 &GetBulletGravity() const {
+		return m_Gravity;
+	}
+
 	void NotifyObjectRemoving(IPhysicsObject *object);
 
 	void NotifyTriggerRemoved(IPhysicsObject *trigger);
@@ -76,6 +80,8 @@ private:
 	btBroadphaseInterface *m_Broadphase;
 	btSequentialImpulseConstraintSolver *m_Solver;
 	btDiscreteDynamicsWorld *m_DynamicsWorld;
+
+	btVector3 m_Gravity;
 
 	float m_AirDensity;
 
