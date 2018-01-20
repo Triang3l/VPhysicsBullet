@@ -140,6 +140,8 @@ public:
 
 	virtual btScalar GetVolume() const { return 0.0f; }
 	virtual btScalar GetSurfaceArea() const { return 0.0f; }
+	virtual btVector3 GetExtent(const btVector3 &origin, const btMatrix3x3 &rotation,
+			const btVector3 &direction) const { return origin; }
 
 	virtual btVector3 GetMassCenter() const { return btVector3(0.0f, 0.0f, 0.0f); }
 	virtual void SetMassCenter(const btVector3 &massCenter) {}
@@ -193,6 +195,8 @@ public:
 
 	virtual btScalar GetVolume() const;
 	virtual btScalar GetSurfaceArea() const;
+	virtual btVector3 GetExtent(const btVector3 &origin, const btMatrix3x3 &rotation,
+			const btVector3 &direction) const;
 
 	virtual btVector3 GetMassCenter() const { return m_MassCenter; }
 	virtual void SetMassCenter(const btVector3 &massCenter);
@@ -213,7 +217,7 @@ private:
 
 class CPhysCollide_Sphere : public CPhysCollide {
 public:
-	CPhysCollide_Sphere(btScalar radius) : m_Shape(radius) {
+	CPhysCollide_Sphere(btScalar radius) : m_Shape(radius + VPHYSICS_CONVEX_DISTANCE_MARGIN) {
 		Initialize();
 	}
 	btCollisionShape *GetShape() { return &m_Shape; }
@@ -224,8 +228,14 @@ public:
 		return collide->GetShape()->getShapeType() == SPHERE_SHAPE_PROXYTYPE;
 	}
 
+	FORCEINLINE btScalar GetRadius() const {
+		return m_Shape.getRadius() - VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	}
+
 	virtual btScalar GetVolume() const;
 	virtual btScalar GetSurfaceArea() const;
+	virtual btVector3 GetExtent(const btVector3 &origin, const btMatrix3x3 &rotation,
+			const btVector3 &direction) const;
 
 	virtual btVector3 GetInertia() const;
 
@@ -247,6 +257,8 @@ public:
 	virtual float ConvexSurfaceArea(CPhysConvex *pConvex);
 	virtual float CollideVolume(CPhysCollide *pCollide);
 	virtual float CollideSurfaceArea(CPhysCollide *pCollide);
+	virtual Vector CollideGetExtent(const CPhysCollide *pCollide,
+			const Vector &collideOrigin, const QAngle &collideAngles, const Vector &direction);
 	virtual void CollideGetMassCenter(CPhysCollide *pCollide, Vector *pOutMassCenter);
 	virtual void CollideSetMassCenter(CPhysCollide *pCollide, const Vector &massCenter);
 	virtual void SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData);
@@ -258,6 +270,7 @@ public:
 	virtual CPhysCollide *BBoxToCollide(const Vector &mins, const Vector &maxs);
 	virtual int GetConvexesUsedInCollideable(const CPhysCollide *pCollideable,
 			CPhysConvex **pOutputArray, int iOutputArrayLimit);
+	virtual unsigned int ReadStat(int statID);
 
 	// Internal methods.
 

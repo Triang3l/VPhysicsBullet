@@ -71,6 +71,7 @@ inline void ConvertMatrixToHL(const btTransform &transform, matrix3x4_t &matrix)
 	ConvertMatrixToHL(transform.getBasis(), transform.getOrigin(), matrix);
 }
 
+void ConvertRotationToBullet(const QAngle &angles, btMatrix3x3 &basis);
 void ConvertRotationToHL(const btMatrix3x3 &basis, QAngle &angles);
 
 inline int ConvertCoordinateAxisToBullet(int axis) {

@@ -29,6 +29,16 @@ void ConvertMatrixToHL(const btMatrix3x3 &basis, const btVector3 &origin, matrix
 	matrix[2][3] = origin[1];
 }
 
+void ConvertRotationToBullet(const QAngle &angles, btMatrix3x3 &basis) {
+	Vector forward, right, up;
+	AngleVectors(angles, &forward, &right, &up);
+	// The third column is left, but the conversion negates it.
+	basis.setValue(
+			forward[0], up[0], right[0],
+			forward[2], up[2], right[2],
+			-forward[1], -up[1], -right[1]);
+}
+
 void ConvertRotationToHL(const btMatrix3x3 &basis, QAngle &angles) {
 	// Like in ConvertMatrixToHL, but with left instead of right.
 	float forward[3] = { basis[0][0], -basis[2][0], basis[1][0] };

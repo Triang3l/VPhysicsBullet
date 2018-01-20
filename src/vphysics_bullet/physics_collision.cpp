@@ -535,6 +535,18 @@ float CPhysicsCollision::CollideSurfaceArea(CPhysCollide *pCollide) {
 	return (float) pCollide->GetSurfaceArea() * (BULLET2HL_FACTOR * BULLET2HL_FACTOR);
 }
 
+Vector CPhysicsCollision::CollideGetExtent(const CPhysCollide *pCollide,
+		const Vector &collideOrigin, const QAngle &collideAngles, const Vector &direction) {
+	btVector3 bulletOrigin, bulletDirection;
+	btMatrix3x3 bulletRotation;
+	ConvertPositionToBullet(collideOrigin, bulletOrigin);
+	ConvertRotationToBullet(collideAngles, bulletRotation);
+	ConvertDirectionToBullet(direction, bulletDirection);
+	Vector extent;
+	ConvertPositionToHL(pCollide->GetExtent(bulletOrigin, bulletRotation, bulletDirection), extent);
+	return extent;
+}
+
 void CPhysicsCollision::CollideGetMassCenter(CPhysCollide *pCollide, Vector *pOutMassCenter) {
 	ConvertPositionToHL(pCollide->GetMassCenter(), *pOutMassCenter);
 }
@@ -564,6 +576,10 @@ int CPhysicsCollision::GetConvexesUsedInCollideable(const CPhysCollide *pCollide
 		CPhysConvex **pOutputArray, int iOutputArrayLimit) {
 	int convexCount = pCollideable->GetConvexes(pOutputArray, iOutputArrayLimit);
 	return MIN(convexCount, iOutputArrayLimit);
+}
+
+unsigned int CPhysicsCollision::ReadStat(int statID) {
+	return 0; // Not implemented in v31 IVP VPhysics, increments commented out in v29.
 }
 
 /******************
@@ -671,6 +687,27 @@ btScalar CPhysCollide_Compound::GetSurfaceArea() const {
 	return area;
 }
 
+btVector3 CPhysCollide_Compound::GetExtent(const btVector3 &origin, const btMatrix3x3 &rotation,
+		const btVector3 &direction) const {
+	btVector3 localDirection = direction * rotation;
+	btVector3 extent = origin;
+	btScalar maxDot = -BT_LARGE_FLOAT;
+	int childCount = m_Shape.getNumChildShapes();
+	for (int childIndex = 0; childIndex < childCount; ++childIndex) {
+		const btConvexShape *shape = static_cast<const btConvexShape *>(
+				m_Shape.getChildShape(childIndex));
+		btVector3 localSupportingVertex = shape->localGetSupportingVertex(localDirection);
+		btVector3 worldSupportingVertex = origin + (rotation * (localSupportingVertex +
+				reinterpret_cast<CPhysConvex *>(shape->getUserPointer())->GetOriginInCompound()));
+		btScalar dot = worldSupportingVertex.dot(direction);
+		if (dot > maxDot) {
+			maxDot = dot;
+			extent = worldSupportingVertex;
+		}
+	}
+	return extent;
+}
+
 void CPhysCollide_Compound::SetMassCenter(const btVector3 &massCenter) {
 	btVector3 oldMassCenter = m_MassCenter;
 	m_MassCenter = massCenter;
@@ -724,17 +761,22 @@ int CPhysCollide_Compound::GetConvexes(CPhysConvex **output, int limit) const {
  **********/
 
 btScalar CPhysCollide_Sphere::GetVolume() const {
-	btScalar radius = m_Shape.getRadius();
+	btScalar radius = GetRadius();
 	return ((4.0f / 3.0f) * SIMD_PI) * radius * radius * radius;
 }
 
 btScalar CPhysCollide_Sphere::GetSurfaceArea() const {
-	btScalar radius = m_Shape.getRadius();
+	btScalar radius = GetRadius();
 	return (4.0f * SIMD_PI) * radius * radius;
 }
 
+btVector3 CPhysCollide_Sphere::GetExtent(const btVector3 &origin, const btMatrix3x3 &rotation,
+		const btVector3 &direction) const {
+	return origin + (m_Shape.getRadius() * direction);
+}
+
 btVector3 CPhysCollide_Sphere::GetInertia() const {
-	btScalar elem = m_Shape.getRadius();
+	btScalar elem = GetRadius();
 	elem *= elem * 0.4;
 	return btVector3(elem, elem, elem);
 }

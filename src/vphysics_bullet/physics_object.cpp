@@ -146,7 +146,7 @@ const CPhysCollide *CPhysicsObject::GetCollide() const {
 float CPhysicsObject::GetSphereRadius() const {
 	const CPhysCollide *collide = GetCollide();
 	if (CPhysCollide_Sphere::IsSphere(collide)) {
-		return BULLET2HL(static_cast<const CPhysCollide_Sphere *>(collide)->GetSphereShape()->getRadius());
+		return BULLET2HL(static_cast<const CPhysCollide_Sphere *>(collide)->GetRadius());
 	}
 	return 0.0f;
 }

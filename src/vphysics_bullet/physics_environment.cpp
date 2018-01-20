@@ -82,7 +82,7 @@ IPhysicsObject *CPhysicsEnvironment::CreateSphereObject(float radius, int materi
 	CPhysCollide_Sphere *collide = nullptr, *freeCollide = nullptr;
 	for (int cacheIndex = m_SphereCache.Count() - 1; cacheIndex >= 0; --cacheIndex) {
 		CPhysCollide_Sphere *cacheCollide = static_cast<CPhysCollide_Sphere *>(m_SphereCache[cacheIndex]);
-		if (btFabs(cacheCollide->GetSphereShape()->getRadius() - bulletRadius) < bulletRadiusThreshold) {
+		if (btFabs(cacheCollide->GetRadius() - bulletRadius) < bulletRadiusThreshold) {
 			collide = cacheCollide;
 			break;
 		}
