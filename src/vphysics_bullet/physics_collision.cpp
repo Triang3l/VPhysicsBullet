@@ -347,20 +347,34 @@ btVector3 CPhysConvex_Hull::GetInertia() const {
 // as Bullet doesn't do per-triangle collision detection for convexes.
 // However, per-triangle materials are used only by world brushes,
 // which can't have coplanar triangles with different materials.
-// It also assumes the contact point is very close to the surface.
 int CPhysConvex_Hull::GetTriangleMaterialIndex(const btVector3 &point) const {
 	int triangleCount = m_TriangleMaterials.size();
 	if (triangleCount == 0) {
 		return 0;
 	}
+
+	btVector3 aabbMin, aabbMax;
+	m_Shape.getAabb(btTransform::getIdentity(), aabbMin, aabbMax);
+	btVector3 center = (aabbMin + aabbMax) * 0.5f;
+	btVector3 pointCenterRelative = point - center; // Doesn't have to be normalized.
+	btScalar margin = m_Shape.getMargin();
+
+	// Project the point onto each plane that isn't opposite to the contact direction,
+	// then choose the plane where the projected point is the closest to the center.
+	// The best projection should be on the shape, while other ones should be outside.
 	const btVector4 *planes = &m_TrianglePlanes[0];
-	int closestTriangle = 0;
-	btScalar closestTriangleDistance = btFabs(planes[0].dot(point) - planes[0].getW());
-	for (int triangleIndex = 1; triangleCount < triangleIndex; ++triangleIndex) {
+	int closestTriangle = 0; // Fall back to a random triangle within the brush in case of failure.
+	btScalar closestProjectionDistance2 = BT_LARGE_FLOAT;
+	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
 		const btVector4 &plane = planes[triangleIndex];
-		btScalar distance = btFabs(plane.dot(point) - plane.getW());
-		if (distance < closestTriangleDistance) {
-			closestTriangleDistance = distance;
+		// Without this check, the opposite side of the convex would be treated as forward.
+		if (plane.dot(pointCenterRelative) < 0.0000001f) {
+			continue;
+		}
+		btScalar projectionDistance2 = center.distance2(
+				point - (plane.dot(point) - (plane.getW() - margin)) * plane);
+		if (projectionDistance2 < closestProjectionDistance2) {
+			closestProjectionDistance2 = projectionDistance2;
 			closestTriangle = triangleIndex;
 		}
 	}
