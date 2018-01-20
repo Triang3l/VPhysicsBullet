@@ -547,6 +547,21 @@ Vector CPhysicsCollision::CollideGetExtent(const CPhysCollide *pCollide,
 	return extent;
 }
 
+void CPhysicsCollision::CollideGetAABB(Vector *pMins, Vector *pMaxs, const CPhysCollide *pCollide,
+		const Vector &collideOrigin, const QAngle &collideAngles) {
+	btTransform transform;
+	ConvertRotationToBullet(collideAngles, transform.getBasis());
+	ConvertPositionToBullet(collideOrigin, transform.getOrigin());
+	transform.getOrigin() += transform.getBasis() * pCollide->GetMassCenter();
+	btVector3 aabbMin, aabbMax;
+	pCollide->GetShape()->getAabb(transform, aabbMin, aabbMax);
+	Vector hlAabbMin, hlAabbMax;
+	ConvertPositionToHL(aabbMin, hlAabbMin);
+	ConvertPositionToHL(aabbMax, hlAabbMax);
+	VectorMin(hlAabbMin, hlAabbMax, *pMins);
+	VectorMax(hlAabbMin, hlAabbMax, *pMaxs);
+}
+
 void CPhysicsCollision::CollideGetMassCenter(CPhysCollide *pCollide, Vector *pOutMassCenter) {
 	ConvertPositionToHL(pCollide->GetMassCenter(), *pOutMassCenter);
 }

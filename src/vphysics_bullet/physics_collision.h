@@ -259,6 +259,8 @@ public:
 	virtual float CollideSurfaceArea(CPhysCollide *pCollide);
 	virtual Vector CollideGetExtent(const CPhysCollide *pCollide,
 			const Vector &collideOrigin, const QAngle &collideAngles, const Vector &direction);
+	virtual void CollideGetAABB(Vector *pMins, Vector *pMaxs, const CPhysCollide *pCollide,
+			const Vector &collideOrigin, const QAngle &collideAngles);
 	virtual void CollideGetMassCenter(CPhysCollide *pCollide, Vector *pOutMassCenter);
 	virtual void CollideSetMassCenter(CPhysCollide *pCollide, const Vector &massCenter);
 	virtual void SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData);
