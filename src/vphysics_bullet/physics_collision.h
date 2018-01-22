@@ -147,6 +147,9 @@ public:
 	virtual void SetMassCenter(const btVector3 &massCenter) {}
 	virtual btVector3 GetInertia() const { return btVector3(1.0f, 1.0f, 1.0f); }
 
+	FORCEINLINE const btVector3 &GetOrthographicAreas() const { return m_OrthographicAreas; }
+	void SetOrthographicAreas(const btVector3 &areas);
+
 	// Returns the true number of convexes, not clamped, for possibility of multiple calls.
 	virtual int GetConvexes(CPhysConvex **output, int limit) const { return 0; }
 
@@ -163,7 +166,8 @@ public:
 	void RemoveObjectReference(IPhysicsObject *object);
 
 protected:
-	CPhysCollide() : m_Owner(OWNER_GAME) {}
+	CPhysCollide(const btVector3 &orthographicAreas = btVector3(1.0f, 1.0f, 1.0f)) :
+			m_Owner(OWNER_GAME), m_OrthographicAreas(orthographicAreas) {}
 
 	void Initialize() {
 		btCollisionShape *shape = GetShape();
@@ -176,6 +180,8 @@ protected:
 private:
 	Owner m_Owner;
 
+	btVector3 m_OrthographicAreas;
+
 	IPhysicsObject *m_ObjectReferenceList;
 };
 
@@ -184,7 +190,8 @@ public:
 	CPhysCollide_Compound(CPhysConvex **pConvex, int convexCount);
 	CPhysCollide_Compound(
 			const struct VCollide_IVP_Compact_Ledgetree_Node *root, CByteswap &byteswap,
-			const btVector3 &massCenter, const btVector3 &inertia);
+			const btVector3 &massCenter, const btVector3 &inertia,
+			const btVector3 &orthographicAreas);
 	btCollisionShape *GetShape() { return &m_Shape; }
 	const btCollisionShape *GetShape() const { return &m_Shape; }
 	FORCEINLINE btCompoundShape *GetCompoundShape() { return &m_Shape; }
@@ -217,6 +224,7 @@ private:
 
 class CPhysCollide_Sphere : public CPhysCollide {
 public:
+	// The ortographic area fraction should be pi/4, but let's assume the engine assumes 1.
 	CPhysCollide_Sphere(btScalar radius) : m_Shape(radius + VPHYSICS_CONVEX_DISTANCE_MARGIN) {
 		Initialize();
 	}
@@ -255,6 +263,7 @@ public:
 	virtual CPhysConvex *ConvexFromPlanes(float *pPlanes, int planeCount, float mergeDistance);
 	virtual float ConvexVolume(CPhysConvex *pConvex);
 	virtual float ConvexSurfaceArea(CPhysConvex *pConvex);
+	virtual CPhysCollide *UnserializeCollide(char *pBuffer, int size, int index);
 	virtual float CollideVolume(CPhysCollide *pCollide);
 	virtual float CollideSurfaceArea(CPhysCollide *pCollide);
 	virtual Vector CollideGetExtent(const CPhysCollide *pCollide,
@@ -263,6 +272,8 @@ public:
 			const Vector &collideOrigin, const QAngle &collideAngles);
 	virtual void CollideGetMassCenter(CPhysCollide *pCollide, Vector *pOutMassCenter);
 	virtual void CollideSetMassCenter(CPhysCollide *pCollide, const Vector &massCenter);
+	virtual Vector CollideGetOrthographicAreas(const CPhysCollide *pCollide);
+	virtual void CollideSetOrthographicAreas(CPhysCollide *pCollide, const Vector &areas);
 	virtual void SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData);
 	virtual void ConvexFree(CPhysConvex *pConvex);
 	virtual CPhysConvex *BBoxToConvex(const Vector &mins, const Vector &maxs);
@@ -272,9 +283,13 @@ public:
 	virtual CPhysCollide *BBoxToCollide(const Vector &mins, const Vector &maxs);
 	virtual int GetConvexesUsedInCollideable(const CPhysCollide *pCollideable,
 			CPhysConvex **pOutputArray, int iOutputArrayLimit);
+	virtual void VCollideLoad(vcollide_t *pOutput,
+			int solidCount, const char *pBuffer, int size, bool swap);
 	virtual unsigned int ReadStat(int statID);
 
 	// Internal methods.
+
+	CPhysCollide *UnserializeCollide(const char *pBuffer, int size, int index, bool swap);
 
 	static btVector3 BoxInertia(const btVector3 &extents);
 	static btVector3 OffsetInertia(
@@ -287,6 +302,10 @@ private:
 
 	CPhysCollide_Compound *CreateBBox(const Vector &mins, const Vector &maxs);
 	CUtlVector<CPhysCollide_Compound *> m_BBoxCache;
+
+	CPhysCollide *UnserializeIVPCompactSurface(
+			const struct VCollide_IVP_Compact_Surface *surface, CByteswap &byteswap,
+			const btVector3 &orthographicAreas);
 };
 
 extern CPhysicsCollision *g_pPhysCollision;

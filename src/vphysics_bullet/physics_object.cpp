@@ -76,21 +76,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	if (!IsStatic()) {
 		m_GravityEnabled = true;
 		m_DragCoefficient = m_AngularDragCoefficient = params->dragCoefficient;
-		btVector3 aabbMin, aabbMax;
-		collide->GetShape()->getAabb(btTransform::getIdentity(), aabbMin, aabbMax);
-		btVector3 extents = aabbMax - aabbMin;
-		m_DragBasis.setValue(
-				extents.getY() * extents.getZ(),
-				extents.getX() * extents.getZ(),
-				extents.getX() * extents.getY());
-		extents *= 0.5f;
-		m_AngularDragBasis.setValue(
-				AngularDragIntegral(extents.getX(), extents.getY(), extents.getZ()) +
-						AngularDragIntegral(extents.getX(), extents.getZ(), extents.getY()),
-				AngularDragIntegral(extents.getY(), extents.getX(), extents.getZ()) +
-						AngularDragIntegral(extents.getY(), extents.getZ(), extents.getX()),
-				AngularDragIntegral(extents.getZ(), extents.getX(), extents.getY()) +
-						AngularDragIntegral(extents.getZ(), extents.getY(), extents.getX()));
+		ComputeDragBases();
 		m_DragEnabled = (m_DragCoefficient != 0.0f);
 	} else {
 		m_GravityEnabled = false;
@@ -375,6 +361,28 @@ btScalar CPhysicsObject::AngularDragIntegral(btScalar l, btScalar w, btScalar h)
 	return (1.0f / 3.0f) * w2 * l * l2 + 0.5f * w2 * w2 * l + l * w2 * h2;
 }
 
+void CPhysicsObject::ComputeDragBases() {
+	const CPhysCollide *collide = GetCollide();
+	btVector3 aabbMin, aabbMax;
+	collide->GetShape()->getAabb(btTransform::getIdentity(), aabbMin, aabbMax);
+	btVector3 extents = aabbMax - aabbMin;
+	const btVector3 &areas = collide->GetOrthographicAreas();
+	m_DragBasis.setValue(
+			extents.getY() * extents.getZ(),
+			extents.getX() * extents.getZ(),
+			extents.getX() * extents.getY());
+	m_DragBasis *= areas;
+	extents *= 0.5f;
+	m_AngularDragBasis.setValue(
+			AngularDragIntegral(extents.getX(), extents.getY(), extents.getZ()) +
+					AngularDragIntegral(extents.getX(), extents.getZ(), extents.getY()),
+			AngularDragIntegral(extents.getY(), extents.getX(), extents.getZ()) +
+					AngularDragIntegral(extents.getY(), extents.getZ(), extents.getX()),
+			AngularDragIntegral(extents.getZ(), extents.getX(), extents.getY()) +
+					AngularDragIntegral(extents.getZ(), extents.getY(), extents.getX()));
+	m_AngularDragBasis *= areas;
+}
+
 bool CPhysicsObject::IsDragEnabled() const {
 	return m_DragEnabled;
 }
@@ -439,6 +447,12 @@ void CPhysicsObject::ApplyDrag(btScalar timeStep) {
 	if (angularDragForce < 0.0f) {
 		btSetMax(angularDragForce, btScalar(-1.0f));
 		m_RigidBody->setAngularVelocity(angularVelocity + (angularVelocity * angularDragForce));
+	}
+}
+
+void CPhysicsObject::NotifyOrthographicAreasChanged() {
+	if (!IsStatic()) {
+		ComputeDragBases();
 	}
 }
 

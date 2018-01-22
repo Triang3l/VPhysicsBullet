@@ -5,6 +5,7 @@
 #include "physics_object.h"
 #include <LinearMath/btGeometryUtil.h>
 #include "mathlib/polyhedron.h"
+#include "tier0/dbg.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -15,9 +16,30 @@
 static CPhysicsCollision s_PhysCollision;
 CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
 
-/*****************************
- * VCollide import structures
- *****************************/
+/***************************
+ * Serialization structures
+ ***************************/
+
+#define VCOLLIDE_VPHYSICS_ID MAKEID('V', 'P', 'H', 'Y')
+#define VCOLLIDE_IVP_COMPACT_SURFACE_ID MAKEID('I', 'V', 'P', 'S')
+
+#define VCOLLIDE_VERSION_IVP 0x100
+#define VCOLLIDE_MODEL_TYPE_IVP_COMPACT_SURFACE 0
+
+// Triang3l's Bullet interface.
+// To completely prevent loading Bullet collideables in IVP and
+// other VPhysics implementations, and also to version separately.
+#define VCOLLIDE_VERSION_BULLET 0x3b00
+
+struct VCollide_SurfaceHeader {
+	DECLARE_BYTESWAP_DATADESC()
+	int vphysicsID;
+	short version;
+	short modelType;
+	int surfaceSize;
+	Vector dragAxisAreas;
+	int axisMapSize;
+};
 
 #ifdef _X360
 #pragma bitfield_order(push, lsb_to_msb)
@@ -97,6 +119,15 @@ struct VCollide_IVP_Compact_Surface {
 #pragma bitfield_order(pop)
 #endif
 
+BEGIN_BYTESWAP_DATADESC(VCollide_SurfaceHeader)
+	DEFINE_FIELD(vphysicsID, FIELD_INTEGER),
+	DEFINE_FIELD(version, FIELD_SHORT),
+	DEFINE_FIELD(modelType, FIELD_SHORT),
+	DEFINE_FIELD(surfaceSize, FIELD_INTEGER),
+	DEFINE_FIELD(dragAxisAreas, FIELD_VECTOR),
+	DEFINE_FIELD(axisMapSize, FIELD_INTEGER)
+END_BYTESWAP_DATADESC()
+
 BEGIN_BYTESWAP_DATADESC(VCollide_IVP_U_Float_Point)
 	DEFINE_ARRAY(k, FIELD_FLOAT, 3),
 	DEFINE_FIELD(hesse_val, FIELD_FLOAT),
@@ -134,8 +165,6 @@ BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Surface)
 	DEFINE_FIELD(offset_ledgetree_root, FIELD_INTEGER),
 	DEFINE_ARRAY(dummy, FIELD_INTEGER, 3),
 END_BYTESWAP_DATADESC()
-
-#define VCOLLIDE_IVP_COMPACT_SURFACE_ID MAKEID('I', 'V', 'P', 'S')
 
 /****************************************
  * Utility for convexes and collideables
@@ -583,6 +612,30 @@ void CPhysCollide::NotifyObjectsOfMassCenterChange(const btVector3 &oldMassCente
 	}
 }
 
+void CPhysCollide::SetOrthographicAreas(const btVector3 &areas) {
+	m_OrthographicAreas = areas;
+	IPhysicsObject *firstObject = GetObjectReferenceList();
+	if (firstObject != nullptr) {
+		CPhysicsObject *object = static_cast<CPhysicsObject *>(firstObject);
+		do {
+			object->NotifyOrthographicAreasChanged();
+			object = object->GetNextCollideObject();
+		} while (object != firstObject);
+	}
+}
+
+Vector CPhysicsCollision::CollideGetOrthographicAreas(const CPhysCollide *pCollide) {
+	Vector areas;
+	ConvertAbsoluteDirectionToHL(pCollide->GetOrthographicAreas(), areas);
+	return areas;
+}
+
+void CPhysicsCollision::CollideSetOrthographicAreas(CPhysCollide *pCollide, const Vector &areas) {
+	btVector3 bulletAreas;
+	ConvertAbsoluteDirectionToBullet(areas, bulletAreas);
+	pCollide->SetOrthographicAreas(bulletAreas);
+}
+
 int CPhysicsCollision::CollideIndex(const CPhysCollide *pCollide) {
 	return pCollide->GetShape()->getUserIndex();
 }
@@ -648,7 +701,9 @@ CPhysCollide_Compound::CPhysCollide_Compound(CPhysConvex **pConvex, int convexCo
 
 CPhysCollide_Compound::CPhysCollide_Compound(
 		const VCollide_IVP_Compact_Ledgetree_Node *root, CByteswap &byteswap,
-		const btVector3 &massCenter, const btVector3 &inertia) :
+		const btVector3 &massCenter, const btVector3 &inertia,
+		const btVector3 &orthographicAreas) :
+		CPhysCollide(orthographicAreas),
 		m_Shape(root->offset_right_node != 0 /* Swap not required */),
 		m_Volume(-1.0f), m_MassCenter(massCenter), m_Inertia(inertia) {
 	AddIVPCompactLedgetreeNode(root, byteswap);
@@ -798,4 +853,92 @@ btVector3 CPhysCollide_Sphere::GetInertia() const {
 
 CPhysCollide_Sphere *CPhysicsCollision::CreateSphereCollide(btScalar radius) {
 	return new CPhysCollide_Sphere(radius);
+}
+
+/************************
+ * Collide serialization
+ ************************/
+
+CPhysCollide *CPhysicsCollision::UnserializeIVPCompactSurface(
+		const VCollide_IVP_Compact_Surface *surface, CByteswap &byteswap,
+		const btVector3 &orthographicAreas) {
+	VCollide_IVP_Compact_Surface swappedSurface;
+	byteswap.SwapBufferToTargetEndian(&swappedSurface, const_cast<VCollide_IVP_Compact_Surface *>(surface));
+	if (swappedSurface.dummy[2] != VCOLLIDE_IVP_COMPACT_SURFACE_ID) {
+		return nullptr;
+	}
+	return new CPhysCollide_Compound(
+			reinterpret_cast<const VCollide_IVP_Compact_Ledgetree_Node *>(
+					reinterpret_cast<const byte *>(surface) + swappedSurface.offset_ledgetree_root),
+			byteswap,
+			btVector3(swappedSurface.mass_center[0], -swappedSurface.mass_center[1], -swappedSurface.mass_center[2]),
+			btVector3(swappedSurface.rotation_inertia[0], swappedSurface.rotation_inertia[1], swappedSurface.rotation_inertia[2]),
+			orthographicAreas);
+}
+
+CPhysCollide *CPhysicsCollision::UnserializeCollide(const char *pBuffer, int size, int index, bool swap) {
+	CByteswap byteswap;
+	byteswap.ActivateByteSwapping(swap);
+	VCollide_SurfaceHeader swappedHeader;
+	byteswap.SwapBufferToTargetEndian(&swappedHeader, const_cast<VCollide_SurfaceHeader *>(
+			reinterpret_cast<const VCollide_SurfaceHeader *>(pBuffer)));
+	CPhysCollide *collide = nullptr;
+	if (swappedHeader.vphysicsID == VCOLLIDE_VPHYSICS_ID) {
+		if (swappedHeader.version != VCOLLIDE_VERSION_IVP &&
+				swappedHeader.version != VCOLLIDE_VERSION_BULLET) {
+			return nullptr;
+		}
+		btVector3 orthographicAreas;
+		ConvertAbsoluteDirectionToBullet(swappedHeader.dragAxisAreas, orthographicAreas);
+		const char *collideBuffer = pBuffer + sizeof(VCollide_SurfaceHeader);
+		switch (swappedHeader.modelType) {
+		case VCOLLIDE_MODEL_TYPE_IVP_COMPACT_SURFACE:
+			collide = UnserializeIVPCompactSurface(
+					reinterpret_cast<const VCollide_IVP_Compact_Surface *>(collideBuffer),
+					byteswap, orthographicAreas);
+			break;
+		}
+	} else {
+		DevMsg("Old format .PHY file loaded!!!\n");
+		collide = UnserializeIVPCompactSurface(
+				reinterpret_cast<const VCollide_IVP_Compact_Surface *>(pBuffer),
+				byteswap, btVector3(1.0f, 1.0f, 1.0f));
+	}
+	if (collide != nullptr) {
+		collide->GetShape()->setUserIndex(index);
+	} else {
+		DevMsg("Null physics model\n");
+	}
+	return collide;
+}
+
+CPhysCollide *CPhysicsCollision::UnserializeCollide(char *pBuffer, int size, int index) {
+	return UnserializeCollide(pBuffer, size, index, false);
+}
+
+void CPhysicsCollision::VCollideLoad(vcollide_t *pOutput,
+			int solidCount, const char *pBuffer, int size, bool swap) {
+	memset(pOutput, 0, sizeof(*pOutput));
+	pOutput->solidCount = solidCount;
+	pOutput->solids = new CPhysCollide *[solidCount];
+	int position = 0;
+	for (int solidIndex = 0; solidIndex < solidCount; ++solidIndex) {
+		union {
+			int solidSize;
+			char solidSizeBytes[sizeof(int)];
+		};
+		if (swap) {
+			for (int sizeByteIndex = 0; sizeByteIndex < sizeof(int); ++sizeByteIndex) {
+				solidSizeBytes[sizeof(int) - 1 - sizeByteIndex] = pBuffer[position + sizeByteIndex];
+			}
+		} else {
+			memcpy(&solidSize, pBuffer + position, sizeof(int));
+		}
+		position += sizeof(int);
+		pOutput->solids[solidIndex] = UnserializeCollide(pBuffer + position, solidSize, solidIndex, swap);
+		position += solidSize;
+	}
+	int keySize = size - position;
+	pOutput->pKeyValues = new char[keySize];
+	memcpy(pOutput->pKeyValues, pBuffer + position, keySize);
 }

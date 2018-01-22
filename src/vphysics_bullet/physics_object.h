@@ -121,6 +121,7 @@ public:
 	btScalar CalculateLinearDrag(const btVector3 &velocity) const;
 	btScalar CalculateAngularDrag(const btVector3 &objectSpaceRotationAxis) const;
 	void ApplyDrag(btScalar timeStep);
+	void NotifyOrthographicAreasChanged();
 
 	// Bullet integrates forces and torques over time, in IVP async pushes are applied fully.
 	void ApplyForcesAndSpeedLimit();
@@ -145,8 +146,6 @@ public:
 	void NotifyTransferred(IPhysicsEnvironment *newEnvironment);
 
 private:
-	static btScalar AngularDragIntegral(btScalar l, btScalar w, btScalar h);
-
 	// Properties.
 
 	IPhysicsEnvironment *m_Environment;
@@ -172,6 +171,8 @@ private:
 	btScalar m_DragCoefficient, m_AngularDragCoefficient;
 	btVector3 m_DragBasis, m_AngularDragBasis;
 	bool m_DragEnabled;
+	static btScalar AngularDragIntegral(btScalar l, btScalar w, btScalar h);
+	void ComputeDragBases();
 
 	void *m_GameData;
 	unsigned short m_GameFlags;
