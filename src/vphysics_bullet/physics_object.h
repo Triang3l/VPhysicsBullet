@@ -113,6 +113,9 @@ public:
 		return wasAsleep;
 	}
 
+	FORCEINLINE bool CanReceiveForce() const { return !m_RigidBody->getLinearFactor().isZero(); }
+	FORCEINLINE bool CanReceiveTorque() const { return !m_RigidBody->getAngularFactor().isZero(); }
+
 	// Bullet doesn't allow damping factors over 1, so it has to be done manually.
 	// Also applies damping in a way more similar to how IVP VPhysics does it.
 	void ApplyDamping(btScalar timeStep);
@@ -133,9 +136,10 @@ public:
 	FORCEINLINE void AddTriggerTouchReference() {
 		++m_TouchingTriggers;
 	}
-	FORCEINLINE void RemoveTriggerTouchReference() {
+	inline void RemoveTriggerTouchReference() {
 		--m_TouchingTriggers;
 		Assert(m_TouchingTriggers >= 0);
+		m_TouchingTriggers = MAX(m_TouchingTriggers, 0);
 	}
 	FORCEINLINE bool IsTouchingTriggers() {
 		return m_TouchingTriggers > 0;
@@ -162,6 +166,10 @@ private:
 	Vector m_Inertia;
 	int m_HingeAxis;
 	void UpdateMassProps();
+
+	bool m_MotionEnabled;
+	// Reference counts of shadow controllers disabling motion.
+	int m_MotionDisabledByShadows, m_AngularMotionDisabledByShadows;
 
 	bool m_GravityEnabled;
 	float m_Damping, m_RotDamping;
