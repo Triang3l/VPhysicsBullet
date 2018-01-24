@@ -5,6 +5,7 @@
 #define PHYSICS_OBJECT_H
 
 #include "physics_internal.h"
+#include "tier1/utlvector.h"
 
 class CPhysicsObject : public IPhysicsObject {
 public:
@@ -129,6 +130,11 @@ public:
 	// Bullet integrates forces and torques over time, in IVP async pushes are applied fully.
 	void ApplyForcesAndSpeedLimit();
 
+	void NotifyAttachedToMotionController(IPhysicsMotionController *controller);
+	void NotifyDetachedFromMotionController(IPhysicsMotionController *controller);
+	void ApplyEventMotion(bool isWorld, bool isForce,
+			const btVector3 &linear, const btVector3 &angular);
+
 	FORCEINLINE CPhysicsObject *GetNextCollideObject() const {
 		return m_CollideObjectNext;
 	}
@@ -179,6 +185,9 @@ private:
 	bool m_DragEnabled;
 	static btScalar AngularDragIntegral(btScalar l, btScalar w, btScalar h);
 	void ComputeDragBases();
+
+	CUtlVector<IPhysicsMotionController *> m_MotionControllers;
+	void DetachFromMotionControllers();
 
 	void *m_GameData;
 	unsigned short m_GameFlags;

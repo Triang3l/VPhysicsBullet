@@ -295,7 +295,8 @@ public:
 
 	// Internal methods.
 
-	CPhysCollide *UnserializeCollide(const char *pBuffer, int size, int index, bool swap);
+	CPhysCollide *UnserializeCollideFromBuffer(
+			const char *pBuffer, int size, int index, bool swap);
 
 	static btVector3 BoxInertia(const btVector3 &extents);
 	static btVector3 OffsetInertia(

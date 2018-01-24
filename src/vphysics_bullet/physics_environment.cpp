@@ -3,6 +3,7 @@
 
 #include "physics_environment.h"
 #include "physics_collision.h"
+#include "physics_motioncontroller.h"
 #include "physics_object.h"
 #include "const.h"
 
@@ -23,17 +24,28 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 	m_Broadphase = new btDbvtBroadphase();
 	m_Solver = new btSequentialImpulseConstraintSolver();
 	m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_Broadphase, m_Solver, m_CollisionConfiguration);
-	m_DynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	m_DynamicsWorld->setWorldUserInfo(this);
 
 	m_DynamicsWorld->setGravity(btVector3(0.0f, 0.0f, 0.0f)); // Gravity is applied by CPhysicsObjects.
+
+	m_DynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = VPHYSICS_CONVEX_DISTANCE_MARGIN;
 
 	m_TriggerTouches.SetLessFunc(TriggerTouchLessFunc);
 
 	m_DynamicsWorld->setInternalTickCallback(PreTickCallback, this, true);
 	m_DynamicsWorld->setInternalTickCallback(TickCallback, this, false);
+	m_DynamicsWorld->addAction(&m_TickAction);
 }
 
 CPhysicsEnvironment::~CPhysicsEnvironment() {
+	int controllerCount = m_MotionControllers.Count();
+	for (int controllerIndex = 0; controllerIndex < controllerCount; ++controllerIndex) {
+		delete m_MotionControllers[controllerIndex];
+	}
+	m_MotionControllers.RemoveAll();
+
+	// TODO: Destroy objects.
+
 	delete m_DynamicsWorld;
 	delete m_Solver;
 	delete m_Broadphase;
@@ -205,6 +217,36 @@ float CPhysicsEnvironment::GetAirDensity() const {
 	return m_AirDensity;
 }
 
+/**************
+ * Controllers
+ **************/
+
+IPhysicsMotionController *CPhysicsEnvironment::CreateMotionController(IMotionEvent *pHandler) {
+	m_MotionControllers.AddToTail(new CPhysicsMotionController(pHandler));
+}
+
+void CPhysicsEnvironment::DestroyMotionController(IPhysicsMotionController *pController) {
+	int controllerIndex = m_MotionControllers.Find(pController);
+	if (!m_MotionControllers.IsValidIndex(controllerIndex)) {
+		AssertMsg(false, "Removed a motion controller not owned by the environment.");
+		return;
+	}
+	delete m_MotionControllers[controllerIndex];
+	m_MotionControllers.FastRemove(controllerIndex);
+}
+
+void CPhysicsEnvironment::SimulateMotionControllers(
+		IPhysicsMotionController::priority_t priority, btScalar timeStep) {
+	int controllerCount = m_MotionControllers.Count();
+	for (int controllerIndex = 0; controllerIndex < controllerCount; ++controllerIndex) {
+		CPhysicsMotionController *controller = static_cast<CPhysicsMotionController *>(
+				m_MotionControllers[controllerIndex]);
+		if (controller->GetPriority() == priority) {
+			controller->Simulate(timeStep);
+		}
+	}
+}
+
 /*******************
  * Simulation steps
  *******************/
@@ -226,6 +268,7 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 		CPhysicsObject *object = static_cast<CPhysicsObject *>(objects[objectIndex]);
 
 		// Async force fields.
+		environment->SimulateMotionControllers(IPhysicsMotionController::HIGH_PRIORITY, timeStep);
 
 		// Gravity.
 		object->ApplyDamping(timeStep);
@@ -234,9 +277,17 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 
 		// Unconstrained motion.
 		object->ApplyDrag(timeStep);
+		environment->SimulateMotionControllers(IPhysicsMotionController::MEDIUM_PRIORITY, timeStep);
 
 		// Vehicles.
 	}
+}
+
+void CPhysicsEnvironment::TickActionInterface::updateAction(
+		btCollisionWorld *collisionWorld, btScalar deltaTimeStep) {
+	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(
+			static_cast<btDynamicsWorld *>(collisionWorld)->getWorldUserInfo());
+	environment->SimulateMotionControllers(IPhysicsMotionController::LOW_PRIORITY, deltaTimeStep);
 }
 
 void CPhysicsEnvironment::TickCallback(btDynamicsWorld *world, btScalar timeStep) {

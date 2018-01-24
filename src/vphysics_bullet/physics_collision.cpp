@@ -914,7 +914,8 @@ CPhysCollide *CPhysicsCollision::UnserializeIVPCompactSurface(
 			orthographicAreas);
 }
 
-CPhysCollide *CPhysicsCollision::UnserializeCollide(const char *pBuffer, int size, int index, bool swap) {
+CPhysCollide *CPhysicsCollision::UnserializeCollideFromBuffer(
+		const char *pBuffer, int size, int index, bool swap) {
 	CByteswap byteswap;
 	byteswap.ActivateByteSwapping(swap);
 	VCollide_SurfaceHeader swappedHeader;
@@ -951,7 +952,7 @@ CPhysCollide *CPhysicsCollision::UnserializeCollide(const char *pBuffer, int siz
 }
 
 CPhysCollide *CPhysicsCollision::UnserializeCollide(char *pBuffer, int size, int index) {
-	return UnserializeCollide(pBuffer, size, index, false);
+	return UnserializeCollideFromBuffer(pBuffer, size, index, false);
 }
 
 void CPhysicsCollision::VCollideLoad(vcollide_t *pOutput,
@@ -973,7 +974,8 @@ void CPhysicsCollision::VCollideLoad(vcollide_t *pOutput,
 			memcpy(&solidSize, pBuffer + position, sizeof(int));
 		}
 		position += sizeof(int);
-		pOutput->solids[solidIndex] = UnserializeCollide(pBuffer + position, solidSize, solidIndex, swap);
+		pOutput->solids[solidIndex] = UnserializeCollideFromBuffer(
+				pBuffer + position, solidSize, solidIndex, swap);
 		position += solidSize;
 	}
 	int keySize = size - position;

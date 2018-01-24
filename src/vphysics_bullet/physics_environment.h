@@ -31,6 +31,9 @@ public:
 	virtual IPhysicsObject *CreateSphereObject(float radius, int materialIndex,
 			const Vector &position, const QAngle &angles, objectparams_t *pParams, bool isStatic);
 
+	virtual IPhysicsMotionController *CreateMotionController(IMotionEvent *pHandler);
+	virtual void DestroyMotionController(IPhysicsMotionController *pController);
+
 	virtual float GetSimulationTimestep() const;
 	virtual void SetSimulationTimestep(float timestep);
 
@@ -94,10 +97,19 @@ private:
 	CUtlVector<IPhysicsObject *> m_ActiveNonStaticObjects;
 	IPhysicsObjectEvent *m_ObjectEvents;
 
+	CUtlVector<IPhysicsMotionController *> m_MotionControllers;
+	void SimulateMotionControllers(
+			IPhysicsMotionController::priority_t priority, btScalar timeStep);
+
 	btScalar m_SimulationTimeStep;
 	int m_MaxSimulationSubSteps;
 	static void PreTickCallback(btDynamicsWorld *world, btScalar timeStep);
 	static void TickCallback(btDynamicsWorld *world, btScalar timeStep);
+	class TickActionInterface : public btActionInterface {
+		virtual void updateAction(btCollisionWorld *collisionWorld, btScalar deltaTimeStep);
+		virtual void debugDraw(btIDebugDraw *debugDrawer) {}
+	};
+	TickActionInterface m_TickAction;
 
 	IPhysicsCollisionEvent *m_CollisionEvents;
 
