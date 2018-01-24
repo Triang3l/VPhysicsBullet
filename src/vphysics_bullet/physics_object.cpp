@@ -537,28 +537,6 @@ Vector CPhysicsObject::GetMassCenterLocalSpace() const {
 	return massCenter;
 }
 
-void CPhysicsObject::NotifyMassCenterChanged(const btVector3 &oldMassCenter) {
-	const btVector3 &newMassCenter = GetCollide()->GetMassCenter();
-	btCollisionShape *shape = m_RigidBody->getCollisionShape();
-	if (shape->getUserPointer() == nullptr) {
-		btCompoundShape *compoundShape = static_cast<btCompoundShape *>(shape);
-		btTransform childTransform = compoundShape->getChildTransform(0);
-		childTransform.setOrigin(newMassCenter - m_MassCenterOverride);
-		compoundShape->updateChildTransform(0, childTransform);
-	} else {
-		// Updates the same properties as setCenterOfMassTransform.
-		btVector3 offset = newMassCenter - oldMassCenter;
-		btTransform worldTransform = m_RigidBody->getWorldTransform();
-		btVector3 worldOffset = worldTransform.getBasis() * offset;
-		worldTransform.getOrigin() += worldOffset;
-		m_RigidBody->setWorldTransform(worldTransform);
-		btTransform interpolationWorldTransform = m_RigidBody->getInterpolationWorldTransform();
-		interpolationWorldTransform.getOrigin() += worldOffset;
-		m_RigidBody->setInterpolationWorldTransform(interpolationWorldTransform);
-		// TODO: Nothing is done to inertia. But SetCollideMassCenter isn't called for live collides apparently.
-	}
-}
-
 void CPhysicsObject::SetPosition(const Vector &worldPosition, const QAngle &angles, bool isTeleport) {
 	// TODO: Update the shadow.
 	matrix3x4_t matrix;

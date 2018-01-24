@@ -601,17 +601,6 @@ void CPhysicsCollision::CollideSetMassCenter(CPhysCollide *pCollide, const Vecto
 	pCollide->SetMassCenter(bulletMassCenter);
 }
 
-void CPhysCollide::NotifyObjectsOfMassCenterChange(const btVector3 &oldMassCenter) {
-	IPhysicsObject *firstObject = GetObjectReferenceList();
-	if (firstObject != nullptr) {
-		CPhysicsObject *object = static_cast<CPhysicsObject *>(firstObject);
-		do {
-			object->NotifyMassCenterChanged(oldMassCenter);
-			object = object->GetNextCollideObject();
-		} while (object != firstObject);
-	}
-}
-
 void CPhysCollide::SetOrthographicAreas(const btVector3 &areas) {
 	m_OrthographicAreas = areas;
 	IPhysicsObject *firstObject = GetObjectReferenceList();
@@ -779,6 +768,10 @@ btVector3 CPhysCollide_Compound::GetExtent(const btVector3 &origin, const btMatr
 }
 
 void CPhysCollide_Compound::SetMassCenter(const btVector3 &massCenter) {
+	if (GetObjectReferenceList() != nullptr) {
+		DevMsg("Changed collide mass center while in use!!!\n");
+		return;
+	}
 	btVector3 oldMassCenter = m_MassCenter;
 	m_MassCenter = massCenter;
 	int childCount = m_Shape.getNumChildShapes();
@@ -790,7 +783,6 @@ void CPhysCollide_Compound::SetMassCenter(const btVector3 &massCenter) {
 	}
 	m_Shape.recalculateLocalAabb();
 	CalculateInertia();
-	NotifyObjectsOfMassCenterChange(oldMassCenter);
 }
 
 void CPhysCollide_Compound::CalculateInertia() {

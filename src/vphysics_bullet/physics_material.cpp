@@ -137,7 +137,7 @@ int CPhysicsSurfaceProps::ParseSurfaceData(const char *pFilename, const char *pT
 					surface.m_Data.game.material = atoi(value);
 				}
 			} else {
-				AssertMsg2(false, "Bad surfaceprop key %s (%s)\n", key, value);
+				AssertMsg2(false, "Bad surfaceprop key %s (%s)", key, value);
 			}
 		} while (text != nullptr);
 	} while (text != nullptr);

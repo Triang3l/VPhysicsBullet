@@ -175,8 +175,6 @@ protected:
 		shape->setUserIndex(0);
 	}
 
-	void NotifyObjectsOfMassCenterChange(const btVector3 &oldMassCenter);
-
 private:
 	Owner m_Owner;
 

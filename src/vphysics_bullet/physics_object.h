@@ -130,8 +130,6 @@ public:
 		return m_CollideObjectNext;
 	}
 
-	void NotifyMassCenterChanged(const btVector3 &oldMassCenter);
-
 	FORCEINLINE void AddTriggerTouchReference() {
 		++m_TouchingTriggers;
 	}
