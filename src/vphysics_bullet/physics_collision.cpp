@@ -11,7 +11,6 @@
 #include "tier0/memdbgon.h"
 
 // TODO: Cleanup the bbox cache when shutting down.
-// Not sure what to do with it in thread contexts though.
 
 static CPhysicsCollision s_PhysCollision;
 CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
@@ -165,6 +164,19 @@ BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Surface)
 	DEFINE_FIELD(offset_ledgetree_root, FIELD_INTEGER),
 	DEFINE_ARRAY(dummy, FIELD_INTEGER, 3),
 END_BYTESWAP_DATADESC()
+
+/************
+ * Subsystem
+ ************/
+
+IPhysicsCollision *CPhysicsCollision::ThreadContextCreate() {
+	// IVP VPhysics v29 used to create a new CPhysicsCollision, but v31 returns this.
+	// Due to g_pPhysCollision references, and because object reference lists are thread-unsafe,
+	// this VPhysics implementation has to be single-threaded.
+	return this;
+}
+
+void CPhysicsCollision::ThreadContextDestroy(IPhysicsCollision *pThreadContext) {}
 
 /****************************************
  * Utility for convexes and collideables
@@ -639,6 +651,19 @@ unsigned int CPhysicsCollision::ReadStat(int statID) {
 	return 0; // Not implemented in v31 IVP VPhysics, increments commented out in v29.
 }
 
+void CPhysicsCollision::DestroyCollide(CPhysCollide *pCollide) {
+	if (pCollide->GetOwner() != CPhysCollide::OWNER_GAME) {
+		return;
+	}
+	Assert(pCollide->GetObjectReferenceList() == nullptr);
+	if (pCollide->GetObjectReferenceList() != nullptr) {
+		DevMsg("Freed collision model while in use!!!\n");
+		return;
+	}
+	delete pCollide;
+	CleanupCompoundConvexDeleteQueue();
+}
+
 /******************
  * Compound shapes
  ******************/
@@ -818,6 +843,27 @@ int CPhysCollide_Compound::GetConvexes(CPhysConvex **output, int limit) const {
 	return childCount;
 }
 
+CPhysCollide_Compound::~CPhysCollide_Compound() {
+	int childCount = m_Shape.getNumChildShapes();
+	for (int childIndex = 0; childIndex < childCount; ++childIndex) {
+		g_pPhysCollision->AddCompoundConvexToDeleteQueue(
+				reinterpret_cast<CPhysConvex *>(m_Shape.getChildShape(childIndex)->getUserPointer()));
+	}
+}
+
+void CPhysicsCollision::AddCompoundConvexToDeleteQueue(CPhysConvex *convex) {
+	if (convex->GetOwner() == CPhysConvex::OWNER_COMPOUND) {
+		m_CompoundConvexDeleteQueue.AddToTail(convex);
+	}
+}
+
+void CPhysicsCollision::CleanupCompoundConvexDeleteQueue() {
+	for (int convexIndex = m_CompoundConvexDeleteQueue.Size() - 1; convexIndex >= 0; --convexIndex) {
+		delete m_CompoundConvexDeleteQueue[convexIndex];
+		m_CompoundConvexDeleteQueue.FastRemove(convexIndex);
+	}
+}
+
 /**********
  * Spheres
  **********/
@@ -847,9 +893,9 @@ CPhysCollide_Sphere *CPhysicsCollision::CreateSphereCollide(btScalar radius) {
 	return new CPhysCollide_Sphere(radius);
 }
 
-/************************
- * Collide serialization
- ************************/
+/****************************
+ * Collideable serialization
+ ****************************/
 
 CPhysCollide *CPhysicsCollision::UnserializeIVPCompactSurface(
 		const VCollide_IVP_Compact_Surface *surface, CByteswap &byteswap,
@@ -933,4 +979,23 @@ void CPhysicsCollision::VCollideLoad(vcollide_t *pOutput,
 	int keySize = size - position;
 	pOutput->pKeyValues = new char[keySize];
 	memcpy(pOutput->pKeyValues, pBuffer + position, keySize);
+}
+
+void CPhysicsCollision::VCollideUnload(vcollide_t *pVCollide) {
+	for (int solidIndex = 0; solidIndex < pVCollide->solidCount; ++solidIndex) {
+		CPhysCollide *solid = pVCollide->solids[solidIndex];
+		Assert(solid->GetOwner() == CPhysCollide::OWNER_GAME);
+		Assert(solid->GetObjectReferenceList() == nullptr);
+		if (solid->GetObjectReferenceList() != nullptr) {
+			DevMsg("Freed collision model while in use!!!\n");
+			return;
+		}
+	}
+	for (int solidIndex = 0; solidIndex < pVCollide->solidCount; ++solidIndex) {
+		delete pVCollide->solids[solidIndex];
+		CleanupCompoundConvexDeleteQueue();
+	}
+	delete[] pVCollide->solids;
+	delete[] pVCollide->pKeyValues;
+	memset(pVCollide, 0, sizeof(*pVCollide));
 }

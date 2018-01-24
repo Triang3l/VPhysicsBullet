@@ -127,6 +127,8 @@ private:
 
 class CPhysCollide {
 public:
+	virtual ~CPhysCollide() {}
+
 	enum Owner {
 		OWNER_GAME, // Created and to be destroyed by the game.
 		OWNER_INTERNAL // Managed internally by physics.
@@ -190,6 +192,7 @@ public:
 			const struct VCollide_IVP_Compact_Ledgetree_Node *root, CByteswap &byteswap,
 			const btVector3 &massCenter, const btVector3 &inertia,
 			const btVector3 &orthographicAreas);
+	virtual ~CPhysCollide_Compound();
 	btCollisionShape *GetShape() { return &m_Shape; }
 	const btCollisionShape *GetShape() const { return &m_Shape; }
 	FORCEINLINE btCompoundShape *GetCompoundShape() { return &m_Shape; }
@@ -261,6 +264,13 @@ public:
 	virtual CPhysConvex *ConvexFromPlanes(float *pPlanes, int planeCount, float mergeDistance);
 	virtual float ConvexVolume(CPhysConvex *pConvex);
 	virtual float ConvexSurfaceArea(CPhysConvex *pConvex);
+	virtual void SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData);
+	virtual void ConvexFree(CPhysConvex *pConvex);
+	virtual CPhysConvex *BBoxToConvex(const Vector &mins, const Vector &maxs);
+	virtual CPhysConvex *ConvexFromConvexPolyhedron(const CPolyhedron &ConvexPolyhedron);
+
+	virtual CPhysCollide *ConvertConvexToCollide(CPhysConvex **pConvex, int convexCount);
+	virtual void DestroyCollide(CPhysCollide *pCollide);
 	virtual CPhysCollide *UnserializeCollide(char *pBuffer, int size, int index);
 	virtual float CollideVolume(CPhysCollide *pCollide);
 	virtual float CollideSurfaceArea(CPhysCollide *pCollide);
@@ -272,17 +282,15 @@ public:
 	virtual void CollideSetMassCenter(CPhysCollide *pCollide, const Vector &massCenter);
 	virtual Vector CollideGetOrthographicAreas(const CPhysCollide *pCollide);
 	virtual void CollideSetOrthographicAreas(CPhysCollide *pCollide, const Vector &areas);
-	virtual void SetConvexGameData(CPhysConvex *pConvex, unsigned int gameData);
-	virtual void ConvexFree(CPhysConvex *pConvex);
-	virtual CPhysConvex *BBoxToConvex(const Vector &mins, const Vector &maxs);
-	virtual CPhysConvex *ConvexFromConvexPolyhedron(const CPolyhedron &ConvexPolyhedron);
-	virtual CPhysCollide *ConvertConvexToCollide(CPhysConvex **pConvex, int convexCount);
 	virtual int CollideIndex(const CPhysCollide *pCollide);
 	virtual CPhysCollide *BBoxToCollide(const Vector &mins, const Vector &maxs);
 	virtual int GetConvexesUsedInCollideable(const CPhysCollide *pCollideable,
 			CPhysConvex **pOutputArray, int iOutputArrayLimit);
 	virtual void VCollideLoad(vcollide_t *pOutput,
 			int solidCount, const char *pBuffer, int size, bool swap);
+	virtual void VCollideUnload(vcollide_t *pVCollide);
+	virtual IPhysicsCollision *ThreadContextCreate();
+	virtual void ThreadContextDestroy(IPhysicsCollision *pThreadContext);
 	virtual unsigned int ReadStat(int statID);
 
 	// Internal methods.
@@ -295,6 +303,11 @@ public:
 
 	CPhysCollide_Sphere *CreateSphereCollide(btScalar radius);
 
+	// Destruction of convexes owned by compound collideables
+	// (can't delete child shapes until CPhysCollide_Compound destructor is finished).
+	void AddCompoundConvexToDeleteQueue(CPhysConvex *convex);
+	void CleanupCompoundConvexDeleteQueue();
+
 private:
 	HullLibrary m_HullLibrary;
 
@@ -304,6 +317,8 @@ private:
 	CPhysCollide *UnserializeIVPCompactSurface(
 			const struct VCollide_IVP_Compact_Surface *surface, CByteswap &byteswap,
 			const btVector3 &orthographicAreas);
+
+	CUtlVector<CPhysConvex *> m_CompoundConvexDeleteQueue;
 };
 
 extern CPhysicsCollision *g_pPhysCollision;
