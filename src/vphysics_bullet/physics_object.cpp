@@ -22,8 +22,8 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_Mass((!isStatic && !collide->GetShape()->isNonMoving()) ? params->mass : 0.0f),
 		m_HingeAxis(-1),
 		m_MotionEnabled(true),
-		m_MotionDisabledByShadows(0), m_AngularMotionDisabledByShadows(0),
 		m_Damping(params->damping), m_RotDamping(params->rotdamping),
+		m_Shadow(nullptr),
 		m_GameData(params->pGameData), m_GameFlags(0), m_GameIndex(0),
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
@@ -249,36 +249,44 @@ void CPhysicsObject::EnableMotion(bool enable) {
 	if (IsMotionEnabled() == enable) {
 		return;
 	}
-
 	m_MotionEnabled = enable;
+	UpdateMoveability();
+}
 
+void CPhysicsObject::UpdateMoveability() {
 	if (IsStatic()) {
 		return;
 	}
 
-	btVector3 zero(0.0f, 0.0f, 0.0f);
+	const btVector3 zero(0.0f, 0.0f, 0.0f), one(1.0f, 1.0f, 1.0f);
 
-	// IVP clears velocity even if unpinning.
+	// Can't clear force or torque separately, so clearing and reapplying instead.
+	btVector3 force = m_RigidBody->getTotalForce(), torque = m_RigidBody->getTotalTorque();
 	m_RigidBody->clearForces();
-	m_RigidBody->setLinearVelocity(zero);
-	m_RigidBody->setAngularVelocity(zero);
-	m_LinearVelocityChange.setZero();
-	m_LocalAngularVelocityChange.setZero();
 
-	if (enable) {
-		btVector3 one(1.0f, 1.0f, 1.0f);
-		if (!CanReceiveForce() && m_MotionDisabledByShadows <= 0) {
+	if (m_MotionEnabled && (m_Shadow == nullptr || m_Shadow->AllowsTranslation())) {
+		if (!CanReceiveForce()) {
 			m_RigidBody->setLinearFactor(one);
 		}
-		if (!CanReceiveTorque() && m_AngularMotionDisabledByShadows <= 0) {
-			m_RigidBody->setAngularFactor(one);
-		}
+		m_RigidBody->applyCentralForce(force);
 	} else {
 		if (CanReceiveForce()) {
 			m_RigidBody->setLinearFactor(zero);
+			m_RigidBody->setLinearVelocity(zero);
+			m_LinearVelocityChange.setZero();
 		}
+	}
+
+	if (m_MotionEnabled && (m_Shadow == nullptr || m_Shadow->AllowsRotation())) {
+		if (!CanReceiveForce()) {
+			m_RigidBody->setAngularFactor(one);
+		}
+		m_RigidBody->applyTorque(torque);
+	} else {
 		if (CanReceiveTorque()) {
 			m_RigidBody->setAngularFactor(zero);
+			m_RigidBody->setAngularVelocity(zero);
+			m_LocalAngularVelocityChange.setZero();
 		}
 	}
 }

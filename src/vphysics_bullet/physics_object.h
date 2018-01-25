@@ -174,8 +174,7 @@ private:
 	void UpdateMassProps();
 
 	bool m_MotionEnabled;
-	// Reference counts of shadow controllers disabling motion.
-	int m_MotionDisabledByShadows, m_AngularMotionDisabledByShadows;
+	void UpdateMoveability();
 
 	bool m_GravityEnabled;
 	float m_Damping, m_RotDamping;
@@ -188,6 +187,8 @@ private:
 
 	CUtlVector<IPhysicsMotionController *> m_MotionControllers;
 	void DetachFromMotionControllers();
+
+	IPhysicsShadowController *m_Shadow;
 
 	void *m_GameData;
 	unsigned short m_GameFlags;
