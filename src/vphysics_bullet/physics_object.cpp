@@ -348,7 +348,16 @@ void CPhysicsObject::GetDamping(float *speed, float *rot) const {
 }
 
 void CPhysicsObject::ApplyDamping(btScalar timeStep) {
-	if (!IsMoveable() || IsAsleep() || !IsGravityEnabled()) {
+	if (!IsMoveable()) {
+		return;
+	}
+
+	if (m_Shadow != nullptr) {
+		// Only single-tick forces for shadows.
+		m_RigidBody->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
+	}
+
+	if (IsAsleep() || !IsGravityEnabled()) {
 		return;
 	}
 
@@ -361,9 +370,8 @@ void CPhysicsObject::ApplyDamping(btScalar timeStep) {
 		damping += 0.1f;
 		rotDamping += 0.1f;
 	}
-	damping *= timeStep;
-	rotDamping *= timeStep;
 
+	damping *= timeStep;
 	if (damping < 0.25f) {
 		damping = btScalar(1.0f) - damping;
 	} else {
@@ -371,12 +379,15 @@ void CPhysicsObject::ApplyDamping(btScalar timeStep) {
 	}
 	m_RigidBody->setLinearVelocity(linearVelocity * damping);
 
-	if (rotDamping < 0.4f) {
-		rotDamping = btScalar(1.0f) - rotDamping;
-	} else {
-		rotDamping = btExp(-rotDamping);
+	if (m_Shadow != nullptr) {
+		rotDamping *= timeStep;
+		if (rotDamping < 0.4f) {
+			rotDamping = btScalar(1.0f) - rotDamping;
+		} else {
+			rotDamping = btExp(-rotDamping);
+		}
+		m_RigidBody->setAngularVelocity(angularVelocity * rotDamping);
 	}
-	m_RigidBody->setAngularVelocity(angularVelocity * rotDamping);
 }
 
 void CPhysicsObject::ApplyGravity(btScalar timeStep) {
@@ -544,6 +555,9 @@ const char *CPhysicsObject::GetName() const {
  *************/
 
 int CPhysicsObject::GetMaterialIndex() const {
+	if (m_Shadow != nullptr) {
+		return MATERIAL_INDEX_SHADOW;
+	}
 	return m_MaterialIndex;
 }
 
