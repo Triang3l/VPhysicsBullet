@@ -24,7 +24,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_HingeAxis(-1),
 		m_MotionEnabled(true),
 		m_Damping(params->damping), m_RotDamping(params->rotdamping),
-		m_Shadow(nullptr),
+		m_Shadow(nullptr), m_Player(nullptr),
 		m_GameData(params->pGameData), m_GameFlags(0), m_GameIndex(0),
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
