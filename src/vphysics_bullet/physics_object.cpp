@@ -595,21 +595,35 @@ Vector CPhysicsObject::GetMassCenterLocalSpace() const {
 }
 
 void CPhysicsObject::SetPosition(const Vector &worldPosition, const QAngle &angles, bool isTeleport) {
-	// TODO: Update the shadow.
+	if (m_Shadow != nullptr) {
+		UpdateShadow(worldPosition, angles, false, 0.0f);
+	}
 	matrix3x4_t matrix;
 	AngleMatrix(angles, worldPosition, matrix);
 	btTransform transform;
 	ConvertMatrixToBullet(matrix, transform);
 	transform.getOrigin() += transform.getBasis() * GetBulletMassCenter();
 	m_RigidBody->proceedToTransform(transform);
+	if (!IsStatic() && !m_Environment->IsInSimulation()) {
+		InterpolateWorldTransform();
+	}
 }
 
 void CPhysicsObject::SetPositionMatrix(const matrix3x4_t &matrix, bool isTeleport) {
-	// TODO: Update the shadow.
+	if (m_Shadow != nullptr) {
+		Vector worldPosition;
+		MatrixGetColumn(matrix, 3, worldPosition);
+		QAngle angles;
+		MatrixAngles(matrix, angles);
+		UpdateShadow(worldPosition, angles, false, 0.0f);
+	}
 	btTransform transform;
 	ConvertMatrixToBullet(matrix, transform);
 	transform.getOrigin() += transform.getBasis() * GetBulletMassCenter();
 	m_RigidBody->proceedToTransform(transform);
+	if (!IsStatic() && !m_Environment->IsInSimulation()) {
+		InterpolateWorldTransform();
+	}
 }
 
 void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
@@ -665,10 +679,15 @@ void CPhysicsObject::UpdateInterpolationVelocity() {
 	m_InterpolationAngularVelocity = m_RigidBody->getAngularVelocity();
 }
 
-void CPhysicsObject::InterpolateWorldTransform(btScalar timeSinceLastPSI) {
-	btTransformUtil::integrateTransform(m_RigidBody->getWorldTransform(),
-			m_InterpolationLinearVelocity, m_InterpolationAngularVelocity,
-			timeSinceLastPSI, m_InterpolationWorldTransform);
+void CPhysicsObject::InterpolateWorldTransform() {
+	if (IsAsleep()) {
+		m_InterpolationWorldTransform = m_RigidBody->getWorldTransform();
+	} else {
+		btTransformUtil::integrateTransform(m_RigidBody->getWorldTransform(),
+				m_InterpolationLinearVelocity, m_InterpolationAngularVelocity,
+				static_cast<const CPhysicsEnvironment *>(m_Environment)->GetTimeSinceLastPSI(),
+				m_InterpolationWorldTransform);
+	}
 }
 
 void CPhysicsObject::ApplyForcesAndSpeedLimit() {

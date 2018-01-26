@@ -154,7 +154,7 @@ public:
 	}
 
 	void UpdateInterpolationVelocity(); // Called after the last PSI before interpolation begins.
-	void InterpolateWorldTransform(btScalar timeSinceLastPSI);
+	void InterpolateWorldTransform();
 
 	void NotifyTransferred(IPhysicsEnvironment *newEnvironment);
 

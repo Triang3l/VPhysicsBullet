@@ -34,9 +34,13 @@ public:
 	virtual IPhysicsMotionController *CreateMotionController(IMotionEvent *pHandler);
 	virtual void DestroyMotionController(IPhysicsMotionController *pController);
 
+	virtual void Simulate(float deltaTime);
 	virtual bool IsInSimulation() const;
 	virtual float GetSimulationTimestep() const;
 	virtual void SetSimulationTimestep(float timestep);
+	virtual float GetSimulationTime() const;
+	virtual void ResetSimulationClock();
+	virtual float GetNextFrameTime() const;
 
 	virtual void SetCollisionEventHandler(IPhysicsCollisionEvent *pCollisionEvents);
 	virtual void SetObjectEventHandler(IPhysicsObjectEvent *pObjectEvents);
@@ -69,6 +73,8 @@ public:
 
 	void NotifyObjectRemoving(IPhysicsObject *object);
 
+	FORCEINLINE btScalar GetTimeSinceLastPSI() const { return m_TimeSinceLastPSI; }
+
 	void NotifyTriggerRemoved(IPhysicsObject *trigger);
 
 	FORCEINLINE btScalar GetMaxSpeed() const {
@@ -100,6 +106,7 @@ private:
 
 	btScalar m_SimulationTimeStep;
 	bool m_InSimulation;
+	btScalar m_LastPSITime, m_TimeSinceLastPSI;
 	static void PreTickCallback(btDynamicsWorld *world, btScalar timeStep);
 	static void TickCallback(btDynamicsWorld *world, btScalar timeStep);
 	class TickActionInterface : public btActionInterface {

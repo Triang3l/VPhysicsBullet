@@ -15,7 +15,7 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_AirDensity(2.0f),
 		m_ObjectEvents(nullptr),
 		m_SimulationTimeStep(DEFAULT_TICK_INTERVAL),
-		m_InSimulation(false),
+		m_InSimulation(false), m_LastPSITime(0.0f), m_TimeSinceLastPSI(0.0f),
 		m_CollisionEvents(nullptr) {
 	m_PerformanceSettings.Defaults();
 
@@ -227,6 +227,37 @@ void CPhysicsEnvironment::DestroyMotionController(IPhysicsMotionController *pCon
  * Simulation steps
  *******************/
 
+void CPhysicsEnvironment::Simulate(float deltaTime) {
+	// Trap interrupts and clock changes.
+	if (deltaTime > 0.0f && deltaTime < 1.0f) {
+		deltaTime = MIN(deltaTime, 0.1f);
+		m_TimeSinceLastPSI += deltaTime;
+
+		bool simulated = false;
+
+		m_InSimulation = true;
+		while (m_TimeSinceLastPSI >= m_SimulationTimeStep) {
+			// Using fake variable timestep with fixed timestep and interpolating manually.
+			m_DynamicsWorld->stepSimulation(m_SimulationTimeStep, 0, m_SimulationTimeStep);
+			m_LastPSITime += m_SimulationTimeStep;
+			m_TimeSinceLastPSI -= m_SimulationTimeStep;
+			simulated = true;
+		}
+		m_InSimulation = false;
+
+		int objectCount = m_NonStaticObjects.Count();
+		for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
+			CPhysicsObject *object = static_cast<CPhysicsObject *>(m_NonStaticObjects[objectIndex]);
+			if (simulated) {
+				object->UpdateInterpolationVelocity();
+			}
+			object->InterpolateWorldTransform();
+		}
+	}
+
+	// TODO: Cleanup delete queue.
+}
+
 bool CPhysicsEnvironment::IsInSimulation() const {
 	return m_InSimulation;
 }
@@ -237,6 +268,25 @@ float CPhysicsEnvironment::GetSimulationTimestep() const {
 
 void CPhysicsEnvironment::SetSimulationTimestep(float timestep) {
 	m_SimulationTimeStep = MAX(timestep, 0.001f);
+}
+
+float CPhysicsEnvironment::GetSimulationTime() const {
+	return (float) (m_LastPSITime + m_TimeSinceLastPSI);
+}
+
+void CPhysicsEnvironment::ResetSimulationClock() {
+	m_LastPSITime = 0.0f;
+	m_TimeSinceLastPSI = 0.0f;
+	m_Solver->reset();
+	// Move interpolated transforms to the last PSI.
+	int objectCount = m_NonStaticObjects.Count();
+	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
+		static_cast<CPhysicsObject *>(m_NonStaticObjects[objectIndex])->InterpolateWorldTransform();
+	}
+}
+
+float CPhysicsEnvironment::GetNextFrameTime() const {
+	return m_LastPSITime + m_SimulationTimeStep;
 }
 
 void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeStep) {
