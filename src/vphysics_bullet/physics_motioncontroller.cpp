@@ -69,28 +69,26 @@ void CPhysicsMotionController::SetPriority(priority_t priority) {
 	m_Priority = priority;
 }
 
-void CPhysicsMotionController::Simulate(btScalar timeStep) {
+void CPhysicsMotionController::Simulate(IPhysicsObject *object, btScalar timeStep) {
 	if (m_Handler == nullptr) {
 		return;
 	}
-	int objectCount = m_Objects.Count();
-	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
-		IPhysicsObject *object = m_Objects[objectIndex];
-		Vector linear;
-		AngularImpulse angular;
-		IMotionEvent::simresult_e result = m_Handler->Simulate(
-				this, object, (float) timeStep, linear, angular);
-		if (result == IMotionEvent::SIM_NOTHING) {
-			continue;
-		}
-		btVector3 bulletLinear, bulletAngular;
-		ConvertForceImpulseToBullet(linear, bulletLinear);
-		ConvertAngularImpulseToBullet(angular, bulletAngular);
-		static_cast<CPhysicsObject *>(object)->ApplyEventMotion(
-				result == IMotionEvent::SIM_GLOBAL_ACCELERATION ||
-						result == IMotionEvent::SIM_GLOBAL_FORCE,
-				result == IMotionEvent::SIM_GLOBAL_FORCE ||
-						result == IMotionEvent::SIM_LOCAL_FORCE,
-				bulletLinear, bulletAngular);
+
+	Vector linear;
+	AngularImpulse angular;
+	IMotionEvent::simresult_e result = m_Handler->Simulate(
+			this, object, (float) timeStep, linear, angular);
+	if (result == IMotionEvent::SIM_NOTHING) {
+		return;
 	}
+
+	btVector3 bulletLinear, bulletAngular;
+	ConvertForceImpulseToBullet(linear, bulletLinear);
+	ConvertAngularImpulseToBullet(angular, bulletAngular);
+	static_cast<CPhysicsObject *>(object)->ApplyEventMotion(
+			result == IMotionEvent::SIM_GLOBAL_ACCELERATION ||
+					result == IMotionEvent::SIM_GLOBAL_FORCE,
+			result == IMotionEvent::SIM_GLOBAL_FORCE ||
+					result == IMotionEvent::SIM_LOCAL_FORCE,
+			bulletLinear, bulletAngular);
 }

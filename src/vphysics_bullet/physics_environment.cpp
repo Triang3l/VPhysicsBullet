@@ -15,7 +15,7 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_AirDensity(2.0f),
 		m_ObjectEvents(nullptr),
 		m_SimulationTimeStep(DEFAULT_TICK_INTERVAL),
-		m_MaxSimulationSubSteps((int) (0.1f / DEFAULT_TICK_INTERVAL) + 1),
+		m_InSimulation(false),
 		m_CollisionEvents(nullptr) {
 	m_PerformanceSettings.Defaults();
 
@@ -38,12 +38,6 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 }
 
 CPhysicsEnvironment::~CPhysicsEnvironment() {
-	int controllerCount = m_MotionControllers.Count();
-	for (int controllerIndex = 0; controllerIndex < controllerCount; ++controllerIndex) {
-		delete m_MotionControllers[controllerIndex];
-	}
-	m_MotionControllers.RemoveAll();
-
 	// TODO: Destroy objects.
 
 	delete m_DynamicsWorld;
@@ -222,42 +216,27 @@ float CPhysicsEnvironment::GetAirDensity() const {
  **************/
 
 IPhysicsMotionController *CPhysicsEnvironment::CreateMotionController(IMotionEvent *pHandler) {
-	m_MotionControllers.AddToTail(new CPhysicsMotionController(pHandler));
+	return new CPhysicsMotionController(pHandler);
 }
 
 void CPhysicsEnvironment::DestroyMotionController(IPhysicsMotionController *pController) {
-	int controllerIndex = m_MotionControllers.Find(pController);
-	if (!m_MotionControllers.IsValidIndex(controllerIndex)) {
-		AssertMsg(false, "Removed a motion controller not owned by the environment.");
-		return;
-	}
-	delete m_MotionControllers[controllerIndex];
-	m_MotionControllers.FastRemove(controllerIndex);
-}
-
-void CPhysicsEnvironment::SimulateMotionControllers(
-		IPhysicsMotionController::priority_t priority, btScalar timeStep) {
-	int controllerCount = m_MotionControllers.Count();
-	for (int controllerIndex = 0; controllerIndex < controllerCount; ++controllerIndex) {
-		CPhysicsMotionController *controller = static_cast<CPhysicsMotionController *>(
-				m_MotionControllers[controllerIndex]);
-		if (controller->GetPriority() == priority) {
-			controller->Simulate(timeStep);
-		}
-	}
+	delete pController;
 }
 
 /*******************
  * Simulation steps
  *******************/
 
+bool CPhysicsEnvironment::IsInSimulation() const {
+	return m_InSimulation;
+}
+
 float CPhysicsEnvironment::GetSimulationTimestep() const {
 	return m_SimulationTimeStep;
 }
 
 void CPhysicsEnvironment::SetSimulationTimestep(float timestep) {
-	m_SimulationTimeStep = MAX(timestep, MINIMUM_TICK_INTERVAL);
-	m_MaxSimulationSubSteps = (int) (0.1f / m_SimulationTimeStep) + 1;
+	m_SimulationTimeStep = MAX(timestep, 0.001f);
 }
 
 void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeStep) {
@@ -268,7 +247,7 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 		CPhysicsObject *object = static_cast<CPhysicsObject *>(objects[objectIndex]);
 
 		// Async force fields.
-		environment->SimulateMotionControllers(IPhysicsMotionController::HIGH_PRIORITY, timeStep);
+		object->SimulateMotionControllers(IPhysicsMotionController::HIGH_PRIORITY, timeStep);
 
 		// Gravity.
 		object->ApplyDamping(timeStep);
@@ -277,7 +256,7 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 
 		// Unconstrained motion.
 		object->ApplyDrag(timeStep);
-		environment->SimulateMotionControllers(IPhysicsMotionController::MEDIUM_PRIORITY, timeStep);
+		object->SimulateMotionControllers(IPhysicsMotionController::MEDIUM_PRIORITY, timeStep);
 
 		// Vehicles.
 	}
@@ -287,7 +266,12 @@ void CPhysicsEnvironment::TickActionInterface::updateAction(
 		btCollisionWorld *collisionWorld, btScalar deltaTimeStep) {
 	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(
 			static_cast<btDynamicsWorld *>(collisionWorld)->getWorldUserInfo());
-	environment->SimulateMotionControllers(IPhysicsMotionController::LOW_PRIORITY, deltaTimeStep);
+	IPhysicsObject * const *objects = environment->m_NonStaticObjects.Base();
+	int objectCount = environment->m_NonStaticObjects.Count();
+	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
+		CPhysicsObject *object = static_cast<CPhysicsObject *>(objects[objectIndex]);
+		object->SimulateMotionControllers(IPhysicsMotionController::LOW_PRIORITY, deltaTimeStep);
+	}
 }
 
 void CPhysicsEnvironment::TickCallback(btDynamicsWorld *world, btScalar timeStep) {

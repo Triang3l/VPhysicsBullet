@@ -33,7 +33,9 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_WasAsleep(true),
 		m_LinearVelocityChange(0.0f, 0.0f, 0.0f),
 		m_LocalAngularVelocityChange(0.0f, 0.0f, 0.0f),
-		m_TouchingTriggers(0) {
+		m_TouchingTriggers(0),
+		m_InterpolationLinearVelocity(0.0f, 0.0f, 0.0f),
+		m_InterpolationAngularVelocity(0.0f, 0.0f, 0.0f) {
 	if (params->pName != nullptr) {
 		V_strncpy(m_Name, params->pName, sizeof(m_Name));
 	} else {
@@ -73,6 +75,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	btTransform &startWorldTransform = constructionInfo.m_startWorldTransform;
 	ConvertMatrixToBullet(startMatrix, startWorldTransform);
 	startWorldTransform.getOrigin() += startWorldTransform.getBasis() * massCenter;
+	m_InterpolationWorldTransform = startWorldTransform;
 
 	m_RigidBody = new btRigidBody(constructionInfo);
 	m_RigidBody->setUserPointer(this);
@@ -275,6 +278,8 @@ void CPhysicsObject::UpdateMoveability() {
 			m_RigidBody->setLinearFactor(zero);
 			m_RigidBody->setLinearVelocity(zero);
 			m_LinearVelocityChange.setZero();
+			// Freeze in place if called externally, don't wait for the next PSI.
+			m_InterpolationLinearVelocity.setZero();
 		}
 	}
 
@@ -288,6 +293,7 @@ void CPhysicsObject::UpdateMoveability() {
 			m_RigidBody->setAngularFactor(zero);
 			m_RigidBody->setAngularVelocity(zero);
 			m_LocalAngularVelocityChange.setZero();
+			m_InterpolationAngularVelocity.setZero();
 		}
 	}
 }
@@ -607,7 +613,8 @@ void CPhysicsObject::SetPositionMatrix(const matrix3x4_t &matrix, bool isTelepor
 }
 
 void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
-	const btTransform &transform = m_RigidBody->getInterpolationWorldTransform();
+	const btTransform &transform = ((IsStatic() || m_Environment->IsInSimulation()) ?
+			m_RigidBody->getWorldTransform() : m_InterpolationWorldTransform);
 	const btMatrix3x3 &basis = transform.getBasis();
 	if (worldPosition != nullptr) {
 		ConvertPositionToHL(transform.getOrigin() - (basis * GetBulletMassCenter()), *worldPosition);
@@ -618,7 +625,8 @@ void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
 }
 
 void CPhysicsObject::GetPositionMatrix(matrix3x4_t *positionMatrix) const {
-	const btTransform &transform = m_RigidBody->getInterpolationWorldTransform();
+	const btTransform &transform = ((IsStatic() || m_Environment->IsInSimulation()) ?
+			m_RigidBody->getWorldTransform() : m_InterpolationWorldTransform);
 	const btMatrix3x3 &basis = transform.getBasis();
 	btVector3 origin = transform.getOrigin() - (basis * GetBulletMassCenter());
 	ConvertMatrixToHL(basis, origin, *positionMatrix);
@@ -650,6 +658,17 @@ void CPhysicsObject::WorldToLocalVector(Vector *localVector, const Vector &world
 	GetPositionMatrix(&matrix);
 	// Copy in case src == dest.
 	VectorIRotate(Vector(worldVector), matrix, *localVector);
+}
+
+void CPhysicsObject::UpdateInterpolationVelocity() {
+	m_InterpolationLinearVelocity = m_RigidBody->getLinearVelocity();
+	m_InterpolationAngularVelocity = m_RigidBody->getAngularVelocity();
+}
+
+void CPhysicsObject::InterpolateWorldTransform(btScalar timeSinceLastPSI) {
+	btTransformUtil::integrateTransform(m_RigidBody->getWorldTransform(),
+			m_InterpolationLinearVelocity, m_InterpolationAngularVelocity,
+			timeSinceLastPSI, m_InterpolationWorldTransform);
 }
 
 void CPhysicsObject::ApplyForcesAndSpeedLimit() {
@@ -708,6 +727,7 @@ void CPhysicsObject::SetVelocityInstantaneous(const Vector *velocity, const Angu
 		btClamp(bulletVelocity[2], -maxSpeed, maxSpeed);
 		m_RigidBody->setLinearVelocity(bulletVelocity);
 		m_LinearVelocityChange.setZero();
+		m_InterpolationLinearVelocity = bulletVelocity;
 		wake = (wake || !bulletVelocity.isZero());
 	}
 	if (angularVelocity != nullptr && CanReceiveTorque()) {
@@ -719,6 +739,8 @@ void CPhysicsObject::SetVelocityInstantaneous(const Vector *velocity, const Angu
 		btClamp(bulletAngularVelocity[1], -maxAngularSpeed, maxAngularSpeed);
 		btClamp(bulletAngularVelocity[2], -maxAngularSpeed, maxAngularSpeed);
 		m_RigidBody->setAngularVelocity(bulletAngularVelocity);
+		m_LocalAngularVelocityChange.setZero();
+		m_InterpolationAngularVelocity = bulletAngularVelocity;
 		wake = (wake || !bulletAngularVelocity.isZero());
 	}
 	if (wake) {
@@ -870,6 +892,18 @@ void CPhysicsObject::DetachFromMotionControllers() {
 				m_MotionControllers[controllerIndex])->DetachObjectInternal(this, false);
 	}
 	m_MotionControllers.RemoveAll();
+}
+
+void CPhysicsObject::SimulateMotionControllers(
+		IPhysicsMotionController::priority_t priority, btScalar timeStep) {
+	int controllerCount = m_MotionControllers.Count();
+	for (int controllerIndex = 0; controllerIndex < controllerCount; ++controllerIndex) {
+		CPhysicsMotionController *controller = static_cast<CPhysicsMotionController *>(
+				m_MotionControllers[controllerIndex]);
+		if (controller->GetPriority() == priority) {
+			controller->Simulate(this, timeStep);
+		}
+	}
 }
 
 void CPhysicsObject::ApplyEventMotion(bool isWorld, bool isForce,

@@ -132,6 +132,8 @@ public:
 
 	void NotifyAttachedToMotionController(IPhysicsMotionController *controller);
 	void NotifyDetachedFromMotionController(IPhysicsMotionController *controller);
+	void SimulateMotionControllers(
+			IPhysicsMotionController::priority_t priority, btScalar timeStep);
 	void ApplyEventMotion(bool isWorld, bool isForce,
 			const btVector3 &linear, const btVector3 &angular);
 
@@ -151,10 +153,15 @@ public:
 		return m_TouchingTriggers > 0;
 	}
 
+	void UpdateInterpolationVelocity(); // Called after the last PSI before interpolation begins.
+	void InterpolateWorldTransform(btScalar timeSinceLastPSI);
+
 	void NotifyTransferred(IPhysicsEnvironment *newEnvironment);
 
 private:
-	// Properties.
+	/***********************************
+	 * Properties and persistent values
+	 ***********************************/
 
 	IPhysicsEnvironment *m_Environment;
 
@@ -201,15 +208,20 @@ private:
 	int m_MaterialIndex;
 	unsigned int m_ContentsMask;
 
-	// State variables.
+	/******************
+	 * Transient state
+	 ******************/
 
 	// Was the object active in the previous PSI - used to trigger sleep events.
 	bool m_WasAsleep;
 
-	btVector3 m_LinearVelocityChange;
-	btVector3 m_LocalAngularVelocityChange;
+	btVector3 m_LinearVelocityChange, m_LocalAngularVelocityChange;
 
 	int m_TouchingTriggers;
+
+	// Interpolation between PSIs for non-static objects.
+	btTransform m_InterpolationWorldTransform;
+	btVector3 m_InterpolationLinearVelocity, m_InterpolationAngularVelocity;
 };
 
 #endif

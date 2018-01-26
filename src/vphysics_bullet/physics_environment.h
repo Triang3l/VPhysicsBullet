@@ -34,6 +34,7 @@ public:
 	virtual IPhysicsMotionController *CreateMotionController(IMotionEvent *pHandler);
 	virtual void DestroyMotionController(IPhysicsMotionController *pController);
 
+	virtual bool IsInSimulation() const;
 	virtual float GetSimulationTimestep() const;
 	virtual void SetSimulationTimestep(float timestep);
 
@@ -97,12 +98,8 @@ private:
 	CUtlVector<IPhysicsObject *> m_ActiveNonStaticObjects;
 	IPhysicsObjectEvent *m_ObjectEvents;
 
-	CUtlVector<IPhysicsMotionController *> m_MotionControllers;
-	void SimulateMotionControllers(
-			IPhysicsMotionController::priority_t priority, btScalar timeStep);
-
 	btScalar m_SimulationTimeStep;
-	int m_MaxSimulationSubSteps;
+	bool m_InSimulation;
 	static void PreTickCallback(btDynamicsWorld *world, btScalar timeStep);
 	static void TickCallback(btDynamicsWorld *world, btScalar timeStep);
 	class TickActionInterface : public btActionInterface {

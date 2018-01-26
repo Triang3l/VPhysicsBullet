@@ -28,7 +28,7 @@ public:
 
 	FORCEINLINE priority_t GetPriority() const { return m_Priority; }
 
-	void Simulate(btScalar timeStep);
+	void Simulate(IPhysicsObject *object, btScalar timeStep);
 
 	void DetachObjectInternal(IPhysicsObject *object, bool notify);
 
