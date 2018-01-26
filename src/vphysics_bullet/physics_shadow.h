@@ -8,17 +8,26 @@
 
 class CPhysicsShadowController : public IPhysicsShadowController {
 public:
-	CPhysicsShadowController();
+	CPhysicsShadowController(IPhysicsObject *object,
+			bool allowTranslation, bool allowRotation);
 
 	// IPhysicsShadowController methods.
 
+	virtual void StepUp(float height);
+	virtual bool AllowsTranslation();
+	virtual bool AllowsRotation();
 	virtual void UseShadowMaterial(bool bUseShadowMaterial);
+	virtual void ObjectMaterialChanged(int materialIndex);
 
 	// Internal methods.
 
 	FORCEINLINE bool IsUsingShadowMaterial() const { return m_UseShadowMaterial; }
 
 private:
+	IPhysicsObject *m_Object;
+
+	bool m_AllowPhysicsMovement, m_AllowPhysicsRotation;
+
 	bool m_UseShadowMaterial;
 };
 

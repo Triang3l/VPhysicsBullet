@@ -959,6 +959,24 @@ void CPhysicsObject::ApplyEventMotion(bool isWorld, bool isForce,
 	}
 }
 
+void CPhysicsObject::StepUp(btScalar height) {
+	btTransform transform = m_RigidBody->getWorldTransform();
+	transform.getOrigin()[1] += height;
+	m_RigidBody->setWorldTransform(transform);
+	transform = m_RigidBody->getInterpolationWorldTransform();
+	transform.getOrigin()[1] += height;
+	m_RigidBody->setInterpolationWorldTransform(transform);
+	// In case this is called outside a PSI.
+	if (!IsStatic() && m_Environment->IsInSimulation()) {
+		m_InterpolationWorldTransform.getOrigin()[1] += height;
+	}
+}
+
+void CPhysicsObject::Teleport(const btVector3 &position) {
+	m_RigidBody->proceedToTransform(btTransform(
+			m_RigidBody->getWorldTransform().getBasis(), position));
+}
+
 /***********
  * Triggers
  ***********/
