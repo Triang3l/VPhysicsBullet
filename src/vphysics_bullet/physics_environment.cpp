@@ -17,7 +17,8 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_SimulationTimeStep(DEFAULT_TICK_INTERVAL),
 		m_SimulationInvTimeStep(1.0f / btScalar(DEFAULT_TICK_INTERVAL)),
 		m_InSimulation(false),
-		m_LastPSITime(0.0f), m_TimeSinceLastPSI(0.0f), m_SimulatedPSIs(0),
+		m_LastPSITime(0.0f), m_TimeSinceLastPSI(0.0f),
+		m_SimulatedPSIs(0), m_RemainingPSIs(0), m_InvPSIScale(0.0f),
 		m_CollisionEvents(nullptr) {
 	m_PerformanceSettings.Defaults();
 
@@ -243,6 +244,7 @@ void CPhysicsEnvironment::Simulate(float deltaTime) {
 		m_TimeSinceLastPSI += deltaTime;
 		m_SimulatedPSIs = (int) (m_TimeSinceLastPSI * m_SimulationInvTimeStep);
 		if (m_SimulatedPSIs > 0) {
+			m_RemainingPSIs = m_SimulatedPSIs;
 			btScalar oldTimeSinceLastPSI = m_TimeSinceLastPSI;
 			for (int psi = 0; psi < m_SimulatedPSIs; ++psi) {
 				// Using fake variable timestep with fixed timestep and interpolating manually.
@@ -296,7 +298,15 @@ float CPhysicsEnvironment::GetNextFrameTime() const {
 
 void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeStep) {
 	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(world->getWorldUserInfo());
+
+	if (environment->m_RemainingPSIs > 0) {
+		environment->m_InvPSIScale = 1.0f / btScalar(environment->m_RemainingPSIs--);
+	} else {
+		environment->m_InvPSIScale = 0.0f;
+	}
+
 	environment->m_InSimulation = true;
+
 	IPhysicsObject * const *objects = environment->m_NonStaticObjects.Base();
 	int objectCount = environment->m_NonStaticObjects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {

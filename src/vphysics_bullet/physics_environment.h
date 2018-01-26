@@ -74,6 +74,8 @@ public:
 	void NotifyObjectRemoving(IPhysicsObject *object);
 
 	FORCEINLINE btScalar GetTimeSinceLastPSI() const { return m_TimeSinceLastPSI; }
+	FORCEINLINE int GetSimulatedPSIs() const { return m_SimulatedPSIs; }
+	FORCEINLINE btScalar GetInvPSIScale() const { return m_InvPSIScale; }
 
 	void NotifyTriggerRemoved(IPhysicsObject *trigger);
 
@@ -108,7 +110,8 @@ private:
 	btScalar m_SimulationTimeStep, m_SimulationInvTimeStep;
 	bool m_InSimulation;
 	btScalar m_LastPSITime, m_TimeSinceLastPSI;
-	int m_SimulatedPSIs;
+	int m_SimulatedPSIs, m_RemainingPSIs;
+	btScalar m_InvPSIScale;
 	static void PreTickCallback(btDynamicsWorld *world, btScalar timeStep);
 	static void TickCallback(btDynamicsWorld *world, btScalar timeStep);
 	class TickActionInterface : public btActionInterface {
