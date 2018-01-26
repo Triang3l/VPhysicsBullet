@@ -674,15 +674,16 @@ void CPhysicsObject::WorldToLocalVector(Vector *localVector, const Vector &world
 	VectorIRotate(Vector(worldVector), matrix, *localVector);
 }
 
-void CPhysicsObject::UpdateInterpolationVelocity() {
+void CPhysicsObject::UpdateInterpolation() {
 	m_InterpolationLinearVelocity = m_RigidBody->getLinearVelocity();
 	m_InterpolationAngularVelocity = m_RigidBody->getAngularVelocity();
+	// For any actions between two PSIs.
+	m_InterpolationWorldTransform = m_RigidBody->getWorldTransform();
 }
 
 void CPhysicsObject::InterpolateWorldTransform() {
-	if (IsAsleep()) {
-		m_InterpolationWorldTransform = m_RigidBody->getWorldTransform();
-	} else {
+	// For non-moving objects, the transform was already updated at the end of the PSI.
+	if (!m_InterpolationLinearVelocity.isZero() || !m_InterpolationAngularVelocity.isZero()) {
 		btTransformUtil::integrateTransform(m_RigidBody->getWorldTransform(),
 				m_InterpolationLinearVelocity, m_InterpolationAngularVelocity,
 				static_cast<const CPhysicsEnvironment *>(m_Environment)->GetTimeSinceLastPSI(),

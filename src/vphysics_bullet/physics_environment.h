@@ -99,14 +99,16 @@ private:
 
 	void AddObject(IPhysicsObject *object);
 	void UpdateActiveObjects();
+	void UpdateObjectInterpolation();
 	CUtlVector<IPhysicsObject *> m_Objects;
 	CUtlVector<IPhysicsObject *> m_NonStaticObjects;
 	CUtlVector<IPhysicsObject *> m_ActiveNonStaticObjects;
 	IPhysicsObjectEvent *m_ObjectEvents;
 
-	btScalar m_SimulationTimeStep;
+	btScalar m_SimulationTimeStep, m_SimulationInvTimeStep;
 	bool m_InSimulation;
 	btScalar m_LastPSITime, m_TimeSinceLastPSI;
+	int m_SimulatedPSIs;
 	static void PreTickCallback(btDynamicsWorld *world, btScalar timeStep);
 	static void TickCallback(btDynamicsWorld *world, btScalar timeStep);
 	class TickActionInterface : public btActionInterface {

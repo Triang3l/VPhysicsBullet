@@ -15,7 +15,9 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_AirDensity(2.0f),
 		m_ObjectEvents(nullptr),
 		m_SimulationTimeStep(DEFAULT_TICK_INTERVAL),
-		m_InSimulation(false), m_LastPSITime(0.0f), m_TimeSinceLastPSI(0.0f),
+		m_SimulationInvTimeStep(1.0f / btScalar(DEFAULT_TICK_INTERVAL)),
+		m_InSimulation(false),
+		m_LastPSITime(0.0f), m_TimeSinceLastPSI(0.0f), m_SimulatedPSIs(0),
 		m_CollisionEvents(nullptr) {
 	m_PerformanceSettings.Defaults();
 
@@ -156,6 +158,13 @@ const IPhysicsObject **CPhysicsEnvironment::GetObjectList(int *pOutputObjectCoun
 	return const_cast<const IPhysicsObject **>(m_Objects.Base());
 }
 
+void CPhysicsEnvironment::UpdateObjectInterpolation() {
+	int objectCount = m_NonStaticObjects.Count();
+	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
+		static_cast<CPhysicsObject *>(m_NonStaticObjects[objectIndex])->UpdateInterpolation();
+	}
+}
+
 bool CPhysicsEnvironment::IsCollisionModelUsed(CPhysCollide *pCollide) const {
 	return pCollide->GetObjectReferenceList() != nullptr;
 }
@@ -232,25 +241,19 @@ void CPhysicsEnvironment::Simulate(float deltaTime) {
 	if (deltaTime > 0.0f && deltaTime < 1.0f) {
 		deltaTime = MIN(deltaTime, 0.1f);
 		m_TimeSinceLastPSI += deltaTime;
-
-		bool simulated = false;
-
-		m_InSimulation = true;
-		while (m_TimeSinceLastPSI >= m_SimulationTimeStep) {
-			// Using fake variable timestep with fixed timestep and interpolating manually.
-			m_DynamicsWorld->stepSimulation(m_SimulationTimeStep, 0, m_SimulationTimeStep);
-			m_LastPSITime += m_SimulationTimeStep;
-			m_TimeSinceLastPSI -= m_SimulationTimeStep;
-			simulated = true;
-		}
-		m_InSimulation = false;
-
-		int objectCount = m_NonStaticObjects.Count();
-		for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
-			CPhysicsObject *object = static_cast<CPhysicsObject *>(m_NonStaticObjects[objectIndex]);
-			if (simulated) {
-				object->UpdateInterpolationVelocity();
+		m_SimulatedPSIs = (int) (m_TimeSinceLastPSI * m_SimulationInvTimeStep);
+		if (m_SimulatedPSIs > 0) {
+			btScalar oldTimeSinceLastPSI = m_TimeSinceLastPSI;
+			for (int psi = 0; psi < m_SimulatedPSIs; ++psi) {
+				// Using fake variable timestep with fixed timestep and interpolating manually.
+				m_DynamicsWorld->stepSimulation(m_SimulationTimeStep, 0, m_SimulationTimeStep);
+				m_LastPSITime += m_SimulationTimeStep;
 			}
+			m_TimeSinceLastPSI = oldTimeSinceLastPSI - m_SimulatedPSIs * m_SimulationTimeStep;
+		}
+		int objectCount = m_ActiveNonStaticObjects.Count();
+		for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
+			CPhysicsObject *object = static_cast<CPhysicsObject *>(m_ActiveNonStaticObjects[objectIndex]);
 			object->InterpolateWorldTransform();
 		}
 	}
@@ -268,6 +271,7 @@ float CPhysicsEnvironment::GetSimulationTimestep() const {
 
 void CPhysicsEnvironment::SetSimulationTimestep(float timestep) {
 	m_SimulationTimeStep = MAX(timestep, 0.001f);
+	m_SimulationInvTimeStep = 1.0f / m_SimulationTimeStep;
 }
 
 float CPhysicsEnvironment::GetSimulationTime() const {
@@ -277,6 +281,7 @@ float CPhysicsEnvironment::GetSimulationTime() const {
 void CPhysicsEnvironment::ResetSimulationClock() {
 	m_LastPSITime = 0.0f;
 	m_TimeSinceLastPSI = 0.0f;
+	m_SimulatedPSIs = 0;
 	m_Solver->reset();
 	// Move interpolated transforms to the last PSI.
 	int objectCount = m_NonStaticObjects.Count();
@@ -291,6 +296,7 @@ float CPhysicsEnvironment::GetNextFrameTime() const {
 
 void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeStep) {
 	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(world->getWorldUserInfo());
+	environment->m_InSimulation = true;
 	IPhysicsObject * const *objects = environment->m_NonStaticObjects.Base();
 	int objectCount = environment->m_NonStaticObjects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
@@ -328,6 +334,8 @@ void CPhysicsEnvironment::TickCallback(btDynamicsWorld *world, btScalar timeStep
 	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(world->getWorldUserInfo());
 	environment->CheckTriggerTouches();
 	environment->UpdateActiveObjects();
+	environment->UpdateObjectInterpolation();
+	environment->m_InSimulation = false;
 }
 
 /*******************

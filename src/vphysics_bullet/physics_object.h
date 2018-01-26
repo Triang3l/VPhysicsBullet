@@ -153,7 +153,7 @@ public:
 		return m_TouchingTriggers > 0;
 	}
 
-	void UpdateInterpolationVelocity(); // Called after the last PSI before interpolation begins.
+	void UpdateInterpolation(); // Called in the end of each PSI.
 	void InterpolateWorldTransform();
 
 	void NotifyTransferred(IPhysicsEnvironment *newEnvironment);
