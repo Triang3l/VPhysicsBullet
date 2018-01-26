@@ -246,6 +246,9 @@ void CPhysicsEnvironment::Simulate(float deltaTime) {
 		if (m_SimulatedPSIs > 0) {
 			m_RemainingPSIs = m_SimulatedPSIs;
 			btScalar oldTimeSinceLastPSI = m_TimeSinceLastPSI;
+			// We're in a PSI, so in case something tries to interpolate transforms with
+			// m_InSimulation being false, the PSI values will be used.
+			m_TimeSinceLastPSI = 0.0f;
 			for (int psi = 0; psi < m_SimulatedPSIs; ++psi) {
 				// Using fake variable timestep with fixed timestep and interpolating manually.
 				m_DynamicsWorld->stepSimulation(m_SimulationTimeStep, 0, m_SimulationTimeStep);
