@@ -6,6 +6,7 @@
 #include "physics_environment.h"
 #include "physics_material.h"
 #include "physics_motioncontroller.h"
+#include "physics_shadow.h"
 #include "bspflags.h"
 #include "tier0/dbg.h"
 
@@ -352,7 +353,7 @@ void CPhysicsObject::ApplyDamping(btScalar timeStep) {
 		return;
 	}
 
-	if (m_Shadow != nullptr) {
+	if (m_Shadow != nullptr || m_Player != nullptr) {
 		// Only single-tick forces for shadows.
 		m_RigidBody->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
 	}
@@ -555,7 +556,8 @@ const char *CPhysicsObject::GetName() const {
  *************/
 
 int CPhysicsObject::GetMaterialIndex() const {
-	if (m_Shadow != nullptr) {
+	if (m_Shadow != nullptr && static_cast<const CPhysicsShadowController *>(
+			m_Shadow)->IsUsingShadowMaterial()) {
 		return MATERIAL_INDEX_SHADOW;
 	}
 	return m_MaterialIndex;

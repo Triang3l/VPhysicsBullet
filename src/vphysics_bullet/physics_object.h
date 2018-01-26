@@ -189,6 +189,7 @@ private:
 	void DetachFromMotionControllers();
 
 	IPhysicsShadowController *m_Shadow;
+	IPhysicsPlayerController *m_Player;
 
 	void *m_GameData;
 	unsigned short m_GameFlags;
