@@ -5,6 +5,7 @@
 #define PHYSICS_COLLISION_H
 
 #include "physics_internal.h"
+#include "vphysics/virtualmesh.h"
 #include <LinearMath/btConvexHull.h>
 #include "tier1/byteswap.h"
 #include "tier1/utlvector.h"
@@ -252,6 +253,47 @@ private:
 	btSphereShape m_Shape;
 };
 
+class CPhysCollide_TriangleMesh : public CPhysCollide {
+public:
+	CPhysCollide_TriangleMesh(const virtualmeshlist_t &virtualMesh);
+	btCollisionShape *GetShape() { return &m_Shape; }
+	const btCollisionShape *GetShape() const { return &m_Shape; }
+	FORCEINLINE btBvhTriangleMeshShape *GetTriangleMeshShape() { return &m_Shape; }
+	FORCEINLINE const btBvhTriangleMeshShape *GetTriangleMeshShape() const { return &m_Shape; }
+	inline static bool IsTriangleMesh(const CPhysCollide *collide) {
+		return collide->GetShape()->getShapeType() == TRIANGLE_MESH_SHAPE_PROXYTYPE;
+	}
+
+	virtual btScalar GetSurfaceArea() const;
+
+private:
+	class MeshInterface : public btStridingMeshInterface {
+	public:
+		MeshInterface(const virtualmeshlist_t &virtualMesh);
+		virtual void getLockedVertexIndexBase(
+				unsigned char **vertexbase, int &numverts, PHY_ScalarType &type, int &stride,
+				unsigned char **indexbase, int &indexstride, int &numfaces, PHY_ScalarType &indicestype, int subpart) {
+			Assert(false);
+		}
+		virtual void getLockedReadOnlyVertexIndexBase(
+				const unsigned char **vertexbase, int &numverts, PHY_ScalarType &type, int &stride,
+				const unsigned char **indexbase, int &indexstride, int &numfaces, PHY_ScalarType &indicestype, int subpart) const;
+		virtual void unLockVertexBase(int subpart) {}
+		virtual void unLockReadOnlyVertexBase(int subpart) const {}
+		virtual int getNumSubParts() const { return 1; }
+		virtual void preallocateVertices(int numverts) {}
+		virtual void preallocateIndices(int numindices) {}
+		btAlignedObjectArray<btVector3> m_Vertices;
+		btAlignedObjectArray<unsigned short> m_Indices;
+	};
+	MeshInterface m_MeshInterface;
+
+	// Constructor requires initialized MeshInterface - do not move up!
+	btBvhTriangleMeshShape m_Shape;
+
+	int m_SurfacePropsIndex; // Doesn't need remapping.
+};
+
 /************
  * Interface
  ************/
@@ -291,6 +333,8 @@ public:
 	virtual void VCollideUnload(vcollide_t *pVCollide);
 	virtual IPhysicsCollision *ThreadContextCreate();
 	virtual void ThreadContextDestroy(IPhysicsCollision *pThreadContext);
+	virtual CPhysCollide *CreateVirtualMesh(const virtualmeshparams_t &params);
+	virtual bool SupportsVirtualMesh();
 	virtual unsigned int ReadStat(int statID);
 
 	// Internal methods.

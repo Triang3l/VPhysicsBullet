@@ -43,7 +43,8 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	}
 
 	btRigidBody::btRigidBodyConstructionInfo constructionInfo(
-			m_Mass, nullptr, collide->GetShape(), collide->GetInertia());
+			m_Mass, nullptr, collide->GetShape(),
+			(m_Mass > 0.0f) ? collide->GetInertia() : btVector3(0.0f, 0.0f, 0.0f));
 
 	btVector3 massCenter = collide->GetMassCenter();
 	const Vector *massCenterOverride = params->massCenterOverride;
@@ -55,13 +56,17 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 				-massCenterOffset), collide->GetShape());
 		constructionInfo.m_collisionShape = massCenterOverrideShape;
 		massCenter = m_MassCenterOverride;
-		constructionInfo.m_localInertia = CPhysicsCollision::OffsetInertia(
-				constructionInfo.m_localInertia, massCenterOffset);
+		if (m_Mass > 0.0f) {
+			constructionInfo.m_localInertia = CPhysicsCollision::OffsetInertia(
+					constructionInfo.m_localInertia, massCenterOffset);
+		}
 	}
-	constructionInfo.m_localInertia *= params->inertia * m_Mass;
-	if (params->rotInertiaLimit > 0.0f) {
-		btScalar minInertia = constructionInfo.m_localInertia.length() * params->rotInertiaLimit;
-		constructionInfo.m_localInertia.setMax(btVector3(minInertia, minInertia, minInertia));
+	if (m_Mass > 0.0f) {
+		constructionInfo.m_localInertia *= params->inertia * m_Mass;
+		if (params->rotInertiaLimit > 0.0f) {
+			btScalar minInertia = constructionInfo.m_localInertia.length() * params->rotInertiaLimit;
+			constructionInfo.m_localInertia.setMax(btVector3(minInertia, minInertia, minInertia));
+		}
 	}
 	ConvertInertiaToHL(constructionInfo.m_localInertia, m_Inertia);
 

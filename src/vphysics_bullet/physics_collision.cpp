@@ -229,6 +229,9 @@ void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
 void CPhysConvex_Hull::Initialize() {
 	CPhysConvex::Initialize();
 	m_Volume = -1.0;
+	// Prevent leaking uninitialized data during serialization.
+	m_MassCenter.setZero();
+	m_Inertia.setValue(1.0f, 1.0f, 1.0f);
 	m_Shape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
 }
 
@@ -891,6 +894,74 @@ btVector3 CPhysCollide_Sphere::GetInertia() const {
 
 CPhysCollide_Sphere *CPhysicsCollision::CreateSphereCollide(btScalar radius) {
 	return new CPhysCollide_Sphere(radius);
+}
+
+/**************************
+ * Concave triangle meshes
+ **************************/
+
+CPhysCollide_TriangleMesh::CPhysCollide_TriangleMesh(const virtualmeshlist_t &virtualMesh) :
+		m_MeshInterface(virtualMesh), m_Shape(&m_MeshInterface, true),
+		m_SurfacePropsIndex(virtualMesh.surfacePropsIndex) {
+	Initialize();
+	m_Shape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
+}
+
+CPhysCollide_TriangleMesh::MeshInterface::MeshInterface(const virtualmeshlist_t &virtualMesh) {
+	m_Vertices.resizeNoInitialize(virtualMesh.vertexCount);
+	btVector3 *bulletVertices = &m_Vertices[0];
+	for (int vertexIndex = 0; vertexIndex < virtualMesh.vertexCount; ++vertexIndex) {
+		ConvertPositionToBullet(virtualMesh.pVerts[vertexIndex], bulletVertices[vertexIndex]);
+	}
+	static_assert(sizeof(virtualMesh.indices[0]) == sizeof(m_Indices[0]),
+			"Virtual mesh indices are stored in a different type.");
+	m_Indices.resizeNoInitialize(virtualMesh.indexCount);
+	memcpy(&m_Indices[0], virtualMesh.indices, virtualMesh.indexCount * sizeof(virtualMesh.indices));
+}
+
+void CPhysCollide_TriangleMesh::MeshInterface::getLockedReadOnlyVertexIndexBase(
+		const unsigned char **vertexbase, int &numverts, PHY_ScalarType &type, int &stride,
+		const unsigned char **indexbase, int &indexstride, int &numfaces, PHY_ScalarType &indicestype, int subpart) const {
+	Assert(subpart == 0);
+	*vertexbase = reinterpret_cast<const unsigned char *>(&m_Vertices[0][0]);
+	numverts = m_Vertices.size();
+#ifdef BT_USE_DOUBLE_PRECISION
+	type = PHY_DOUBLE;
+#else
+	type = PHY_FLOAT;
+#endif
+	stride = sizeof(btVector3);
+	*indexbase = reinterpret_cast<const unsigned char *>(&m_Indices[0]);
+	indexstride = 3 * sizeof(unsigned short);
+	numfaces = m_Indices.size() / 3;
+	indicestype = PHY_SHORT;
+}
+
+btScalar CPhysCollide_TriangleMesh::GetSurfaceArea() const {
+	const btVector3 *points = &m_MeshInterface.m_Vertices[0];
+	const unsigned short *indices = &m_MeshInterface.m_Indices[0];
+	int indexCount = m_MeshInterface.m_Indices.size();
+	btScalar area = 0.0f;
+	for (int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
+		const btVector3 &p0 = points[indices[indexIndex]];
+		const btVector3 &p1 = points[indices[indexIndex + 1]];
+		const btVector3 &p2 = points[indices[indexIndex + 2]];
+		area += (p1 - p0).cross(p2 - p0).length();
+	}
+	return 0.5f * area;
+}
+
+CPhysCollide *CPhysicsCollision::CreateVirtualMesh(const virtualmeshparams_t &params) {
+	if (params.pMeshEventHandler == nullptr) {
+		return nullptr;
+	}
+	virtualmeshlist_t virtualMesh;
+	params.pMeshEventHandler->GetVirtualMesh(params.userData, &virtualMesh);
+	return new CPhysCollide_TriangleMesh(virtualMesh);
+}
+
+bool CPhysicsCollision::SupportsVirtualMesh() {
+	return true;
 }
 
 /****************************
