@@ -75,6 +75,7 @@ public:
 	// Returns an unremapped surface index, or 0 if no triangle-specific material.
 	// Doesn't remap just in case the non-zero indices are mapped to 0.
 	int GetTriangleMaterialIndex(const btVector3 &point) const;
+	void SetTriangleMaterialIndex(int triangleIndex, int index7bits);
 
 protected:
 	virtual void Initialize();
@@ -224,6 +225,16 @@ private:
 	btVector3 m_Inertia;
 };
 
+class CPhysPolysoup {
+public:
+	~CPhysPolysoup();
+	void AddTriangle(HullLibrary &hullLibrary,
+			const Vector &a, const Vector &b, const Vector &c, int materialIndex7bits);
+	CPhysCollide *ConvertToCollide();
+private:
+	btAlignedObjectArray<CPhysConvex *> m_Convexes;
+};
+
 class CPhysCollide_Sphere : public CPhysCollide {
 public:
 	// The ortographic area fraction should be pi/4, but let's assume the engine assumes 1.
@@ -310,7 +321,11 @@ public:
 	virtual void ConvexFree(CPhysConvex *pConvex);
 	virtual CPhysConvex *BBoxToConvex(const Vector &mins, const Vector &maxs);
 	virtual CPhysConvex *ConvexFromConvexPolyhedron(const CPolyhedron &ConvexPolyhedron);
-
+	virtual CPhysPolysoup *PolysoupCreate();
+	virtual void PolysoupDestroy(CPhysPolysoup *pSoup);
+	virtual void PolysoupAddTriangle(CPhysPolysoup *pSoup,
+			const Vector &a, const Vector &b, const Vector &c, int materialIndex7bits);
+	virtual CPhysCollide *ConvertPolysoupToCollide(CPhysPolysoup *pSoup, bool useMOPP);
 	virtual CPhysCollide *ConvertConvexToCollide(CPhysConvex **pConvex, int convexCount);
 	virtual void DestroyCollide(CPhysCollide *pCollide);
 	virtual CPhysCollide *UnserializeCollide(char *pBuffer, int size, int index);

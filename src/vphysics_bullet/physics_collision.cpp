@@ -425,6 +425,17 @@ int CPhysConvex_Hull::GetTriangleMaterialIndex(const btVector3 &point) const {
 	return m_TriangleMaterials[closestTriangle];
 }
 
+void CPhysConvex_Hull::SetTriangleMaterialIndex(int triangleIndex, int index7bits) {
+	if (m_TriangleMaterials.size() == 0) {
+		if (index7bits == 0) {
+			return;
+		}
+		m_TriangleMaterials.resizeNoInitialize(m_TriangleIndices.size() / 3);
+		memset(&m_TriangleMaterials[0], 0, m_TriangleMaterials.size() * sizeof(m_TriangleMaterials[0]));
+	}
+	m_TriangleMaterials[triangleIndex] = index7bits;
+}
+
 void CPhysConvex_Hull::CalculateTrianglePlanes() {
 	if (m_TrianglePlanes.size() != 0) {
 		return;
@@ -749,6 +760,58 @@ CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, i
 		return nullptr;
 	}
 	return new CPhysCollide_Compound(pConvex, convexCount);
+}
+
+CPhysPolysoup *CPhysicsCollision::PolysoupCreate() {
+	return new CPhysPolysoup;
+}
+
+CPhysPolysoup::~CPhysPolysoup() {
+	int convexCount = m_Convexes.size();
+	for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
+		g_pPhysCollision->ConvexFree(m_Convexes[convexIndex]);
+	}
+}
+
+void CPhysicsCollision::PolysoupDestroy(CPhysPolysoup *pSoup) {
+	if (pSoup != nullptr) {
+		delete pSoup;
+	}
+}
+
+void CPhysPolysoup::AddTriangle(HullLibrary &hullLibrary,
+		const Vector &a, const Vector &b, const Vector &c, int materialIndex7bits) {
+	btVector3 points[3];
+	ConvertPositionToBullet(a, points[0]);
+	ConvertPositionToBullet(b, points[1]);
+	ConvertPositionToBullet(c, points[2]);
+	CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromBulletPoints(hullLibrary, points, 3);
+	if (convex == nullptr) {
+		Warning("Degenerate Triangle\n(%.2f, %.2f, %.2f), (%.2f, %.2f, %.2f), (%.2f, %.2f, %.2f)\n",
+				a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+		return;
+	}
+	convex->SetTriangleMaterialIndex(0, materialIndex7bits);
+	m_Convexes.push_back(convex);
+}
+
+void CPhysicsCollision::PolysoupAddTriangle(CPhysPolysoup *pSoup,
+		const Vector &a, const Vector &b, const Vector &c, int materialIndex7bits) {
+	pSoup->AddTriangle(m_HullLibrary, a, b, c, materialIndex7bits);
+}
+
+CPhysCollide *CPhysPolysoup::ConvertToCollide() {
+	int convexCount = m_Convexes.size();
+	if (convexCount == 0) {
+		return nullptr;
+	}
+	CPhysCollide *collide = new CPhysCollide_Compound(&m_Convexes[0], convexCount);
+	m_Convexes.resizeNoInitialize(0);
+	return collide;
+}
+
+CPhysCollide *CPhysicsCollision::ConvertPolysoupToCollide(CPhysPolysoup *pSoup, bool useMOPP) {
+	return pSoup->ConvertToCollide();
 }
 
 btScalar CPhysCollide_Compound::GetVolume() const {
