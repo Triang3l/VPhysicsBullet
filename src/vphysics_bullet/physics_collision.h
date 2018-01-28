@@ -153,6 +153,7 @@ public:
 
 	FORCEINLINE const btVector3 &GetOrthographicAreas() const { return m_OrthographicAreas; }
 	void SetOrthographicAreas(const btVector3 &areas);
+	virtual void ComputeOrthographicAreas(btScalar axisEpsilon);
 
 	// Returns the true number of convexes, not clamped, for possibility of multiple calls.
 	virtual int GetConvexes(CPhysConvex **output, int limit) const { return 0; }
@@ -260,6 +261,8 @@ public:
 
 	virtual btVector3 GetInertia() const;
 
+	virtual void ComputeOrthographicAreas(btScalar axisEpsilon);
+
 private:
 	btSphereShape m_Shape;
 };
@@ -327,6 +330,8 @@ public:
 			const Vector &a, const Vector &b, const Vector &c, int materialIndex7bits);
 	virtual CPhysCollide *ConvertPolysoupToCollide(CPhysPolysoup *pSoup, bool useMOPP);
 	virtual CPhysCollide *ConvertConvexToCollide(CPhysConvex **pConvex, int convexCount);
+	virtual CPhysCollide *ConvertConvexToCollideParams(CPhysConvex **pConvex, int convexCount,
+			const convertconvexparams_t &convertParams);
 	virtual void DestroyCollide(CPhysCollide *pCollide);
 	virtual CPhysCollide *UnserializeCollide(char *pBuffer, int size, int index);
 	virtual float CollideVolume(CPhysCollide *pCollide);
@@ -361,6 +366,8 @@ public:
 	static btVector3 OffsetInertia(
 			const btVector3 &inertia, const btVector3 &origin, bool absolute = true);
 
+	FORCEINLINE btCollisionObject *GetTraceCollisionObject() { return &m_TraceCollisionObject; }
+
 	CPhysCollide_Sphere *CreateSphereCollide(btScalar radius);
 
 	// Destruction of convexes owned by compound collideables
@@ -379,6 +386,8 @@ private:
 			const btVector3 &orthographicAreas);
 
 	CUtlVector<CPhysConvex *> m_CompoundConvexDeleteQueue;
+
+	btCollisionObject m_TraceCollisionObject;
 };
 
 extern CPhysicsCollision *g_pPhysCollision;

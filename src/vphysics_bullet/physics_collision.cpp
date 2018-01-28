@@ -639,6 +639,100 @@ void CPhysCollide::SetOrthographicAreas(const btVector3 &areas) {
 	}
 }
 
+void CPhysCollide::ComputeOrthographicAreas(btScalar axisEpsilon) {
+	btCollisionShape *shape = GetShape();
+	btCollisionObject *collisionObject = g_pPhysCollision->GetTraceCollisionObject();
+	collisionObject->setCollisionShape(shape);
+
+	// Fire rays in the following pattern (centers of the sides are always checked):
+	//  _________
+	// |         |
+	// | *  *  * |
+	// |         |
+	// |         |
+	// | *  *  * |
+	// |         |
+	// |         |
+	// | *  *  * |
+	// |_________|
+	btVector3 aabbMin, aabbMax;
+	shape->getAabb(btTransform::getIdentity(), aabbMin, aabbMax);
+	btVector3 halfRayCounts = ((aabbMax - aabbMin) * 0.5f) / axisEpsilon;
+	halfRayCounts[0] = floor(halfRayCounts[0]);
+	halfRayCounts[1] = floor(halfRayCounts[1]);
+	halfRayCounts[2] = floor(halfRayCounts[2]);
+	btVector3 rayOrigins = ((aabbMin + aabbMax) * 0.5f) - (halfRayCounts * axisEpsilon);
+	int rayCounts[] = {
+		(int) halfRayCounts.getX() * 2 + 1,
+		(int) halfRayCounts.getY() * 2 + 1,
+		(int) halfRayCounts.getZ() * 2 + 1
+	};
+	btTransform rayFrom = btTransform::getIdentity(), rayTo = btTransform::getIdentity();
+	struct OrthographicAreasResultCallback : public btCollisionWorld::RayResultCallback {
+		virtual	btScalar addSingleResult(
+				btCollisionWorld::LocalRayResult &rayResult, bool normalInWorldSpace) {
+			m_collisionObject = rayResult.m_collisionObject;
+			return rayResult.m_hitFraction;
+		}
+	};
+	OrthographicAreasResultCallback result;
+	int hitCount;
+	btVector3 areas;
+
+	rayFrom.getOrigin()[0] = aabbMin.getX() - VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	rayTo.getOrigin()[0] = aabbMax.getX() + VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	hitCount = 0;
+	for (int y = 0; y < rayCounts[1]; ++y) {
+		rayFrom.getOrigin()[1] = rayTo.getOrigin()[1] = rayOrigins.getY() + btScalar(y) * axisEpsilon;
+		for (int z = 0; z < rayCounts[2]; ++z) {
+			rayFrom.getOrigin()[2] = rayTo.getOrigin()[2] = rayOrigins.getZ() + btScalar(z) * axisEpsilon;
+			result.m_collisionObject = nullptr;
+			btCollisionWorld::rayTestSingle(rayFrom, rayTo, collisionObject, shape,
+					btTransform::getIdentity(), result);
+			if (result.m_collisionObject != nullptr) {
+				++hitCount;
+			}
+		}
+	}
+	areas.setX(btScalar(hitCount) / btScalar(rayCounts[1] * rayCounts[2]));
+
+	rayFrom.getOrigin()[1] = aabbMin.getY() - VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	rayTo.getOrigin()[1] = aabbMax.getY() + VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	hitCount = 0;
+	for (int x = 0; x < rayCounts[0]; ++x) {
+		rayFrom.getOrigin()[0] = rayTo.getOrigin()[0] = rayOrigins.getX() + btScalar(x) * axisEpsilon;
+		for (int z = 0; z < rayCounts[2]; ++z) {
+			rayFrom.getOrigin()[2] = rayTo.getOrigin()[2] = rayOrigins.getZ() + btScalar(z) * axisEpsilon;
+			result.m_collisionObject = nullptr;
+			btCollisionWorld::rayTestSingle(rayFrom, rayTo, collisionObject, shape,
+					btTransform::getIdentity(), result);
+			if (result.m_collisionObject != nullptr) {
+				++hitCount;
+			}
+		}
+	}
+	areas.setY(btScalar(hitCount) / btScalar(rayCounts[0] * rayCounts[2]));
+
+	rayFrom.getOrigin()[2] = aabbMin.getZ() - VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	rayTo.getOrigin()[2] = aabbMax.getZ() + VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	hitCount = 0;
+	for (int x = 0; x < rayCounts[0]; ++x) {
+		rayFrom.getOrigin()[0] = rayTo.getOrigin()[0] = rayOrigins.getX() + btScalar(x) * axisEpsilon;
+		for (int y = 0; y < rayCounts[1]; ++y) {
+			rayFrom.getOrigin()[1] = rayTo.getOrigin()[1] = rayOrigins.getY() + btScalar(y) * axisEpsilon;
+			result.m_collisionObject = nullptr;
+			btCollisionWorld::rayTestSingle(rayFrom, rayTo, collisionObject, shape,
+					btTransform::getIdentity(), result);
+			if (result.m_collisionObject != nullptr) {
+				++hitCount;
+			}
+		}
+	}
+	areas.setZ(btScalar(hitCount) / btScalar(rayCounts[0] * rayCounts[1]));
+
+	SetOrthographicAreas(areas);
+}
+
 Vector CPhysicsCollision::CollideGetOrthographicAreas(const CPhysCollide *pCollide) {
 	Vector areas;
 	ConvertAbsoluteDirectionToHL(pCollide->GetOrthographicAreas(), areas);
@@ -756,10 +850,21 @@ void CPhysCollide_Compound::AddIVPCompactLedgetreeNode(
 }
 
 CPhysCollide *CPhysicsCollision::ConvertConvexToCollide(CPhysConvex **pConvex, int convexCount) {
+	convertconvexparams_t convertParams;
+	convertParams.Defaults();
+	return ConvertConvexToCollideParams(pConvex, convexCount, convertParams);
+}
+
+CPhysCollide *CPhysicsCollision::ConvertConvexToCollideParams(CPhysConvex **pConvex, int convexCount,
+		const convertconvexparams_t &convertParams) {
 	if (convexCount == 0 || pConvex == nullptr) {
 		return nullptr;
 	}
-	return new CPhysCollide_Compound(pConvex, convexCount);
+	CPhysCollide_Compound *collide = new CPhysCollide_Compound(pConvex, convexCount);
+	if (convertParams.buildDragAxisAreas) {
+		collide->ComputeOrthographicAreas(HL2BULLET(sqrtf(MAX(convertParams.dragAreaEpsilon, 0.25f))));
+	}
+	return collide;
 }
 
 CPhysPolysoup *CPhysicsCollision::PolysoupCreate() {
@@ -934,6 +1039,10 @@ void CPhysicsCollision::CleanupCompoundConvexDeleteQueue() {
  * Spheres
  **********/
 
+CPhysCollide_Sphere *CPhysicsCollision::CreateSphereCollide(btScalar radius) {
+	return new CPhysCollide_Sphere(radius);
+}
+
 btScalar CPhysCollide_Sphere::GetVolume() const {
 	btScalar radius = GetRadius();
 	return ((4.0f / 3.0f) * SIMD_PI) * radius * radius * radius;
@@ -955,8 +1064,8 @@ btVector3 CPhysCollide_Sphere::GetInertia() const {
 	return btVector3(elem, elem, elem);
 }
 
-CPhysCollide_Sphere *CPhysicsCollision::CreateSphereCollide(btScalar radius) {
-	return new CPhysCollide_Sphere(radius);
+void CPhysCollide_Sphere::ComputeOrthographicAreas(btScalar axisEpsilon) {
+	SetOrthographicAreas(btVector3(0.25f * SIMD_PI, 0.25f * SIMD_PI, 0.25f * SIMD_PI));
 }
 
 /**************************
