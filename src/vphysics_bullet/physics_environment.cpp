@@ -320,7 +320,7 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 
 		// Gravity.
 		object->ApplyDamping(timeStep);
-		object->ApplyForcesAndSpeedLimit();
+		object->ApplyForcesAndSpeedLimit(timeStep);
 		object->ApplyGravity(timeStep);
 
 		// Unconstrained motion.
@@ -328,6 +328,11 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 		object->SimulateMotionControllers(IPhysicsMotionController::MEDIUM_PRIORITY, timeStep);
 
 		// Vehicles.
+
+		// The object should enter the constraint solver with no forces.
+		// Possibly not a very strict requirement, but VPhysics takes over force application,
+		// and player push speed can be limited more accurately by contact callbacks.
+		Assert(object->BulletForcesAreZero());
 	}
 }
 

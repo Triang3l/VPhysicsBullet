@@ -128,7 +128,11 @@ public:
 	void NotifyOrthographicAreasChanged();
 
 	// Bullet integrates forces and torques over time, in IVP async pushes are applied fully.
-	void ApplyForcesAndSpeedLimit();
+	void ApplyForcesAndSpeedLimit(btScalar timeStep);
+	// For regression testing.
+	inline bool BulletForcesAreZero() const {
+		return m_RigidBody->getTotalForce().isZero() && m_RigidBody->getTotalTorque().isZero();
+	}
 
 	void NotifyAttachedToMotionController(IPhysicsMotionController *controller);
 	void NotifyDetachedFromMotionController(IPhysicsMotionController *controller);

@@ -696,12 +696,14 @@ void CPhysicsObject::InterpolateWorldTransform() {
 	}
 }
 
-void CPhysicsObject::ApplyForcesAndSpeedLimit() {
+void CPhysicsObject::ApplyForcesAndSpeedLimit(btScalar timeStep) {
 	if (!IsAsleep()) {
+		// Also applies Bullet forces (they're likely zero, but in case something applies them).
 		const CPhysicsEnvironment *environment = static_cast<const CPhysicsEnvironment *>(m_Environment);
 		if (CanReceiveForce()) {
 			btVector3 linearVelocity = m_RigidBody->getLinearVelocity();
-			linearVelocity += m_LinearVelocityChange;
+			linearVelocity += m_LinearVelocityChange +
+					(m_RigidBody->getTotalForce() * (m_RigidBody->getInvMass() * timeStep));
 			btScalar maxSpeed = environment->GetMaxSpeed();
 			btClamp(linearVelocity[0], -maxSpeed, maxSpeed);
 			btClamp(linearVelocity[1], -maxSpeed, maxSpeed);
@@ -709,17 +711,24 @@ void CPhysicsObject::ApplyForcesAndSpeedLimit() {
 			m_RigidBody->setLinearVelocity(linearVelocity);
 		}
 		if (CanReceiveTorque()) {
-			btVector3 angularVelocity = m_RigidBody->getAngularVelocity();
-			angularVelocity += (m_RigidBody->getWorldTransform().getBasis() * m_LocalAngularVelocityChange);
+			const btMatrix3x3 &worldTransform = m_RigidBody->getWorldTransform().getBasis();
+			btVector3 localAngularVelocity = m_RigidBody->getAngularVelocity() * worldTransform;
+			localAngularVelocity += m_LocalAngularVelocityChange;
+			const btVector3 &bulletTorque = m_RigidBody->getTotalTorque();
+			if (!bulletTorque.isZero()) {
+				localAngularVelocity += (bulletTorque * worldTransform) *
+						m_RigidBody->getInvInertiaDiagLocal() * timeStep;
+			}
 			btScalar maxAngularSpeed = environment->GetMaxAngularSpeed();
-			btClamp(angularVelocity[0], -maxAngularSpeed, maxAngularSpeed);
-			btClamp(angularVelocity[1], -maxAngularSpeed, maxAngularSpeed);
-			btClamp(angularVelocity[2], -maxAngularSpeed, maxAngularSpeed);
-			m_RigidBody->setAngularVelocity(angularVelocity);
+			btClamp(localAngularVelocity[0], -maxAngularSpeed, maxAngularSpeed);
+			btClamp(localAngularVelocity[1], -maxAngularSpeed, maxAngularSpeed);
+			btClamp(localAngularVelocity[2], -maxAngularSpeed, maxAngularSpeed);
+			m_RigidBody->setAngularVelocity(worldTransform * localAngularVelocity);
 		}
 	}
 	m_LinearVelocityChange.setZero();
 	m_LocalAngularVelocityChange.setZero();
+	m_RigidBody->clearForces();
 }
 
 void CPhysicsObject::SetVelocity(const Vector *velocity, const AngularImpulse *angularVelocity) {
