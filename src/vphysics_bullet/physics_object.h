@@ -129,10 +129,10 @@ public:
 
 	// Bullet integrates forces and torques over time, in IVP async pushes are applied fully.
 	void ApplyForcesAndSpeedLimit(btScalar timeStep);
-	// For regression testing.
-	inline bool BulletForcesAreZero() const {
-		return m_RigidBody->getTotalForce().isZero() && m_RigidBody->getTotalTorque().isZero();
-	}
+
+	// No force should EVER be applied with applyForce/applyCentralForce/applyTorque,
+	// as we take over force application. Bullet may only apply gravity, but we set it to 0.
+	void CheckAndClearBulletForces();
 
 	void NotifyAttachedToMotionController(IPhysicsMotionController *controller);
 	void NotifyDetachedFromMotionController(IPhysicsMotionController *controller);

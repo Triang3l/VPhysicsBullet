@@ -29,7 +29,8 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 	m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_Broadphase, m_Solver, m_CollisionConfiguration);
 	m_DynamicsWorld->setWorldUserInfo(this);
 
-	m_DynamicsWorld->setGravity(btVector3(0.0f, 0.0f, 0.0f)); // Gravity is applied by CPhysicsObjects.
+	// Gravity is applied by CPhysicsObjects, also objects assume zero Bullet forces.
+	m_DynamicsWorld->setGravity(btVector3(0.0f, 0.0f, 0.0f));
 
 	m_DynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = VPHYSICS_CONVEX_DISTANCE_MARGIN;
 
@@ -329,10 +330,7 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 
 		// Vehicles.
 
-		// The object should enter the constraint solver with no forces.
-		// Possibly not a very strict requirement, but VPhysics takes over force application,
-		// and player push speed can be limited more accurately by contact callbacks.
-		Assert(object->BulletForcesAreZero());
+		object->CheckAndClearBulletForces();
 	}
 }
 
