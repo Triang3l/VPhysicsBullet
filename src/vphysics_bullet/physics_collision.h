@@ -280,6 +280,8 @@ public:
 
 	virtual btScalar GetSurfaceArea() const;
 
+	FORCEINLINE int GetSurfacePropsIndex() const { return m_SurfacePropsIndex; }
+
 private:
 	class MeshInterface : public btStridingMeshInterface {
 	public:

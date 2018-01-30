@@ -127,6 +127,8 @@ public:
 	void ApplyDrag(btScalar timeStep);
 	void NotifyOrthographicAreasChanged();
 
+	void UpdateMaterial();
+
 	// Bullet integrates forces and torques over time, in IVP async pushes are applied fully.
 	void ApplyForcesAndSpeedLimit(btScalar timeStep);
 
@@ -193,6 +195,9 @@ private:
 	bool m_GravityEnabled;
 	float m_Damping, m_RotDamping;
 
+	int m_MaterialIndex, m_RealMaterialIndex;
+	unsigned int m_ContentsMask;
+
 	btScalar m_DragCoefficient, m_AngularDragCoefficient;
 	btVector3 m_DragBasis, m_AngularDragBasis;
 	bool m_DragEnabled;
@@ -211,9 +216,6 @@ private:
 	char m_Name[128];
 
 	unsigned short m_Callbacks;
-
-	int m_MaterialIndex;
-	unsigned int m_ContentsMask;
 
 	/******************
 	 * Transient state

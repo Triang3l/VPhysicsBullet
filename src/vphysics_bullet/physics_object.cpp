@@ -24,12 +24,13 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_HingeAxis(-1),
 		m_MotionEnabled(true),
 		m_Damping(params->damping), m_RotDamping(params->rotdamping),
+		m_MaterialIndex(materialIndex), m_RealMaterialIndex(-1),
+		m_ContentsMask(CONTENTS_SOLID),
 		m_Shadow(nullptr), m_Player(nullptr),
 		m_GameData(params->pGameData), m_GameFlags(0), m_GameIndex(0),
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
 				CALLBACK_GLOBAL_COLLIDE_STATIC | CALLBACK_DO_FLUID_SIMULATION),
-		m_MaterialIndex(materialIndex), m_ContentsMask(CONTENTS_SOLID),
 		m_WasAsleep(true),
 		m_LinearVelocityChange(0.0f, 0.0f, 0.0f),
 		m_LocalAngularVelocityChange(0.0f, 0.0f, 0.0f),
@@ -70,11 +71,6 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	}
 	ConvertInertiaToHL(constructionInfo.m_localInertia, m_Inertia);
 
-	float friction, elasticity;
-	g_pPhysSurfaceProps->GetPhysicsProperties(materialIndex, nullptr, nullptr, &friction, &elasticity);
-	constructionInfo.m_friction = friction;
-	constructionInfo.m_restitution = elasticity;
-
 	matrix3x4_t startMatrix;
 	AngleMatrix(angles, position, startMatrix);
 	btTransform &startWorldTransform = constructionInfo.m_startWorldTransform;
@@ -104,6 +100,8 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	}
 
 	AddReferenceToCollide();
+
+	UpdateMaterial();
 
 	Sleep();
 }
@@ -509,6 +507,50 @@ void CPhysicsObject::NotifyOrthographicAreasChanged() {
 }
 
 /************
+ * Materials
+ ************/
+
+int CPhysicsObject::GetMaterialIndex() const {
+	return m_RealMaterialIndex;
+}
+
+void CPhysicsObject::SetMaterialIndex(int materialIndex) {
+	m_MaterialIndex = materialIndex;
+	UpdateMaterial();
+}
+
+void CPhysicsObject::UpdateMaterial() {
+	int materialIndex = m_MaterialIndex;
+	if (m_Shadow != nullptr && static_cast<CPhysicsShadowController *>(m_Shadow)->IsUsingShadowMaterial()) {
+		materialIndex = MATERIAL_INDEX_SHADOW;
+	} else {
+		const CPhysCollide *collide = GetCollide();
+		if (CPhysCollide_TriangleMesh::IsTriangleMesh(collide)) {
+			int triangleMeshMaterialIndex =
+					static_cast<const CPhysCollide_TriangleMesh *>(collide)->GetSurfacePropsIndex();
+			if (triangleMeshMaterialIndex != 0) {
+				materialIndex = triangleMeshMaterialIndex;
+			}
+		}
+	}
+	if (materialIndex != m_RealMaterialIndex) {
+		m_RealMaterialIndex = materialIndex;
+		float friction, elasticity;
+		g_pPhysSurfaceProps->GetPhysicsProperties(materialIndex, nullptr, nullptr, &friction, &elasticity);
+		m_RigidBody->setFriction(friction);
+		m_RigidBody->setRestitution(elasticity);
+	}
+}
+
+unsigned int CPhysicsObject::GetContents() const {
+	return m_ContentsMask;
+}
+
+void CPhysicsObject::SetContents(unsigned int contents) {
+	m_ContentsMask = contents;
+}
+
+/************
  * Game data
  ************/
 
@@ -544,36 +586,8 @@ unsigned short CPhysicsObject::GetCallbackFlags() const {
 	return m_Callbacks;
 }
 
-unsigned int CPhysicsObject::GetContents() const {
-	return m_ContentsMask;
-}
-
-void CPhysicsObject::SetContents(unsigned int contents) {
-	m_ContentsMask = contents;
-}
-
 const char *CPhysicsObject::GetName() const {
 	return m_Name;
-}
-
-/*************
- * Collisions
- *************/
-
-int CPhysicsObject::GetMaterialIndex() const {
-	if (m_Shadow != nullptr && static_cast<const CPhysicsShadowController *>(
-			m_Shadow)->IsUsingShadowMaterial()) {
-		return MATERIAL_INDEX_SHADOW;
-	}
-	return m_MaterialIndex;
-}
-
-void CPhysicsObject::SetMaterialIndex(int materialIndex) {
-	m_MaterialIndex = materialIndex;
-	float friction, elasticity;
-	g_pPhysSurfaceProps->GetPhysicsProperties(materialIndex, nullptr, nullptr, &friction, &elasticity);
-	m_RigidBody->setFriction(friction);
-	m_RigidBody->setRestitution(elasticity);
 }
 
 /**********************
