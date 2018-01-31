@@ -50,6 +50,7 @@ class CPhysConvex_Hull : public CPhysConvex {
 public:
 	CPhysConvex_Hull(const btVector3 *points, int pointCount,
 			const unsigned int *indices, int triangleCount);
+	CPhysConvex_Hull(const btVector3 *points, int pointCount, const CPolyhedron &polyhedron);
 	static CPhysConvex_Hull *CreateFromBulletPoints(
 			HullLibrary &hullLibrary, const btVector3 *points, int pointCount);
 	static CPhysConvex_Hull *CreateFromIVPCompactLedge(

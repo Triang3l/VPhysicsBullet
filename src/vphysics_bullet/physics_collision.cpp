@@ -244,6 +244,47 @@ CPhysConvex_Hull::CPhysConvex_Hull(const btVector3 *points, int pointCount,
 	memcpy(&m_TriangleIndices[0], indices, indexCount * sizeof(indices[0]));
 }
 
+CPhysConvex_Hull::CPhysConvex_Hull(const btVector3 *points, int pointCount, const CPolyhedron &polyhedron) :
+		m_Shape(&points[0][0], pointCount) {
+	Initialize();
+
+	const Polyhedron_IndexedLine_t *lines = polyhedron.pLines;
+	const Polyhedron_IndexedLineReference_t *lineIndices = polyhedron.pIndices;
+	const Polyhedron_IndexedPolygon_t *polygons = polyhedron.pPolygons;
+	int polygonCount = polyhedron.iPolygonCount;
+
+	int triangleIndexCount = 0;
+	for (int polygonIndex = 0; polygonIndex < polygonCount; ++polygonIndex) {
+		int polygonTriangleCount = polygons[polygonIndex].iIndexCount - 2;
+		if (polygonTriangleCount <= 0) {
+			continue;
+		}
+		triangleIndexCount += polygonTriangleCount * 3;
+	}
+	m_TriangleIndices.resizeNoInitialize(triangleIndexCount);
+
+	unsigned int *triangleIndices = &m_TriangleIndices[0];
+	triangleIndexCount = 0;
+	for (int polygonIndex = 0; polygonIndex < polygonCount; ++polygonIndex) {
+		const Polyhedron_IndexedPolygon_t &polygon = polygons[polygonIndex];
+		int polygonTriangleCount = polygon.iIndexCount - 2;
+		if (polygonTriangleCount <= 0) {
+			continue;
+		}
+		const Polyhedron_IndexedLineReference_t *lineReference = &lineIndices[polygon.iFirstIndex];
+		unsigned int polygonStartIndex =
+				lines[lineReference->iLineIndex].iPointIndices[1 - lineReference->iEndPointIndex];
+		for (int polygonTriangleIndex = 0; polygonTriangleIndex < polygonTriangleCount; ++polygonTriangleIndex) {
+			triangleIndices[triangleIndexCount++] = polygonStartIndex;
+			triangleIndices[triangleIndexCount++] =
+					lines[lineReference->iLineIndex].iPointIndices[lineReference->iEndPointIndex];
+			++lineReference;
+			triangleIndices[triangleIndexCount++] =
+					lines[lineReference->iLineIndex].iPointIndices[lineReference->iEndPointIndex];
+		}
+	}
+}
+
 CPhysConvex_Hull::CPhysConvex_Hull(const VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap,
 		const btVector3 *ledgePoints, int ledgePointCount) :
 		m_Shape(&ledgePoints[0][0], ledgePointCount) {
@@ -411,12 +452,13 @@ int CPhysConvex_Hull::GetTriangleMaterialIndex(const btVector3 &point) const {
 	btScalar closestProjectionDistance2 = BT_LARGE_FLOAT;
 	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
 		const btVector4 &plane = planes[triangleIndex];
+		btScalar planeDot = plane.dot(pointCenterRelative);
 		// Without this check, the opposite side of the convex would be treated as forward.
-		if (plane.dot(pointCenterRelative) < 0.0000001f) {
+		if (planeDot < 0.0000001f) {
 			continue;
 		}
-		btScalar projectionDistance2 = center.distance2(
-				point - (plane.dot(point) - (plane.getW() - margin)) * plane);
+		btScalar projectionDistance2 = center.distance2(pointCenterRelative -
+				(planeDot + plane.getW() + margin) * plane);
 		if (projectionDistance2 < closestProjectionDistance2) {
 			closestProjectionDistance2 = projectionDistance2;
 			closestTriangle = triangleIndex;
@@ -433,6 +475,7 @@ void CPhysConvex_Hull::SetTriangleMaterialIndex(int triangleIndex, int index7bit
 		m_TriangleMaterials.resizeNoInitialize(m_TriangleIndices.size() / 3);
 		memset(&m_TriangleMaterials[0], 0, m_TriangleMaterials.size() * sizeof(m_TriangleMaterials[0]));
 	}
+	CalculateTrianglePlanes();
 	m_TriangleMaterials[triangleIndex] = index7bits;
 }
 
@@ -440,6 +483,9 @@ void CPhysConvex_Hull::CalculateTrianglePlanes() {
 	if (m_TrianglePlanes.size() != 0) {
 		return;
 	}
+	btVector3 aabbMin, aabbMax;
+	m_Shape.getAabb(btTransform::getIdentity(), aabbMin, aabbMax);
+	btVector3 center = (aabbMin + aabbMax) * 0.5f;
 	int triangleCount = m_TriangleIndices.size() / 3;
 	m_TrianglePlanes.resizeNoInitialize(triangleCount);
 	btVector4 *planes = &m_TrianglePlanes[0];
@@ -448,9 +494,19 @@ void CPhysConvex_Hull::CalculateTrianglePlanes() {
 	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
 		int indexIndex = triangleIndex * 3;
 		const btVector3 &v1 = points[indices[indexIndex]];
-		btVector3 normal = points[indices[indexIndex + 1]].cross(points[indices[indexIndex + 2]]);
+		const btVector3 &v2 = points[indices[indexIndex + 1]];
+		const btVector3 &v3 = points[indices[indexIndex + 2]];
+		btVector3 normal = (v2 - v1).cross(v3 - v1);
 		normal.normalize();
-		planes[triangleIndex].setValue(normal.getX(), normal.getY(), normal.getZ(), v1.dot(normal));
+		// TODO: Check the case when the AABB center is on a triangle.
+		// Maybe ensure the windings from all sources are correct:
+		// IVP surfaces, HullLibrary, polyhedra and convex polygons.
+		btScalar dist = (v1 - center).dot(normal);
+		if (dist < 0.0f) {
+			normal = -normal;
+			dist = -dist;
+		}
+		planes[triangleIndex].setValue(normal.getX(), normal.getY(), normal.getZ(), -dist);
 	}
 }
 
@@ -482,13 +538,16 @@ CPhysConvex *CPhysicsCollision::ConvexFromPlanes(float *pPlanes, int planeCount,
 CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &ConvexPolyhedron) {
 	const Vector *verts = ConvexPolyhedron.pVertices;
 	int vertCount = ConvexPolyhedron.iVertexCount;
+	if (vertCount < 3) {
+		return nullptr;
+	}
 	btAlignedObjectArray<btVector3> pointArray;
 	pointArray.resizeNoInitialize(vertCount);
 	btVector3 *points = &pointArray[0];
 	for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex) {
 		ConvertPositionToBullet(verts[vertIndex], points[vertIndex]);
 	}
-	return CPhysConvex_Hull::CreateFromBulletPoints(m_HullLibrary, points, vertCount);
+	return new CPhysConvex_Hull(points, vertCount, ConvexPolyhedron);
 }
 
 /***********************************************
