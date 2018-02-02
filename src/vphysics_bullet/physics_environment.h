@@ -30,6 +30,7 @@ public:
 			const Vector &position, const QAngle &angles, objectparams_t *pParams);
 	virtual IPhysicsObject *CreateSphereObject(float radius, int materialIndex,
 			const Vector &position, const QAngle &angles, objectparams_t *pParams, bool isStatic);
+	virtual void DestroyObject(IPhysicsObject *pObject);
 
 	virtual IPhysicsMotionController *CreateMotionController(IMotionEvent *pHandler);
 	virtual void DestroyMotionController(IPhysicsMotionController *pController);
@@ -48,6 +49,8 @@ public:
 	virtual int GetActiveObjectCount() const;
 	virtual void GetActiveObjects(IPhysicsObject **pOutputObjectList) const;
 	virtual const IPhysicsObject **GetObjectList(int *pOutputObjectCount) const;
+	virtual void CleanupDeleteList();
+	virtual void EnableDeleteQueue(bool enable);
 
 	virtual bool IsCollisionModelUsed(CPhysCollide *pCollide) const;
 
@@ -102,10 +105,12 @@ private:
 	void AddObject(IPhysicsObject *object);
 	void UpdateActiveObjects();
 	void UpdateObjectInterpolation();
-	CUtlVector<IPhysicsObject *> m_Objects;
+	CUtlVector<IPhysicsObject *> m_Objects; // Doesn't include objects in the deletion queue!
 	CUtlVector<IPhysicsObject *> m_NonStaticObjects;
 	CUtlVector<IPhysicsObject *> m_ActiveNonStaticObjects;
 	IPhysicsObjectEvent *m_ObjectEvents;
+	bool m_QueueDeleteObject;
+	CUtlVector<IPhysicsObject *> m_DeadObjects;
 
 	btScalar m_SimulationTimeStep, m_SimulationInvTimeStep;
 	bool m_InSimulation;

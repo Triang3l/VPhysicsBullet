@@ -14,6 +14,7 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_Gravity(0.0f, 0.0f, 0.0f),
 		m_AirDensity(2.0f),
 		m_ObjectEvents(nullptr),
+		m_QueueDeleteObject(false),
 		m_SimulationTimeStep(DEFAULT_TICK_INTERVAL),
 		m_SimulationInvTimeStep(1.0f / btScalar(DEFAULT_TICK_INTERVAL)),
 		m_InSimulation(false),
@@ -42,7 +43,14 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 }
 
 CPhysicsEnvironment::~CPhysicsEnvironment() {
-	// TODO: Destroy objects.
+	int objectCount = m_Objects.Count();
+	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
+		delete m_Objects[objectIndex];
+	}
+	m_Objects.RemoveAll();
+	CleanupDeleteList();
+	m_ActiveNonStaticObjects.RemoveAll();
+	m_NonStaticObjects.RemoveAll();
 
 	delete m_DynamicsWorld;
 	delete m_Solver;
@@ -171,6 +179,32 @@ bool CPhysicsEnvironment::IsCollisionModelUsed(CPhysCollide *pCollide) const {
 	return pCollide->GetObjectReferenceList() != nullptr;
 }
 
+void CPhysicsEnvironment::EnableDeleteQueue(bool enable) {
+	m_QueueDeleteObject = enable;
+}
+
+void CPhysicsEnvironment::DestroyObject(IPhysicsObject *pObject) {
+	if (pObject == nullptr) {
+		DevMsg("Deleted NULL vphysics object\n");
+		return;
+	}
+	m_Objects.FindAndFastRemove(pObject);
+	if (IsInSimulation() || m_QueueDeleteObject) {
+		pObject->SetCallbackFlags(pObject->GetCallbackFlags() | CALLBACK_MARKED_FOR_DELETE);
+		m_DeadObjects.AddToTail(pObject);
+	} else {
+		delete pObject;
+	}
+}
+
+void CPhysicsEnvironment::CleanupDeleteList() {
+	int objectCount = m_DeadObjects.Count();
+	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
+		delete m_DeadObjects[objectIndex];
+	}
+	m_DeadObjects.Purge();
+}
+
 void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {
 	CPhysicsObject *physicsObject = static_cast<CPhysicsObject *>(object);
 
@@ -195,11 +229,15 @@ void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {
 	}
 
 	if (!object->IsStatic()) {
-		m_NonStaticObjects.FindAndFastRemove(object);
 		if (!physicsObject->WasAsleep()) {
 			m_ActiveNonStaticObjects.FindAndFastRemove(object);
 		}
+		m_NonStaticObjects.FindAndFastRemove(object);
 	}
+
+	// Already removed from m_Objects by the method which requested removal.
+
+	m_DynamicsWorld->removeRigidBody(physicsObject->GetRigidBody());
 }
 
 /****************
@@ -239,8 +277,7 @@ void CPhysicsEnvironment::DestroyMotionController(IPhysicsMotionController *pCon
  *******************/
 
 void CPhysicsEnvironment::Simulate(float deltaTime) {
-	// Trap interrupts and clock changes.
-	if (deltaTime > 0.0f && deltaTime < 1.0f) {
+	if (deltaTime > 0.0f && deltaTime < 1.0f) { // Trap interrupts and clock changes.
 		deltaTime = MIN(deltaTime, 0.1f);
 		m_TimeSinceLastPSI += deltaTime;
 		m_SimulatedPSIs = (int) (m_TimeSinceLastPSI * m_SimulationInvTimeStep);
@@ -263,8 +300,9 @@ void CPhysicsEnvironment::Simulate(float deltaTime) {
 			object->InterpolateWorldTransform();
 		}
 	}
-
-	// TODO: Cleanup delete queue.
+	if (!m_QueueDeleteObject) {
+		CleanupDeleteList();
+	}
 }
 
 bool CPhysicsEnvironment::IsInSimulation() const {
@@ -302,6 +340,10 @@ float CPhysicsEnvironment::GetNextFrameTime() const {
 
 void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeStep) {
 	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(world->getWorldUserInfo());
+
+	if (!environment->m_QueueDeleteObject) {
+		environment->CleanupDeleteList();
+	}
 
 	if (environment->m_RemainingPSIs > 0) {
 		environment->m_InvPSIScale = 1.0f / btScalar(environment->m_RemainingPSIs--);
