@@ -254,6 +254,9 @@ public:
 	FORCEINLINE btScalar GetRadius() const {
 		return m_Shape.getRadius() - VPHYSICS_CONVEX_DISTANCE_MARGIN;
 	}
+	FORCEINLINE void SetRadius(btScalar radius) {
+		m_Shape.setUnscaledRadius(radius + VPHYSICS_CONVEX_DISTANCE_MARGIN);
+	}
 
 	virtual btScalar GetVolume() const;
 	virtual btScalar GetSurfaceArea() const;
@@ -371,7 +374,7 @@ public:
 
 	FORCEINLINE btCollisionObject *GetTraceCollisionObject() { return &m_TraceCollisionObject; }
 
-	CPhysCollide_Sphere *CreateSphereCollide(btScalar radius);
+	CPhysCollide_Sphere *CreateCachedSphereCollide(btScalar radius);
 
 	// Destruction of convexes owned by compound collideables
 	// (can't delete child shapes until CPhysCollide_Compound destructor is finished).
@@ -391,6 +394,8 @@ private:
 	CUtlVector<CPhysConvex *> m_CompoundConvexDeleteQueue;
 
 	btCollisionObject m_TraceCollisionObject;
+
+	CUtlVector<CPhysCollide_Sphere *> m_SphereCache;
 };
 
 extern CPhysicsCollision *g_pPhysCollision;

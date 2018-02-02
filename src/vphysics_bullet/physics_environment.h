@@ -100,8 +100,6 @@ private:
 
 	float m_AirDensity;
 
-	CUtlVector<CPhysCollide *> m_SphereCache;
-
 	void AddObject(IPhysicsObject *object);
 	void UpdateActiveObjects();
 	void UpdateObjectInterpolation();

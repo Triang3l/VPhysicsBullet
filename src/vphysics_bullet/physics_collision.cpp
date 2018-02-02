@@ -1098,8 +1098,30 @@ void CPhysicsCollision::CleanupCompoundConvexDeleteQueue() {
  * Spheres
  **********/
 
-CPhysCollide_Sphere *CPhysicsCollision::CreateSphereCollide(btScalar radius) {
-	return new CPhysCollide_Sphere(radius);
+CPhysCollide_Sphere *CPhysicsCollision::CreateCachedSphereCollide(btScalar radius) {
+	const btScalar radiusThreshold = HL2BULLET(0.1f);
+	CPhysCollide_Sphere *collide = nullptr, *freeCollide = nullptr;
+	for (int cacheIndex = m_SphereCache.Count() - 1; cacheIndex >= 0; --cacheIndex) {
+		CPhysCollide_Sphere *cacheCollide = static_cast<CPhysCollide_Sphere *>(m_SphereCache[cacheIndex]);
+		if (btFabs(cacheCollide->GetRadius() - radius) < radiusThreshold) {
+			collide = cacheCollide;
+			break;
+		}
+		if (freeCollide == nullptr && cacheCollide->GetObjectReferenceList() == nullptr) {
+			freeCollide = cacheCollide;
+		}
+	}
+	if (collide == nullptr) {
+		if (freeCollide != nullptr) {
+			freeCollide->SetRadius(radius);
+			collide = freeCollide;
+		} else {
+			collide = new CPhysCollide_Sphere(radius);
+			collide->SetOwner(CPhysCollide::OWNER_INTERNAL);
+			m_SphereCache.AddToTail(collide);
+		}
+	}
+	return collide;
 }
 
 btScalar CPhysCollide_Sphere::GetVolume() const {

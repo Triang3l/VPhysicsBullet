@@ -95,31 +95,10 @@ IPhysicsObject *CPhysicsEnvironment::CreatePolyObjectStatic(
 
 IPhysicsObject *CPhysicsEnvironment::CreateSphereObject(float radius, int materialIndex,
 		const Vector &position, const QAngle &angles, objectparams_t *pParams, bool isStatic) {
-	btScalar bulletRadius = HL2BULLET(radius);
-	const btScalar bulletRadiusThreshold = HL2BULLET(0.1f);
-	CPhysCollide_Sphere *collide = nullptr, *freeCollide = nullptr;
-	for (int cacheIndex = m_SphereCache.Count() - 1; cacheIndex >= 0; --cacheIndex) {
-		CPhysCollide_Sphere *cacheCollide = static_cast<CPhysCollide_Sphere *>(m_SphereCache[cacheIndex]);
-		if (btFabs(cacheCollide->GetRadius() - bulletRadius) < bulletRadiusThreshold) {
-			collide = cacheCollide;
-			break;
-		}
-		if (freeCollide == nullptr && cacheCollide->GetObjectReferenceList() == nullptr) {
-			freeCollide = cacheCollide;
-		}
-	}
-	if (collide == nullptr) {
-		if (freeCollide != nullptr) {
-			freeCollide->GetSphereShape()->setUnscaledRadius(bulletRadius);
-			collide = freeCollide;
-		} else {
-			collide = g_pPhysCollision->CreateSphereCollide(bulletRadius);
-			collide->SetOwner(CPhysCollide::OWNER_INTERNAL);
-			m_SphereCache.AddToTail(collide);
-		}
-	}
-	IPhysicsObject *object = new CPhysicsObject(this, collide, materialIndex,
-			position, angles, pParams, isStatic);
+	IPhysicsObject *object = new CPhysicsObject(this,
+			static_cast<CPhysicsCollision *>(
+					g_pPhysCollision)->CreateCachedSphereCollide(HL2BULLET(radius)),
+			materialIndex, position, angles, pParams, isStatic);
 	AddObject(object);
 	return object;
 }
