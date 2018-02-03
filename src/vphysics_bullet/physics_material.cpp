@@ -45,8 +45,8 @@ int CPhysicsSurfaceProps::ParseSurfaceData(const char *pFilename, const char *pT
 
 	const char *text = pTextfile;
 	do {
-		char key[PHYSICS_MAX_KEYVALUE], value[PHYSICS_MAX_KEYVALUE];
-		text = ParseKeyvalue(text, key, value);
+		char key[VPHYSICS_MAX_KEYVALUE], value[VPHYSICS_MAX_KEYVALUE];
+		text = CVPhysicsKeyParser::ParseKeyvalue(text, key, value);
 		if (V_strcmp(value, "{") != 0) {
 			continue;
 		}
@@ -62,7 +62,7 @@ int CPhysicsSurfaceProps::ParseSurfaceData(const char *pFilename, const char *pT
 		}
 
 		do {
-			text = ParseKeyvalue(text, key, value);
+			text = CVPhysicsKeyParser::ParseKeyvalue(text, key, value);
 			if (V_strcmp(key, "}") == 0) {
 				const char *surfaceName = m_Strings.String(surface.m_Name);
 				if (GetSurfaceIndex(surfaceName) >= 0) {

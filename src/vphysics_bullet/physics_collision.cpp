@@ -2,6 +2,7 @@
 // Bullet integration by Triang3l, derivative work, in public domain if detached from Valve's work.
 
 #include "physics_collision.h"
+#include "physics_parse.h"
 #include "physics_object.h"
 #include <LinearMath/btGeometryUtil.h>
 #include "mathlib/polyhedron.h"
@@ -1324,4 +1325,12 @@ void CPhysicsCollision::VCollideUnload(vcollide_t *pVCollide) {
 	delete[] pVCollide->solids;
 	delete[] pVCollide->pKeyValues;
 	memset(pVCollide, 0, sizeof(*pVCollide));
+}
+
+IVPhysicsKeyParser *CPhysicsCollision::VPhysicsKeyParserCreate(const char *pKeyData) {
+	return new CVPhysicsKeyParser(pKeyData);
+}
+
+void CPhysicsCollision::VPhysicsKeyParserDestroy(IVPhysicsKeyParser *pParser) {
+	delete pParser;
 }

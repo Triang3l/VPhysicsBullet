@@ -357,6 +357,8 @@ public:
 	virtual void VCollideLoad(vcollide_t *pOutput,
 			int solidCount, const char *pBuffer, int size, bool swap);
 	virtual void VCollideUnload(vcollide_t *pVCollide);
+	virtual IVPhysicsKeyParser *VPhysicsKeyParserCreate(const char *pKeyData);
+	virtual void VPhysicsKeyParserDestroy(IVPhysicsKeyParser *pParser);
 	virtual IPhysicsCollision *ThreadContextCreate();
 	virtual void ThreadContextDestroy(IPhysicsCollision *pThreadContext);
 	virtual CPhysCollide *CreateVirtualMesh(const virtualmeshparams_t &params);
