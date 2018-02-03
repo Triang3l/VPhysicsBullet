@@ -7,7 +7,9 @@
 #include "physics_internal.h"
 
 struct ShadowControlBulletParameters_t {
-	btTransform targetTransform;
+	// Positions are in object coordinates, not mass center coordinates.
+
+	btTransform targetObjectTransform;
 	btScalar maxAngular;
 	btScalar maxDampAngular;
 	btScalar maxSpeed;
@@ -15,8 +17,13 @@ struct ShadowControlBulletParameters_t {
 	btScalar dampFactor;
 	btScalar teleportDistance;
 
+	btVector3 lastObjectPosition;
 	btVector3 lastImpulse;
 };
+
+void ComputeVPhysicsController(btVector3 &currentSpeed, const btVector3 &delta,
+		btScalar maxSpeed, btScalar maxDampSpeed, btScalar scaleDelta, btScalar damping,
+		btVector3 *outImpulse);
 
 class CPhysicsShadowController : public IPhysicsShadowController {
 public:

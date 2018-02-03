@@ -145,7 +145,8 @@ public:
 
 	void NotifyAttachedToShadowController(IPhysicsShadowController *shadow);
 	void StepUp(btScalar height); // May be called outside PSIs.
-	void Teleport(const btVector3 &position); // Called only in PSIs.
+	btScalar ComputeBulletShadowControl(struct ShadowControlBulletParameters_t &params,
+			btScalar secondsToArrival, btScalar timeStep);
 
 	FORCEINLINE CPhysicsObject *GetNextCollideObject() const {
 		return m_CollideObjectNext;

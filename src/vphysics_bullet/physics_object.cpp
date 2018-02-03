@@ -618,14 +618,24 @@ void CPhysicsObject::SetPosition(const Vector &worldPosition, const QAngle &angl
 	if (m_Shadow != nullptr) {
 		UpdateShadow(worldPosition, angles, false, 0.0f);
 	}
+
+	btMatrix3x3 oldBasis = m_RigidBody->getWorldTransform().getBasis();
+	btVector3 localAngularVelocity = m_RigidBody->getAngularVelocity() * oldBasis;
+
 	matrix3x4_t matrix;
 	AngleMatrix(angles, worldPosition, matrix);
 	btTransform transform;
 	ConvertMatrixToBullet(matrix, transform);
 	transform.getOrigin() += transform.getBasis() * GetBulletMassCenter();
 	m_RigidBody->proceedToTransform(transform);
-	if (!IsStatic() && !m_Environment->IsInSimulation()) {
-		InterpolateWorldTransform();
+
+	if (!IsStatic()) {
+		m_RigidBody->setAngularVelocity(transform.getBasis() * localAngularVelocity);
+		if (!m_Environment->IsInSimulation()) {
+			m_InterpolationAngularVelocity = transform.getBasis() *
+					(m_InterpolationAngularVelocity * oldBasis);
+			InterpolateWorldTransform();
+		}
 	}
 }
 
@@ -637,12 +647,22 @@ void CPhysicsObject::SetPositionMatrix(const matrix3x4_t &matrix, bool isTelepor
 		MatrixAngles(matrix, angles);
 		UpdateShadow(worldPosition, angles, false, 0.0f);
 	}
+
+	btMatrix3x3 oldBasis = m_RigidBody->getWorldTransform().getBasis();
+	btVector3 localAngularVelocity = m_RigidBody->getAngularVelocity() * oldBasis;
+
 	btTransform transform;
 	ConvertMatrixToBullet(matrix, transform);
 	transform.getOrigin() += transform.getBasis() * GetBulletMassCenter();
 	m_RigidBody->proceedToTransform(transform);
-	if (!IsStatic() && !m_Environment->IsInSimulation()) {
-		InterpolateWorldTransform();
+
+	if (!IsStatic()) {
+		m_RigidBody->setAngularVelocity(transform.getBasis() * localAngularVelocity);
+		if (!m_Environment->IsInSimulation()) {
+			m_InterpolationAngularVelocity = transform.getBasis() *
+					(m_InterpolationAngularVelocity * oldBasis);
+			InterpolateWorldTransform();
+		}
 	}
 }
 
@@ -1003,9 +1023,66 @@ void CPhysicsObject::StepUp(btScalar height) {
 	}
 }
 
-void CPhysicsObject::Teleport(const btVector3 &position) {
-	m_RigidBody->proceedToTransform(btTransform(
-			m_RigidBody->getWorldTransform().getBasis(), position));
+btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameters_t &params,
+		btScalar secondsToArrival, btScalar timeStep) {
+	Assert(m_Environment->IsInSimulation()); // Not going to touch interpolated values here.
+
+	// Resample fraction.
+	// This allows us to arrive at the target at the requested time.
+	btScalar fraction = 1.0f;
+	if (secondsToArrival > 0.0f) {
+		fraction = btMin(timeStep / secondsToArrival, btScalar(1.0f));
+	}
+	secondsToArrival = btMax(secondsToArrival - timeStep, btScalar(0.0f));
+	if (fraction <= 0.0f) {
+		return secondsToArrival;
+	}
+	fraction *= 1.0f / timeStep;
+
+	// Not a reference because it may be modified by proceedToTransform.
+	btTransform worldTransform = m_RigidBody->getWorldTransform();
+	btVector3 massCenter = GetBulletMassCenter();
+	btVector3 objectPosition = worldTransform.getOrigin() - (worldTransform.getBasis() * massCenter);
+	btVector3 localAngularVelocity = m_RigidBody->getAngularVelocity() * worldTransform.getBasis();
+
+	btVector3 deltaPosition = params.targetObjectTransform.getOrigin() - objectPosition;
+
+	if (params.teleportDistance > 0.0f) {
+		btScalar dist2;
+		if (!params.lastObjectPosition.isZero()) {
+			dist2 = (objectPosition - params.lastObjectPosition).length2();
+		} else {
+			// UNDONE: This is totally bogus!
+			// Measure error using last known estimate, not current position!
+			dist2 = deltaPosition.length2();
+		}
+		if (dist2 > params.teleportDistance * params.teleportDistance) {
+			const btMatrix3x3 &targetBasis = params.targetObjectTransform.getBasis();
+			m_RigidBody->proceedToTransform(btTransform(targetBasis,
+					params.targetObjectTransform.getOrigin() + (targetBasis * massCenter)));
+			// Angular velocity will be rotated later.
+		}
+	}
+
+	btVector3 linearVelocity = m_RigidBody->getLinearVelocity();
+	ComputeVPhysicsController(linearVelocity, deltaPosition,
+			params.maxSpeed, params.maxDampSpeed, fraction, params.dampFactor, &params.lastImpulse);
+	m_RigidBody->setLinearVelocity(linearVelocity);
+
+	btVector3 axis;
+	btScalar angle;
+	btTransformUtil::calculateDiffAxisAngleQuaternion(
+			params.targetObjectTransform.getRotation(),
+			worldTransform.getRotation(), axis, angle);
+	ComputeVPhysicsController(localAngularVelocity, axis * angle,
+			params.maxAngular, params.maxDampAngular, fraction, params.dampFactor, nullptr);
+	m_RigidBody->setAngularVelocity(m_RigidBody->getWorldTransform().getBasis() * localAngularVelocity);
+
+	// TODO: IMPORTANT - How is all this going to work with setLinearFactor/setAngularFactor to zero???
+	// Check if we will actually have to set mass and inertia to large values rather than setting factors.
+	// Or multiply velocities by the factor if it actually works with factors.
+
+	return secondsToArrival;
 }
 
 /***********

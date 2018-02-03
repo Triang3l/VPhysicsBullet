@@ -4,10 +4,9 @@
 #include "physics_shadow.h"
 #include "physics_object.h"
 
-static void ComputeController(btVector3 &currentSpeed, const btVector3 &delta,
-		btScalar maxSpeed, btScalar maxDampSpeed,
-		btScalar scaleDelta, btScalar damping,
-		btVector3 *outAcceleration) {
+void ComputeVPhysicsController(btVector3 &currentSpeed, const btVector3 &delta,
+		btScalar maxSpeed, btScalar maxDampSpeed, btScalar scaleDelta, btScalar damping,
+		btVector3 *outImpulse) {
 	if (currentSpeed.length2() < 1e-6f) {
 		currentSpeed.setZero();
 	}
@@ -34,8 +33,8 @@ static void ComputeController(btVector3 &currentSpeed, const btVector3 &delta,
 
 	currentSpeed += addVelocity + dampVelocity;
 
-	if (outAcceleration != nullptr) {
-		*outAcceleration = addVelocity;
+	if (outImpulse != nullptr) {
+		*outImpulse = addVelocity;
 	}
 }
 
