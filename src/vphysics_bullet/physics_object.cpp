@@ -1074,6 +1074,10 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 	btTransformUtil::calculateDiffAxisAngleQuaternion(
 			params.targetObjectTransform.getRotation(),
 			worldTransform.getRotation(), axis, angle);
+	if (angle > SIMD_PI) {
+		// Take the shortest path.
+		angle -= SIMD_2_PI;
+	}
 	ComputeVPhysicsController(localAngularVelocity, axis * angle,
 			params.maxAngular, params.maxDampAngular, fraction, params.dampFactor, nullptr);
 	m_RigidBody->setAngularVelocity(m_RigidBody->getWorldTransform().getBasis() * localAngularVelocity);
