@@ -111,9 +111,16 @@ CPhysicsObject::~CPhysicsObject() {
 	m_Callbacks = 0;
 	m_GameData = nullptr;
 
-	DetachFromMotionControllers();
+	if (m_Shadow != nullptr) {
+		delete m_Shadow;
+		m_Shadow = nullptr;
+	}
+	if (m_Player != nullptr) {
+		delete m_Player;
+		m_Player = nullptr;
+	}
 
-	// TODO: Do deletion actions such as unlinking from controllers.
+	DetachFromMotionControllers();
 
 	static_cast<CPhysicsEnvironment *>(m_Environment)->NotifyObjectRemoving(this);
 
@@ -975,6 +982,12 @@ void CPhysicsObject::ApplyEventMotion(bool isWorld, bool isForce,
 	if (wake) {
 		Wake();
 	}
+}
+
+void CPhysicsObject::NotifyAttachedToShadowController(IPhysicsShadowController *shadow) {
+	m_Shadow = shadow;
+	UpdateMoveability();
+	UpdateMaterial();
 }
 
 void CPhysicsObject::StepUp(btScalar height) {

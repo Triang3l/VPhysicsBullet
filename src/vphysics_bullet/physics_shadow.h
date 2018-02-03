@@ -6,10 +6,23 @@
 
 #include "physics_internal.h"
 
+struct ShadowControlBulletParameters_t {
+	btTransform targetTransform;
+	btScalar maxAngular;
+	btScalar maxDampAngular;
+	btScalar maxSpeed;
+	btScalar maxDampSpeed;
+	btScalar dampFactor;
+	btScalar teleportDistance;
+
+	btVector3 lastImpulse;
+};
+
 class CPhysicsShadowController : public IPhysicsShadowController {
 public:
 	CPhysicsShadowController(IPhysicsObject *object,
 			bool allowTranslation, bool allowRotation);
+	virtual ~CPhysicsShadowController();
 
 	// IPhysicsShadowController methods.
 
