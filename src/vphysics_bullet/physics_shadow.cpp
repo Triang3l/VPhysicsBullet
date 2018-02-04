@@ -41,6 +41,8 @@ void ComputeVPhysicsController(btVector3 &currentSpeed, const btVector3 &delta,
 CPhysicsShadowController::CPhysicsShadowController(IPhysicsObject *object,
 			bool allowTranslation, bool allowRotation) :
 		m_Object(object),
+		m_SecondsToArrival(0.0f),
+		m_Enable(false),
 		m_AllowPhysicsMovement(allowTranslation),
 		m_AllowPhysicsRotation(allowRotation),
 		m_UseShadowMaterial(true) {
@@ -83,4 +85,16 @@ void CPhysicsShadowController::UseShadowMaterial(bool bUseShadowMaterial) {
 
 void CPhysicsShadowController::ObjectMaterialChanged(int materialIndex) {
 	// No need to do anything as the object handles the shadow material.
+}
+
+void CPhysicsShadowController::Simulate(btScalar timeStep) {
+	if (!m_Enable) {
+		m_Shadow.lastObjectPosition.setZero();
+		return;
+	}
+	CPhysicsObject *object = static_cast<CPhysicsObject *>(m_Object);
+	object->ComputeBulletShadowControl(m_Shadow, m_SecondsToArrival, timeStep);
+	// If we have time left, subtract it off.
+	m_SecondsToArrival = btMax(m_SecondsToArrival - timeStep, btScalar(0.0f));
+	// TODO: For objects with physics movement allowed, do something with friction snapshots.
 }

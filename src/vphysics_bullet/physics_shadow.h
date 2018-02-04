@@ -44,15 +44,15 @@ public:
 
 	// Internal methods.
 
+	void Simulate(btScalar timeStep);
 	FORCEINLINE bool IsUsingShadowMaterial() const { return m_UseShadowMaterial; }
 
 private:
 	IPhysicsObject *m_Object;
-
 	ShadowControlBulletParameters_t m_Shadow;
-
+	btScalar m_SecondsToArrival;
+	bool m_Enable;
 	bool m_AllowPhysicsMovement, m_AllowPhysicsRotation;
-
 	bool m_UseShadowMaterial;
 };
 

@@ -93,6 +93,12 @@ public:
 	virtual float CalculateLinearDrag(const Vector &unitDirection) const;
 	virtual float CalculateAngularDrag(const Vector &objectSpaceRotationAxis) const;
 
+	virtual void SetShadow(float maxSpeed, float maxAngularSpeed,
+			bool allowPhysicsMovement, bool allowPhysicsRotation);
+	virtual int GetShadowPosition(Vector *position, QAngle *angles) const;
+	virtual IPhysicsShadowController *GetShadowController() const;
+	virtual void RemoveShadowController();
+
 	virtual const CPhysCollide *GetCollide() const;
 
 	virtual const char *GetName() const;
@@ -144,6 +150,7 @@ public:
 	void StepUp(btScalar height); // May be called outside PSIs.
 	btScalar ComputeBulletShadowControl(struct ShadowControlBulletParameters_t &params,
 			btScalar secondsToArrival, btScalar timeStep);
+	void SimulateShadowAndPlayerController(btScalar timeStep);
 
 	FORCEINLINE CPhysicsObject *GetNextCollideObject() const {
 		return m_CollideObjectNext;
@@ -189,6 +196,7 @@ private:
 	void UpdateMassProps();
 
 	bool m_GravityEnabled;
+	bool m_ShadowTempGravityDisable;
 	float m_Damping, m_RotDamping;
 
 	int m_MaterialIndex, m_RealMaterialIndex;

@@ -22,6 +22,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_MassCenterOverride(0.0f, 0.0f, 0.0f),
 		m_Mass((!isStatic && !collide->GetShape()->isNonMoving()) ? params->mass : 0.0f),
 		m_HingeHLAxis(-1),
+		m_ShadowTempGravityDisable(false),
 		m_Damping(params->damping), m_RotDamping(params->rotdamping),
 		m_MaterialIndex(materialIndex), m_RealMaterialIndex(-1),
 		m_ContentsMask(CONTENTS_SOLID),
@@ -107,13 +108,10 @@ CPhysicsObject::~CPhysicsObject() {
 	m_Callbacks = 0;
 	m_GameData = nullptr;
 
-	if (m_Shadow != nullptr) {
-		delete m_Shadow;
-		m_Shadow = nullptr;
-	}
+	RemoveShadowController();
 	if (m_Player != nullptr) {
-		delete m_Player;
-		m_Player = nullptr;
+		m_Environment->DestroyPlayerController(m_Player);
+		Assert(m_Player == nullptr);
 	}
 
 	DetachFromMotionControllers();
@@ -307,6 +305,10 @@ void CPhysicsObject::Sleep() {
  **********************/
 
 bool CPhysicsObject::IsGravityEnabled() const {
+	if (m_ShadowTempGravityDisable ||
+			(m_Shadow != nullptr && !m_Shadow->AllowsTranslation()) || IsTrigger()) {
+		return false;
+	}
 	return m_GravityEnabled;
 }
 
@@ -314,6 +316,7 @@ void CPhysicsObject::EnableGravity(bool enable) {
 	if (IsStatic()) {
 		return;
 	}
+	// IsGravityEnabled comparison shouldn't be done because of shadow and trigger overrides.
 	m_GravityEnabled = enable;
 }
 
@@ -418,6 +421,9 @@ void CPhysicsObject::ComputeDragBases() {
 }
 
 bool CPhysicsObject::IsDragEnabled() const {
+	if (m_Shadow != nullptr || IsTrigger()) {
+		return false;
+	}
 	return m_DragEnabled;
 }
 
@@ -425,6 +431,7 @@ void CPhysicsObject::EnableDrag(bool enable) {
 	if (IsStatic()) {
 		return;
 	}
+	// IsDragEnabled comparison shouldn't be done because of shadow and trigger overrides.
 	m_DragEnabled = enable;
 }
 
@@ -986,6 +993,43 @@ void CPhysicsObject::ApplyEventMotion(bool isWorld, bool isForce,
 	}
 }
 
+void CPhysicsObject::SetShadow(float maxSpeed, float maxAngularSpeed,
+		bool allowPhysicsMovement, bool allowPhysicsRotation) {
+	if (m_Shadow == nullptr) {
+		m_ShadowTempGravityDisable = false;
+		SetCallbackFlags((GetCallbackFlags() | CALLBACK_SHADOW_COLLISION) &
+				~(CALLBACK_GLOBAL_FRICTION | CALLBACK_GLOBAL_COLLIDE_STATIC));
+		m_Environment->CreateShadowController(this, allowPhysicsMovement, allowPhysicsRotation);
+	}
+	m_Shadow->MaxSpeed(maxSpeed, maxAngularSpeed);
+}
+
+int CPhysicsObject::GetShadowPosition(Vector *position, QAngle *angles) const {
+	btTransform transform;
+	btTransformUtil::integrateTransform(m_RigidBody->getWorldTransform(),
+			m_RigidBody->getLinearVelocity(), m_RigidBody->getAngularVelocity(),
+			m_Environment->GetSimulationTimestep(), transform);
+	if (position != nullptr) {
+		ConvertPositionToHL(transform.getOrigin() -
+				(transform.getBasis() * GetBulletMassCenter()), *position);
+	}
+	if (angles != nullptr) {
+		ConvertRotationToHL(transform.getBasis(), *angles);
+	}
+	return static_cast<CPhysicsEnvironment *>(m_Environment)->GetSimulatedPSIs();
+}
+
+IPhysicsShadowController *CPhysicsObject::GetShadowController() const {
+	return m_Shadow;
+}
+
+void CPhysicsObject::RemoveShadowController() {
+	if (m_Shadow != nullptr) {
+		m_Environment->DestroyShadowController(m_Shadow);
+		Assert(m_Shadow == nullptr);
+	}
+}
+
 void CPhysicsObject::NotifyAttachedToShadowController(IPhysicsShadowController *shadow) {
 	m_Shadow = shadow;
 	UpdateMassProps();
@@ -1067,6 +1111,13 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 	return secondsToArrival;
 }
 
+void CPhysicsObject::SimulateShadowAndPlayerController(btScalar timeStep) {
+	if (m_Shadow != nullptr) {
+		static_cast<CPhysicsShadowController *>(m_Shadow)->Simulate(timeStep);
+	}
+	// TODO: Simulate player controller.
+}
+
 /***********
  * Triggers
  ***********/
@@ -1079,8 +1130,6 @@ void CPhysicsObject::BecomeTrigger() {
 	if (IsTrigger()) {
 		return;
 	}
-	EnableDrag(false);
-	EnableGravity(false);
 	m_RigidBody->setCollisionFlags(m_RigidBody->getCollisionFlags() |
 			btCollisionObject::CF_NO_CONTACT_RESPONSE);
 }
