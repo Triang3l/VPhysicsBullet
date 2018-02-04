@@ -34,10 +34,13 @@ public:
 	// IPhysicsShadowController methods.
 
 	virtual void StepUp(float height);
+	virtual void SetTeleportDistance(float teleportDistance);
 	virtual bool AllowsTranslation();
 	virtual bool AllowsRotation();
+	virtual void GetLastImpulse(Vector *pOut);
 	virtual void UseShadowMaterial(bool bUseShadowMaterial);
 	virtual void ObjectMaterialChanged(int materialIndex);
+	virtual float GetTeleportDistance();
 
 	// Internal methods.
 
@@ -45,6 +48,8 @@ public:
 
 private:
 	IPhysicsObject *m_Object;
+
+	ShadowControlBulletParameters_t m_Shadow;
 
 	bool m_AllowPhysicsMovement, m_AllowPhysicsRotation;
 
