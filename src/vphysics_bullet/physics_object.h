@@ -114,9 +114,6 @@ public:
 		return wasAsleep;
 	}
 
-	FORCEINLINE bool CanReceiveForce() const { return !m_RigidBody->getLinearFactor().isZero(); }
-	FORCEINLINE bool CanReceiveTorque() const { return !m_RigidBody->getAngularFactor().isZero(); }
-
 	// Bullet doesn't allow damping factors over 1, so it has to be done manually.
 	// Also applies damping in a way more similar to how IVP VPhysics does it.
 	void ApplyDamping(btScalar timeStep);
@@ -188,11 +185,8 @@ private:
 
 	float m_Mass;
 	Vector m_Inertia;
-	int m_HingeAxis;
+	int m_HingeHLAxis;
 	void UpdateMassProps();
-
-	bool m_MotionEnabled;
-	void UpdateMoveability();
 
 	bool m_GravityEnabled;
 	float m_Damping, m_RotDamping;

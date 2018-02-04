@@ -21,8 +21,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_CollideObjectNext(this), m_CollideObjectPrevious(this),
 		m_MassCenterOverride(0.0f, 0.0f, 0.0f),
 		m_Mass((!isStatic && !collide->GetShape()->isNonMoving()) ? params->mass : 0.0f),
-		m_HingeAxis(-1),
-		m_MotionEnabled(true),
+		m_HingeHLAxis(-1),
 		m_Damping(params->damping), m_RotDamping(params->rotdamping),
 		m_MaterialIndex(materialIndex), m_RealMaterialIndex(-1),
 		m_ContentsMask(CONTENTS_SOLID),
@@ -89,9 +88,6 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_DragEnabled = (m_DragCoefficient != 0.0f);
 	} else {
 		const btVector3 zero(0.0f, 0.0f, 0.0f);
-		// To remove additional IsStatic check in CanReceiveForce/Torque.
-		m_RigidBody->setLinearFactor(zero);
-		m_RigidBody->setAngularFactor(zero);
 		m_GravityEnabled = false;
 		m_DragCoefficient = m_AngularDragCoefficient = 0.0f;
 		m_DragBasis.setZero();
@@ -175,12 +171,10 @@ bool CPhysicsObject::IsStatic() const {
 }
 
 void CPhysicsObject::UpdateMassProps() {
+	// GetMass and GetInertia handle the overrides (shadows, hinge).
 	btVector3 bulletInertia;
-	ConvertInertiaToBullet(m_Inertia, bulletInertia);
-	if (m_HingeAxis >= 0) {
-		bulletInertia[m_HingeAxis] = 50000.0f;
-	}
-	m_RigidBody->setMassProps(m_Mass, bulletInertia);
+	ConvertInertiaToBullet(GetInertia(), bulletInertia);
+	m_RigidBody->setMassProps(GetMass(), bulletInertia);
 	m_RigidBody->updateInertiaTensor();
 }
 
@@ -195,6 +189,10 @@ void CPhysicsObject::SetMass(float mass) {
 }
 
 float CPhysicsObject::GetMass() const {
+	// Must handle all the overrides here because UpdateMassProps calls this.
+	if (m_Shadow != nullptr && !m_Shadow->AllowsTranslation()) {
+		return BT_LARGE_FLOAT;
+	}
 	return m_Mass;
 }
 
@@ -203,9 +201,13 @@ float CPhysicsObject::GetInvMass() const {
 }
 
 Vector CPhysicsObject::GetInertia() const {
+	// Must handle all the overrides here because UpdateMassProps calls this.
+	if (m_Shadow != nullptr && !m_Shadow->AllowsRotation()) {
+		return Vector(BT_LARGE_FLOAT, BT_LARGE_FLOAT, BT_LARGE_FLOAT);
+	}
 	Vector inertia = m_Inertia;
-	if (m_HingeAxis >= 0) {
-		inertia[ConvertCoordinateAxisToHL(m_HingeAxis)] = 50000.0f;
+	if (m_HingeHLAxis >= 0) {
+		inertia[m_HingeHLAxis] = BT_LARGE_FLOAT;
 	}
 	return m_Inertia;
 }
@@ -225,7 +227,7 @@ void CPhysicsObject::SetInertia(const Vector &inertia) {
 }
 
 bool CPhysicsObject::IsHinged() const {
-	return m_HingeAxis >= 0;
+	return m_HingeHLAxis >= 0;
 }
 
 void CPhysicsObject::BecomeHinged(int localAxis) {
@@ -233,11 +235,11 @@ void CPhysicsObject::BecomeHinged(int localAxis) {
 	if (IsStatic()) {
 		return;
 	}
-	int bulletAxis = ConvertCoordinateAxisToBullet(localAxis);
-	if (m_HingeAxis == bulletAxis) {
+	if (localAxis < 0 || localAxis > 2) {
+		RemoveHinged();
 		return;
 	}
-	m_HingeAxis = bulletAxis;
+	m_HingeHLAxis = localAxis;
 	UpdateMassProps();
 }
 
@@ -245,17 +247,15 @@ void CPhysicsObject::RemoveHinged() {
 	if (!IsHinged()) {
 		return;
 	}
-	m_HingeAxis = -1;
+	m_HingeHLAxis = -1;
 	UpdateMassProps();
 }
 
 bool CPhysicsObject::IsMotionEnabled() const {
-	return m_MotionEnabled;
+	return !m_RigidBody->getLinearFactor().isZero();
 }
 
 bool CPhysicsObject::IsMoveable() const {
-	// By definition of the method in the interface, this is how it must be implemented.
-	// The game handles the shadow controller case in certain places separately.
 	return !IsStatic() && IsMotionEnabled();
 }
 
@@ -263,42 +263,19 @@ void CPhysicsObject::EnableMotion(bool enable) {
 	if (IsMotionEnabled() == enable) {
 		return;
 	}
-	m_MotionEnabled = enable;
-	UpdateMoveability();
-}
-
-void CPhysicsObject::UpdateMoveability() {
-	if (IsStatic()) {
-		return;
-	}
-
-	const btVector3 zero(0.0f, 0.0f, 0.0f), one(1.0f, 1.0f, 1.0f);
-
-	if (m_MotionEnabled && (m_Shadow == nullptr || m_Shadow->AllowsTranslation())) {
-		if (!CanReceiveForce()) {
-			m_RigidBody->setLinearFactor(one);
-		}
+	if (enable) {
+		m_RigidBody->setLinearFactor(btVector3(1.0f, 1.0f, 1.0f));
 	} else {
-		if (CanReceiveForce()) {
-			m_RigidBody->setLinearFactor(zero);
-			m_RigidBody->setLinearVelocity(zero);
-			m_LinearVelocityChange.setZero();
-			// Freeze in place if called externally, don't wait for the next PSI.
-			m_InterpolationLinearVelocity.setZero();
-		}
-	}
-
-	if (m_MotionEnabled && (m_Shadow == nullptr || m_Shadow->AllowsRotation())) {
-		if (!CanReceiveForce()) {
-			m_RigidBody->setAngularFactor(one);
-		}
-	} else {
-		if (CanReceiveTorque()) {
-			m_RigidBody->setAngularFactor(zero);
-			m_RigidBody->setAngularVelocity(zero);
-			m_LocalAngularVelocityChange.setZero();
-			m_InterpolationAngularVelocity.setZero();
-		}
+		btVector3 zero(0.0f, 0.0f, 0.0f);
+		m_RigidBody->setLinearFactor(zero);
+		m_RigidBody->setAngularFactor(zero);
+		m_RigidBody->setLinearVelocity(zero);
+		m_RigidBody->setAngularVelocity(zero);
+		m_LinearVelocityChange.setZero();
+		m_LocalAngularVelocityChange.setZero();
+		// Freeze in place if called externally, don't wait for the next PSI.
+		m_InterpolationLinearVelocity.setZero();
+		m_InterpolationAngularVelocity.setZero();
 	}
 }
 
@@ -402,7 +379,7 @@ void CPhysicsObject::ApplyDamping(btScalar timeStep) {
 }
 
 void CPhysicsObject::ApplyGravity(btScalar timeStep) {
-	if (!CanReceiveForce() || IsAsleep() || !IsGravityEnabled()) {
+	if (!IsMoveable() || IsAsleep() || !IsGravityEnabled()) {
 		return;
 	}
 	m_RigidBody->setLinearVelocity(m_RigidBody->getLinearVelocity() +
@@ -732,26 +709,28 @@ void CPhysicsObject::InterpolateWorldTransform() {
 }
 
 void CPhysicsObject::ApplyForcesAndSpeedLimit(btScalar timeStep) {
+	if (!IsMoveable()) {
+		// The velocity change variables are locked when moveability is disabled anyway.
+		return;
+	}
 	if (!IsAsleep()) {
 		const CPhysicsEnvironment *environment = static_cast<const CPhysicsEnvironment *>(m_Environment);
-		if (CanReceiveForce()) {
-			btVector3 linearVelocity = m_RigidBody->getLinearVelocity() + m_LinearVelocityChange;
-			btScalar maxSpeed = environment->GetMaxSpeed();
-			btClamp(linearVelocity[0], -maxSpeed, maxSpeed);
-			btClamp(linearVelocity[1], -maxSpeed, maxSpeed);
-			btClamp(linearVelocity[2], -maxSpeed, maxSpeed);
-			m_RigidBody->setLinearVelocity(linearVelocity);
-		}
-		if (CanReceiveTorque()) {
-			const btMatrix3x3 &worldTransform = m_RigidBody->getWorldTransform().getBasis();
-			btVector3 localAngularVelocity = (m_RigidBody->getAngularVelocity() * worldTransform) +
-					m_LocalAngularVelocityChange;
-			btScalar maxAngularSpeed = environment->GetMaxAngularSpeed();
-			btClamp(localAngularVelocity[0], -maxAngularSpeed, maxAngularSpeed);
-			btClamp(localAngularVelocity[1], -maxAngularSpeed, maxAngularSpeed);
-			btClamp(localAngularVelocity[2], -maxAngularSpeed, maxAngularSpeed);
-			m_RigidBody->setAngularVelocity(worldTransform * localAngularVelocity);
-		}
+
+		btVector3 linearVelocity = m_RigidBody->getLinearVelocity() + m_LinearVelocityChange;
+		btScalar maxSpeed = environment->GetMaxSpeed();
+		btClamp(linearVelocity[0], -maxSpeed, maxSpeed);
+		btClamp(linearVelocity[1], -maxSpeed, maxSpeed);
+		btClamp(linearVelocity[2], -maxSpeed, maxSpeed);
+		m_RigidBody->setLinearVelocity(linearVelocity);
+
+		const btMatrix3x3 &worldTransform = m_RigidBody->getWorldTransform().getBasis();
+		btVector3 localAngularVelocity = (m_RigidBody->getAngularVelocity() * worldTransform) +
+				m_LocalAngularVelocityChange;
+		btScalar maxAngularSpeed = environment->GetMaxAngularSpeed();
+		btClamp(localAngularVelocity[0], -maxAngularSpeed, maxAngularSpeed);
+		btClamp(localAngularVelocity[1], -maxAngularSpeed, maxAngularSpeed);
+		btClamp(localAngularVelocity[2], -maxAngularSpeed, maxAngularSpeed);
+		m_RigidBody->setAngularVelocity(worldTransform * localAngularVelocity);
 	}
 	m_LinearVelocityChange.setZero();
 	m_LocalAngularVelocityChange.setZero();
@@ -763,14 +742,17 @@ void CPhysicsObject::CheckAndClearBulletForces() {
 }
 
 void CPhysicsObject::SetVelocity(const Vector *velocity, const AngularImpulse *angularVelocity) {
+	if (!IsMoveable()) {
+		return;
+	}
 	btVector3 zero(0.0f, 0.0f, 0.0f);
 	bool wake = false;
-	if (velocity != nullptr && CanReceiveForce()) {
+	if (velocity != nullptr) {
 		ConvertPositionToBullet(*velocity, m_LinearVelocityChange);
 		m_RigidBody->setLinearVelocity(zero);
 		wake = (wake || !m_LinearVelocityChange.isZero());
 	}
-	if (angularVelocity != nullptr && CanReceiveTorque()) {
+	if (angularVelocity != nullptr) {
 		ConvertAngularImpulseToBullet(*angularVelocity, m_LocalAngularVelocityChange);
 		m_RigidBody->setAngularVelocity(zero);
 		wake = (wake || !m_LocalAngularVelocityChange.isZero());
@@ -781,9 +763,12 @@ void CPhysicsObject::SetVelocity(const Vector *velocity, const AngularImpulse *a
 }
 
 void CPhysicsObject::SetVelocityInstantaneous(const Vector *velocity, const AngularImpulse *angularVelocity) {
+	if (!IsMoveable()) {
+		return;
+	}
 	const CPhysicsEnvironment *environment = static_cast<const CPhysicsEnvironment *>(m_Environment);
 	bool wake = false;
-	if (velocity != nullptr && CanReceiveForce()) {
+	if (velocity != nullptr) {
 		btVector3 bulletVelocity;
 		ConvertPositionToBullet(*velocity, bulletVelocity);
 		btScalar maxSpeed = environment->GetMaxSpeed();
@@ -795,7 +780,7 @@ void CPhysicsObject::SetVelocityInstantaneous(const Vector *velocity, const Angu
 		m_InterpolationLinearVelocity = bulletVelocity;
 		wake = (wake || !bulletVelocity.isZero());
 	}
-	if (angularVelocity != nullptr && CanReceiveTorque()) {
+	if (angularVelocity != nullptr) {
 		btVector3 bulletAngularVelocity;
 		ConvertAngularImpulseToBullet(*angularVelocity, bulletAngularVelocity);
 		btScalar maxAngularSpeed = environment->GetMaxAngularSpeed();
@@ -838,22 +823,20 @@ void CPhysicsObject::GetVelocityAtPoint(const Vector &worldPosition, Vector *pVe
 }
 
 void CPhysicsObject::AddVelocity(const Vector *velocity, const AngularImpulse *angularVelocity) {
-	bool wake = false;
-	if (velocity != nullptr && CanReceiveForce()) {
+	if (!IsMoveable()) {
+		return;
+	}
+	if (velocity != nullptr) {
 		btVector3 bulletVelocity;
 		ConvertPositionToBullet(*velocity, bulletVelocity);
 		m_LinearVelocityChange += bulletVelocity;
-		wake = true;
 	}
-	if (angularVelocity != nullptr && CanReceiveTorque()) {
+	if (angularVelocity != nullptr) {
 		btVector3 bulletAngularVelocity;
 		ConvertAngularImpulseToBullet(*angularVelocity, bulletAngularVelocity);
 		m_LocalAngularVelocityChange += bulletAngularVelocity;
-		wake = true;
 	}
-	if (wake) {
-		Wake();
-	}
+	Wake();
 }
 
 float CPhysicsObject::GetEnergy() const {
@@ -868,7 +851,7 @@ float CPhysicsObject::GetEnergy() const {
 }
 
 void CPhysicsObject::ApplyForceCenter(const Vector &forceVector) {
-	if (!CanReceiveForce()) {
+	if (!IsMoveable()) {
 		return;
 	}
 	btVector3 bulletForce;
@@ -878,27 +861,22 @@ void CPhysicsObject::ApplyForceCenter(const Vector &forceVector) {
 }
 
 void CPhysicsObject::ApplyForceOffset(const Vector &forceVector, const Vector &worldPosition) {
-	bool applyForce = CanReceiveForce(), applyTorque = CanReceiveTorque();
-	if (!applyForce && !applyTorque) {
+	if (!IsMoveable()) {
 		return;
 	}
 	btVector3 bulletWorldForce;
 	ConvertForceImpulseToBullet(forceVector, bulletWorldForce);
-	if (applyForce) {
-		m_LinearVelocityChange += bulletWorldForce * m_RigidBody->getInvMass();
-	}
-	if (applyTorque) {
-		btVector3 bulletWorldPosition;
-		ConvertPositionToBullet(worldPosition, bulletWorldPosition);
-		const btTransform &worldTransform = m_RigidBody->getWorldTransform();
-		m_LocalAngularVelocityChange += ((bulletWorldPosition - worldTransform.getOrigin()).cross(
-				bulletWorldForce) * worldTransform.getBasis()) * m_RigidBody->getInvInertiaDiagLocal();
-	}
+	m_LinearVelocityChange += bulletWorldForce * m_RigidBody->getInvMass();
+	btVector3 bulletWorldPosition;
+	ConvertPositionToBullet(worldPosition, bulletWorldPosition);
+	const btTransform &worldTransform = m_RigidBody->getWorldTransform();
+	m_LocalAngularVelocityChange += ((bulletWorldPosition - worldTransform.getOrigin()).cross(
+			bulletWorldForce) * worldTransform.getBasis()) * m_RigidBody->getInvInertiaDiagLocal();
 	Wake();
 }
 
 void CPhysicsObject::ApplyTorqueCenter(const AngularImpulse &torque) {
-	if (!CanReceiveTorque()) {
+	if (!IsMoveable()) {
 		return;
 	}
 	btVector3 bulletWorldTorque;
@@ -961,6 +939,7 @@ void CPhysicsObject::DetachFromMotionControllers() {
 
 void CPhysicsObject::SimulateMotionControllers(
 		IPhysicsMotionController::priority_t priority, btScalar timeStep) {
+	// Simulating even if not moveable because the controller may toggle moveability.
 	int controllerCount = m_MotionControllers.Count();
 	for (int controllerIndex = 0; controllerIndex < controllerCount; ++controllerIndex) {
 		CPhysicsMotionController *controller = static_cast<CPhysicsMotionController *>(
@@ -973,9 +952,12 @@ void CPhysicsObject::SimulateMotionControllers(
 
 void CPhysicsObject::ApplyEventMotion(bool isWorld, bool isForce,
 		const btVector3 &linear, const btVector3 &angular) {
+	if (!IsMoveable()) {
+		return;
+	}
 	const btMatrix3x3 &worldTransform = m_RigidBody->getWorldTransform().getBasis();
 	bool wake = false;
-	if (CanReceiveForce() && !linear.isZero()) {
+	if (!linear.isZero()) {
 		btVector3 worldLinearAcceleration = linear;
 		if (!isWorld) {
 			worldLinearAcceleration = worldTransform * worldLinearAcceleration;
@@ -987,7 +969,7 @@ void CPhysicsObject::ApplyEventMotion(bool isWorld, bool isForce,
 				worldLinearAcceleration);
 		wake = true;
 	}
-	if (CanReceiveTorque() && !angular.isZero()) {
+	if (!angular.isZero()) {
 		btVector3 localAngularAcceleration = angular;
 		if (isWorld) {
 			localAngularAcceleration = localAngularAcceleration * worldTransform;
@@ -1006,7 +988,7 @@ void CPhysicsObject::ApplyEventMotion(bool isWorld, bool isForce,
 
 void CPhysicsObject::NotifyAttachedToShadowController(IPhysicsShadowController *shadow) {
 	m_Shadow = shadow;
-	UpdateMoveability();
+	UpdateMassProps();
 	UpdateMaterial();
 }
 
@@ -1034,7 +1016,7 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 		fraction = btMin(timeStep / secondsToArrival, btScalar(1.0f));
 	}
 	secondsToArrival = btMax(secondsToArrival - timeStep, btScalar(0.0f));
-	if (fraction <= 0.0f) {
+	if (fraction <= 0.0f || !IsMoveable()) {
 		return secondsToArrival;
 	}
 	fraction *= 1.0f / timeStep;
@@ -1081,10 +1063,6 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 	ComputeVPhysicsController(localAngularVelocity, axis * angle,
 			params.maxAngular, params.maxDampAngular, fraction, params.dampFactor, nullptr);
 	m_RigidBody->setAngularVelocity(m_RigidBody->getWorldTransform().getBasis() * localAngularVelocity);
-
-	// TODO: IMPORTANT - How is all this going to work with setLinearFactor/setAngularFactor to zero???
-	// Check if we will actually have to set mass and inertia to large values rather than setting factors.
-	// Or multiply velocities by the factor if it actually works with factors.
 
 	return secondsToArrival;
 }
