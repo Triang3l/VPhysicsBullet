@@ -1154,6 +1154,13 @@ void CPhysicsObject::RecheckCollisionFilter() {
 	static_cast<CPhysicsEnvironment *>(m_Environment)->RecheckObjectCollisionFilter(m_RigidBody);
 }
 
+void CPhysicsObject::RecheckContactPoints() {
+	// The game calls this only after doing things that change collision rules,
+	// so RecheckCollisionFilter is always called prior to this.
+	// RecheckCollisionFilter removes obsolete contact points, so this isn't needed.
+	// There also were plans to make it recheck contact points in IVP VPhysics.
+}
+
 /***********
  * Triggers
  ***********/

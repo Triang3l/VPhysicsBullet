@@ -46,6 +46,7 @@ public:
 	virtual void Sleep();
 
 	virtual void RecheckCollisionFilter();
+	virtual void RecheckContactPoints();
 
 	virtual void SetMass(float mass);
 	virtual float GetMass() const;
