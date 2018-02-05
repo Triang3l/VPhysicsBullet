@@ -1141,7 +1141,17 @@ bool CPhysicsObject::IsCollisionEnabled() const {
 }
 
 void CPhysicsObject::EnableCollisions(bool enable) {
+	if (IsCollisionEnabled() == enable) {
+		return;
+	}
 	m_CollisionEnabled = enable;
+	if (!enable) {
+		static_cast<CPhysicsEnvironment *>(m_Environment)->RemoveObjectCollisionPairs(m_RigidBody);
+	}
+}
+
+void CPhysicsObject::RecheckCollisionFilter() {
+	static_cast<CPhysicsEnvironment *>(m_Environment)->RecheckObjectCollisionFilter(m_RigidBody);
 }
 
 /***********

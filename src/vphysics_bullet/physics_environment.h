@@ -82,6 +82,9 @@ public:
 	FORCEINLINE int GetSimulatedPSIs() const { return m_SimulatedPSIs; }
 	FORCEINLINE btScalar GetInvPSIScale() const { return m_InvPSIScale; }
 
+	void RecheckObjectCollisionFilter(btCollisionObject *object);
+	void RemoveObjectCollisionPairs(btCollisionObject *object);
+
 	void NotifyTriggerRemoved(IPhysicsObject *trigger);
 
 	FORCEINLINE btScalar GetMaxSpeed() const {

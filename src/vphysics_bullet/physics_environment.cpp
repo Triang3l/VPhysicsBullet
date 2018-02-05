@@ -377,12 +377,14 @@ void CPhysicsEnvironment::TickCallback(btDynamicsWorld *world, btScalar timeStep
 	environment->m_InSimulation = false;
 }
 
-/*******************
- * Collision events
- *******************/
+/************
+ * Collision
+ ************/
 
 void CPhysicsEnvironment::SetCollisionSolver(IPhysicsCollisionSolver *pSolver) {
 	m_CollisionSolver = pSolver;
+	// Assuming this is only called when setting up, so not rechecking collision filter.
+	// IVP VPhysics assumes this too.
 }
 
 bool CPhysicsEnvironment::OverlapFilterCallback::needBroadphaseCollision(
@@ -433,6 +435,42 @@ bool CPhysicsEnvironment::OverlapFilterCallback::needBroadphaseCollision(
 
 void CPhysicsEnvironment::SetCollisionEventHandler(IPhysicsCollisionEvent *pCollisionEvents) {
 	m_CollisionEvents = pCollisionEvents;
+}
+
+void CPhysicsEnvironment::RecheckObjectCollisionFilter(btCollisionObject *object) {
+	class RecheckObjectCollisionFilterCallback : public btOverlapCallback {
+		btCollisionObject *m_Object;
+		btOverlapFilterCallback *m_Filter;
+	public:
+		RecheckObjectCollisionFilterCallback(btCollisionObject *object, btOverlapFilterCallback *filter) :
+				m_Object(object), m_Filter(filter) {}
+		virtual bool processOverlap(btBroadphasePair &pair) {
+			if (reinterpret_cast<btCollisionObject *>(pair.m_pProxy0->m_clientObject) == m_Object ||
+					reinterpret_cast<btCollisionObject *>(pair.m_pProxy1->m_clientObject) == m_Object) {
+				return !m_Filter->needBroadphaseCollision(pair.m_pProxy0, pair.m_pProxy1);
+			}
+			return false;
+		}
+	};
+	RecheckObjectCollisionFilterCallback recheckCallback(object, &m_OverlapFilterCallback);
+	m_Broadphase->getOverlappingPairCache()->processAllOverlappingPairs(&recheckCallback, m_Dispatcher);
+	// Narrowphase contact manifolds are cleared by overlapping pair destruction.
+	// No need to add any pairs here, wait until the next PSI (this is usually called during game ticks).
+}
+
+void CPhysicsEnvironment::RemoveObjectCollisionPairs(btCollisionObject *object) {
+	class RemoveObjectCollisionPairsCallback : public btOverlapCallback {
+		btCollisionObject *m_Object;
+	public:
+		RemoveObjectCollisionPairsCallback(btCollisionObject *object) : m_Object(object) {}
+		virtual bool processOverlap(btBroadphasePair &pair) {
+			return (reinterpret_cast<btCollisionObject *>(pair.m_pProxy0->m_clientObject) == m_Object ||
+					reinterpret_cast<btCollisionObject *>(pair.m_pProxy1->m_clientObject) == m_Object);
+		}
+	};
+	RemoveObjectCollisionPairsCallback removeCallback(object);
+	m_Broadphase->getOverlappingPairCache()->processAllOverlappingPairs(&removeCallback, m_Dispatcher);
+	// Narrowphase contact manifolds are cleared by overlapping pair destruction.
 }
 
 void CPhysicsEnvironment::CheckTriggerTouches() {

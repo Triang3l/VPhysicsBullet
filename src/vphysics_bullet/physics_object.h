@@ -45,6 +45,8 @@ public:
 	virtual void Wake();
 	virtual void Sleep();
 
+	virtual void RecheckCollisionFilter();
+
 	virtual void SetMass(float mass);
 	virtual float GetMass() const;
 	virtual float GetInvMass() const;
