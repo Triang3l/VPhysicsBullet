@@ -1004,7 +1004,7 @@ void CPhysicsObject::SetShadow(float maxSpeed, float maxAngularSpeed,
 	m_Shadow->MaxSpeed(maxSpeed, maxAngularSpeed);
 }
 
-void CPhysicsShadow::UpdateShadow(const Vector &targetPosition, const QAngle &targetAngles,
+void CPhysicsObject::UpdateShadow(const Vector &targetPosition, const QAngle &targetAngles,
 		bool tempDisableGravity, float timeOffset) {
 	m_ShadowTempGravityDisable = tempDisableGravity;
 	if (m_Shadow != nullptr) {
@@ -1036,6 +1036,11 @@ void CPhysicsObject::RemoveShadowController() {
 		m_Environment->DestroyShadowController(m_Shadow);
 		Assert(m_Shadow == nullptr);
 	}
+}
+
+float CPhysicsObject::ComputeShadowControl(const hlshadowcontrol_params_t &params,
+		float secondsToArrival, float dt) {
+	return ComputeBulletShadowControl(ShadowControlBulletParameters_t(params), secondsToArrival, dt);
 }
 
 void CPhysicsObject::NotifyAttachedToShadowController(IPhysicsShadowController *shadow) {
@@ -1079,41 +1084,41 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 	btVector3 objectPosition = worldTransform.getOrigin() - (worldTransform.getBasis() * massCenter);
 	btVector3 localAngularVelocity = m_RigidBody->getAngularVelocity() * worldTransform.getBasis();
 
-	btVector3 deltaPosition = params.targetObjectTransform.getOrigin() - objectPosition;
+	btVector3 deltaPosition = params.m_TargetObjectTransform.getOrigin() - objectPosition;
 
-	if (params.teleportDistance > 0.0f) {
+	if (params.m_TeleportDistance > 0.0f) {
 		btScalar dist2;
-		if (!params.lastObjectPosition.isZero()) {
-			dist2 = (objectPosition - params.lastObjectPosition).length2();
+		if (!params.m_LastObjectPosition.isZero()) {
+			dist2 = (objectPosition - params.m_LastObjectPosition).length2();
 		} else {
 			// UNDONE: This is totally bogus!
 			// Measure error using last known estimate, not current position!
 			dist2 = deltaPosition.length2();
 		}
-		if (dist2 > params.teleportDistance * params.teleportDistance) {
-			const btMatrix3x3 &targetBasis = params.targetObjectTransform.getBasis();
+		if (dist2 > params.m_TeleportDistance * params.m_TeleportDistance) {
+			const btMatrix3x3 &targetBasis = params.m_TargetObjectTransform.getBasis();
 			m_RigidBody->proceedToTransform(btTransform(targetBasis,
-					params.targetObjectTransform.getOrigin() + (targetBasis * massCenter)));
+					params.m_TargetObjectTransform.getOrigin() + (targetBasis * massCenter)));
 			// Angular velocity will be rotated later.
 		}
 	}
 
 	btVector3 linearVelocity = m_RigidBody->getLinearVelocity();
 	ComputeVPhysicsController(linearVelocity, deltaPosition,
-			params.maxSpeed, params.maxDampSpeed, fraction, params.dampFactor, &params.lastImpulse);
+			params.m_MaxSpeed, params.m_MaxDampSpeed, fraction, params.m_DampFactor, &params.m_LastImpulse);
 	m_RigidBody->setLinearVelocity(linearVelocity);
 
 	btVector3 axis;
 	btScalar angle;
 	btTransformUtil::calculateDiffAxisAngleQuaternion(
-			params.targetObjectTransform.getRotation(),
+			params.m_TargetObjectTransform.getRotation(),
 			worldTransform.getRotation(), axis, angle);
 	if (angle > SIMD_PI) {
 		// Take the shortest path.
 		angle -= SIMD_2_PI;
 	}
 	ComputeVPhysicsController(localAngularVelocity, axis * angle,
-			params.maxAngular, params.maxDampAngular, fraction, params.dampFactor, nullptr);
+			params.m_MaxAngular, params.m_MaxDampAngular, fraction, params.m_DampFactor, nullptr);
 	m_RigidBody->setAngularVelocity(m_RigidBody->getWorldTransform().getBasis() * localAngularVelocity);
 
 	return secondsToArrival;

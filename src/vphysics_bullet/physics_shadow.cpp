@@ -47,7 +47,7 @@ CPhysicsShadowController::CPhysicsShadowController(IPhysicsObject *object,
 		m_AllowPhysicsRotation(allowRotation),
 		m_UseShadowMaterial(true) {
 	memset(&m_Shadow, 0, sizeof(m_Shadow));
-	m_Shadow.dampFactor = 1.0f;
+	m_Shadow.m_DampFactor = 1.0f;
 	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToShadowController(this);
 }
 
@@ -60,11 +60,11 @@ void CPhysicsShadowController::StepUp(float height) {
 }
 
 void CPhysicsShadowController::SetTeleportDistance(float teleportDistance) {
-	m_Shadow.teleportDistance = HL2BULLET(teleportDistance);
+	m_Shadow.m_TeleportDistance = HL2BULLET(teleportDistance);
 }
 
 float CPhysicsShadowController::GetTeleportDistance() {
-	return BULLET2HL(m_Shadow.teleportDistance);
+	return BULLET2HL(m_Shadow.m_TeleportDistance);
 }
 
 bool CPhysicsShadowController::AllowsTranslation() {
@@ -76,7 +76,7 @@ bool CPhysicsShadowController::AllowsRotation() {
 }
 
 void CPhysicsShadowController::GetLastImpulse(Vector *pOut) {
-	ConvertPositionToHL(m_Shadow.lastImpulse, *pOut);
+	ConvertPositionToHL(m_Shadow.m_LastImpulse, *pOut);
 }
 
 void CPhysicsShadowController::UseShadowMaterial(bool bUseShadowMaterial) {
@@ -89,7 +89,7 @@ void CPhysicsShadowController::ObjectMaterialChanged(int materialIndex) {
 
 void CPhysicsShadowController::Simulate(btScalar timeStep) {
 	if (!m_Enable) {
-		m_Shadow.lastObjectPosition.setZero();
+		m_Shadow.m_LastObjectPosition.setZero();
 		return;
 	}
 	CPhysicsObject *object = static_cast<CPhysicsObject *>(m_Object);

@@ -9,16 +9,52 @@
 struct ShadowControlBulletParameters_t {
 	// Positions are in object coordinates, not mass center coordinates.
 
-	btTransform targetObjectTransform;
-	btScalar maxAngular;
-	btScalar maxDampAngular;
-	btScalar maxSpeed;
-	btScalar maxDampSpeed;
-	btScalar dampFactor;
-	btScalar teleportDistance;
+	btTransform m_TargetObjectTransform;
+	btScalar m_MaxAngular;
+	btScalar m_MaxDampAngular;
+	btScalar m_MaxSpeed;
+	btScalar m_MaxDampSpeed;
+	btScalar m_DampFactor;
+	btScalar m_TeleportDistance;
 
-	btVector3 lastObjectPosition;
-	btVector3 lastImpulse;
+	btVector3 m_LastObjectPosition;
+	btVector3 m_LastImpulse;
+
+	ShadowControlBulletParameters_t() :
+			m_TargetObjectTransform(btTransform::getIdentity()),
+			m_MaxAngular(0.0f), m_MaxDampAngular(0.0f),
+			m_MaxSpeed(0.0f), m_MaxDampSpeed(0.0f),
+			m_DampFactor(0.0f), m_TeleportDistance(0.0f),
+			m_LastObjectPosition(0.0f, 0.0f, 0.0f),
+			m_LastImpulse(0.0f, 0.0f, 0.0f) {}
+
+	ShadowControlBulletParameters_t(const hlshadowcontrol_params_t &params) :
+			m_LastObjectPosition(0.0f, 0.0f, 0.0f),
+			m_LastImpulse(0.0f, 0.0f, 0.0f) {
+		ConvertFromHL(params);
+	}
+
+	void ConvertFromHL(const hlshadowcontrol_params_t &params) {
+		ConvertPositionToBullet(params.targetPosition, m_TargetObjectTransform.getOrigin());
+		ConvertRotationToBullet(params.targetRotation, m_TargetObjectTransform.getBasis());
+		m_MaxAngular = DEG2RAD(params.maxAngular);
+		m_MaxDampAngular = DEG2RAD(params.maxDampAngular);
+		m_MaxSpeed = HL2BULLET(params.maxSpeed);
+		m_MaxDampSpeed = HL2BULLET(params.maxDampSpeed);
+		m_DampFactor = params.dampFactor;
+		m_TeleportDistance = HL2BULLET(params.teleportDistance);
+	}
+
+	void ConvertToHL(hlshadowcontrol_params_t &params) const {
+		ConvertPositionToHL(m_TargetObjectTransform.getOrigin(), params.targetPosition);
+		ConvertRotationToHL(m_TargetObjectTransform.getBasis(), params.targetRotation);
+		params.maxAngular = RAD2DEG(m_MaxAngular);
+		params.maxDampAngular = RAD2DEG(m_MaxDampAngular);
+		params.maxSpeed = BULLET2HL(m_MaxSpeed);
+		params.maxDampSpeed = BULLET2HL(m_MaxDampSpeed);
+		params.dampFactor = m_DampFactor;
+		params.teleportDistance = BULLET2HL(m_TeleportDistance);
+	}
 };
 
 void ComputeVPhysicsController(btVector3 &currentSpeed, const btVector3 &delta,

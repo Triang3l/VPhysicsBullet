@@ -100,6 +100,8 @@ public:
 	virtual int GetShadowPosition(Vector *position, QAngle *angles) const;
 	virtual IPhysicsShadowController *GetShadowController() const;
 	virtual void RemoveShadowController();
+	virtual float ComputeShadowControl(const hlshadowcontrol_params_t &params,
+			float secondsToArrival, float dt);
 
 	virtual const CPhysCollide *GetCollide() const;
 
