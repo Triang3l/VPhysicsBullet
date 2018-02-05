@@ -95,6 +95,8 @@ public:
 
 	virtual void SetShadow(float maxSpeed, float maxAngularSpeed,
 			bool allowPhysicsMovement, bool allowPhysicsRotation);
+	virtual void UpdateShadow(const Vector &targetPosition, const QAngle &targetAngles,
+			bool tempDisableGravity, float timeOffset);
 	virtual int GetShadowPosition(Vector *position, QAngle *angles) const;
 	virtual IPhysicsShadowController *GetShadowController() const;
 	virtual void RemoveShadowController();

@@ -1004,6 +1004,14 @@ void CPhysicsObject::SetShadow(float maxSpeed, float maxAngularSpeed,
 	m_Shadow->MaxSpeed(maxSpeed, maxAngularSpeed);
 }
 
+void CPhysicsShadow::UpdateShadow(const Vector &targetPosition, const QAngle &targetAngles,
+		bool tempDisableGravity, float timeOffset) {
+	m_ShadowTempGravityDisable = tempDisableGravity;
+	if (m_Shadow != nullptr) {
+		m_Shadow->Update(targetPosition, targetAngles, timeOffset);
+	}
+}
+
 int CPhysicsObject::GetShadowPosition(Vector *position, QAngle *angles) const {
 	btTransform transform;
 	btTransformUtil::integrateTransform(m_RigidBody->getWorldTransform(),
