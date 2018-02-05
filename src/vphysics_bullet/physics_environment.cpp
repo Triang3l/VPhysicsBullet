@@ -398,14 +398,8 @@ bool CPhysicsEnvironment::OverlapFilterCallback::needBroadphaseCollision(
 		return false;
 	}
 
-	// Upcast to IPhysicsObject.
-	btRigidBody *body0 = btRigidBody::upcast(collisionObject0);
-	btRigidBody *body1 = btRigidBody::upcast(collisionObject1);
-	if (body0 == nullptr || body1 == nullptr) {
-		return false;
-	}
-	IPhysicsObject *object0 = reinterpret_cast<IPhysicsObject *>(body0->getUserPointer());
-	IPhysicsObject *object1 = reinterpret_cast<IPhysicsObject *>(body1->getUserPointer());
+	IPhysicsObject *object0 = reinterpret_cast<IPhysicsObject *>(collisionObject0->getUserPointer());
+	IPhysicsObject *object1 = reinterpret_cast<IPhysicsObject *>(collisionObject1->getUserPointer());
 	if (object0 == nullptr || object1 == nullptr) {
 		return false;
 	}
@@ -417,7 +411,6 @@ bool CPhysicsEnvironment::OverlapFilterCallback::needBroadphaseCollision(
 
 	// TODO: Pairs.
 
-	// Let the solver decide if one is attached.
 	if (m_Environment->m_CollisionSolver != nullptr) {
 		unsigned int callbackFlags0 = object0->GetCallbackFlags();
 		unsigned int callbackFlags1 = object1->GetCallbackFlags();
