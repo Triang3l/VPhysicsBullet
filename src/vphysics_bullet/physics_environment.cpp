@@ -20,12 +20,14 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_InSimulation(false),
 		m_LastPSITime(0.0f), m_TimeSinceLastPSI(0.0f),
 		m_SimulatedPSIs(0), m_RemainingPSIs(0), m_InvPSIScale(0.0f),
+		m_CollisionSolver(nullptr), m_OverlapFilterCallback(this),
 		m_CollisionEvents(nullptr) {
 	m_PerformanceSettings.Defaults();
 
 	m_CollisionConfiguration = new btDefaultCollisionConfiguration();
 	m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
 	m_Broadphase = new btDbvtBroadphase();
+	m_Broadphase->getOverlappingPairCache()->setOverlapFilterCallback(&m_OverlapFilterCallback);
 	m_Solver = new btSequentialImpulseConstraintSolver();
 	m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_Broadphase, m_Solver, m_CollisionConfiguration);
 	m_DynamicsWorld->setWorldUserInfo(this);
@@ -379,6 +381,63 @@ void CPhysicsEnvironment::TickCallback(btDynamicsWorld *world, btScalar timeStep
  * Collision events
  *******************/
 
+void CPhysicsEnvironment::SetCollisionSolver(IPhysicsCollisionSolver *pSolver) {
+	m_CollisionSolver = pSolver;
+}
+
+bool CPhysicsEnvironment::OverlapFilterCallback::needBroadphaseCollision(
+		btBroadphaseProxy *proxy0, btBroadphaseProxy *proxy1) const {
+	if (proxy0->m_clientObject == nullptr || proxy1->m_clientObject == nullptr) {
+		return false;
+	}
+
+	// Two static objects shouldn't collide.
+	btCollisionObject *collisionObject0 = reinterpret_cast<btCollisionObject *>(proxy0->m_clientObject);
+	btCollisionObject *collisionObject1 = reinterpret_cast<btCollisionObject *>(proxy1->m_clientObject);
+	if (collisionObject0->isStaticObject() && collisionObject1->isStaticObject()) {
+		return false;
+	}
+
+	// Upcast to IPhysicsObject.
+	btRigidBody *body0 = btRigidBody::upcast(collisionObject0);
+	btRigidBody *body1 = btRigidBody::upcast(collisionObject1);
+	if (body0 == nullptr || body1 == nullptr) {
+		return false;
+	}
+	IPhysicsObject *object0 = reinterpret_cast<IPhysicsObject *>(body0->getUserPointer());
+	IPhysicsObject *object1 = reinterpret_cast<IPhysicsObject *>(body1->getUserPointer());
+	if (object0 == nullptr || object1 == nullptr) {
+		return false;
+	}
+
+	// Check if any object isn't expecting collisions at all.
+	if (!object0->IsCollisionEnabled() || !object1->IsCollisionEnabled()) {
+		return false;
+	}
+
+	// TODO: Pairs.
+
+	// Let the solver decide if one is attached.
+	if (m_Environment->m_CollisionSolver != nullptr) {
+		unsigned int callbackFlags0 = object0->GetCallbackFlags();
+		unsigned int callbackFlags1 = object1->GetCallbackFlags();
+		if ((callbackFlags0 & CALLBACK_ENABLING_COLLISION) && (callbackFlags1 & CALLBACK_MARKED_FOR_DELETE)) {
+			return false;
+		}
+		if ((callbackFlags1 & CALLBACK_ENABLING_COLLISION) && (callbackFlags0 & CALLBACK_MARKED_FOR_DELETE)) {
+			return false;
+		}
+		if (!m_Environment->m_CollisionSolver->ShouldCollide(object0, object1,
+				object0->GetGameData(), object1->GetGameData())) {
+			return false;
+		}
+	}
+
+	// Fall back to the default behavior of Bullet (though the static-static case is already handled).
+	return (proxy0->m_collisionFilterGroup & proxy1->m_collisionFilterMask) &&
+			(proxy1->m_collisionFilterGroup & proxy0->m_collisionFilterMask);
+}
+
 void CPhysicsEnvironment::SetCollisionEventHandler(IPhysicsCollisionEvent *pCollisionEvents) {
 	m_CollisionEvents = pCollisionEvents;
 }
@@ -388,13 +447,11 @@ void CPhysicsEnvironment::CheckTriggerTouches() {
 	for (int manifoldIndex = 0; manifoldIndex < numManifolds; ++manifoldIndex) {
 		const btPersistentManifold *manifold = m_Dispatcher->getManifoldByIndexInternal(manifoldIndex);
 
-		void *body0Pointer = manifold->getBody0()->getUserPointer();
-		void *body1Pointer = manifold->getBody1()->getUserPointer();
-		if (body0Pointer == nullptr || body1Pointer == nullptr) {
+		IPhysicsObject *object0 = reinterpret_cast<IPhysicsObject *>(manifold->getBody0()->getUserPointer());
+		IPhysicsObject *object1 = reinterpret_cast<IPhysicsObject *>(manifold->getBody1()->getUserPointer());
+		if (object0 == nullptr || object1 == nullptr) {
 			continue;
 		}
-		IPhysicsObject *object0 = reinterpret_cast<IPhysicsObject *>(body0Pointer);
-		IPhysicsObject *object1 = reinterpret_cast<IPhysicsObject *>(body1Pointer);
 		IPhysicsObject *trigger, *object;
 		if (object0->IsTrigger()) {
 			if (object1->IsTrigger()) {

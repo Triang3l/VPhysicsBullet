@@ -21,11 +21,13 @@ public:
 	virtual bool IsAsleep() const;
 	virtual bool IsTrigger() const;
 	virtual bool IsHinged() const;
+	virtual bool IsCollisionEnabled() const;
 	virtual bool IsGravityEnabled() const;
 	virtual bool IsDragEnabled() const;
 	virtual bool IsMotionEnabled() const;
 	virtual bool IsMoveable() const;
 
+	virtual void EnableCollisions(bool enable);
 	virtual void EnableGravity(bool enable);
 	virtual void EnableDrag(bool enable);
 	virtual void EnableMotion(bool enable);
@@ -116,6 +118,8 @@ public:
 	// Internal methods.
 
 	FORCEINLINE btRigidBody *GetRigidBody() const { return m_RigidBody; }
+
+	FORCEINLINE IPhysicsEnvironment *GetEnvironment() const { return m_Environment; }
 
 	inline bool WasAsleep() const { return m_WasAsleep; }
 	inline bool UpdateEventSleepState() {
@@ -217,6 +221,8 @@ private:
 
 	IPhysicsShadowController *m_Shadow;
 	IPhysicsPlayerController *m_Player;
+
+	bool m_CollisionEnabled;
 
 	void *m_GameData;
 	unsigned short m_GameFlags;

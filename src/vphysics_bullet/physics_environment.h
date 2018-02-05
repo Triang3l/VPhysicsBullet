@@ -35,6 +35,8 @@ public:
 	virtual IPhysicsMotionController *CreateMotionController(IMotionEvent *pHandler);
 	virtual void DestroyMotionController(IPhysicsMotionController *pController);
 
+	virtual void SetCollisionSolver(IPhysicsCollisionSolver *pSolver);
+
 	virtual void Simulate(float deltaTime);
 	virtual bool IsInSimulation() const;
 	virtual float GetSimulationTimestep() const;
@@ -122,6 +124,15 @@ private:
 		virtual void debugDraw(btIDebugDraw *debugDrawer) {}
 	};
 	TickActionInterface m_TickAction;
+
+	IPhysicsCollisionSolver *m_CollisionSolver;
+	struct OverlapFilterCallback : public btOverlapFilterCallback {
+		OverlapFilterCallback(CPhysicsEnvironment *environment) : m_Environment(environment) {}
+		virtual bool needBroadphaseCollision(btBroadphaseProxy *proxy0, btBroadphaseProxy *proxy1) const;
+	private:
+		CPhysicsEnvironment *m_Environment;
+	};
+	OverlapFilterCallback m_OverlapFilterCallback;
 
 	IPhysicsCollisionEvent *m_CollisionEvents;
 

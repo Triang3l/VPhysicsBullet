@@ -27,6 +27,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_MaterialIndex(materialIndex), m_RealMaterialIndex(-1),
 		m_ContentsMask(CONTENTS_SOLID),
 		m_Shadow(nullptr), m_Player(nullptr),
+		m_CollisionEnabled(params->enableCollisions),
 		m_GameData(params->pGameData), m_GameFlags(0), m_GameIndex(0),
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
@@ -1129,6 +1130,18 @@ void CPhysicsObject::SimulateShadowAndPlayerController(btScalar timeStep) {
 		static_cast<CPhysicsShadowController *>(m_Shadow)->Simulate(timeStep);
 	}
 	// TODO: Simulate player controller.
+}
+
+/************
+ * Collision
+ ************/
+
+bool CPhysicsObject::IsCollisionEnabled() const {
+	return m_CollisionEnabled;
+}
+
+void CPhysicsObject::EnableCollisions(bool enable) {
+	m_CollisionEnabled = enable;
 }
 
 /***********
