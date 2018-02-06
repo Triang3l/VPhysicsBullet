@@ -69,6 +69,7 @@ public:
 
 	// IPhysicsShadowController methods.
 
+	virtual void MaxSpeed(float maxSpeed, float maxAngularSpeed);
 	virtual void StepUp(float height);
 	virtual void SetTeleportDistance(float teleportDistance);
 	virtual bool AllowsTranslation();
@@ -77,6 +78,7 @@ public:
 	virtual void UseShadowMaterial(bool bUseShadowMaterial);
 	virtual void ObjectMaterialChanged(int materialIndex);
 	virtual float GetTeleportDistance();
+	virtual void GetMaxSpeed(float *pMaxSpeedOut, float *pMaxAngularSpeedOut);
 
 	// Internal methods.
 

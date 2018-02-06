@@ -55,6 +55,11 @@ CPhysicsShadowController::~CPhysicsShadowController() {
 	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToShadowController(nullptr);
 }
 
+void CPhysicsShadowController::MaxSpeed(float maxSpeed, float maxAngularSpeed) {
+	m_Shadow.m_MaxSpeed = m_Shadow.m_MaxDampSpeed = HL2BULLET(maxSpeed);
+	m_Shadow.m_MaxAngular = m_Shadow.m_MaxDampAngular = DEG2RAG(maxAngularSpeed);
+}
+
 void CPhysicsShadowController::StepUp(float height) {
 	static_cast<CPhysicsObject *>(m_Object)->StepUp(HL2BULLET(height));
 }
@@ -65,6 +70,15 @@ void CPhysicsShadowController::SetTeleportDistance(float teleportDistance) {
 
 float CPhysicsShadowController::GetTeleportDistance() {
 	return BULLET2HL(m_Shadow.m_TeleportDistance);
+}
+
+void CPhysicsShadowController::GetMaxSpeed(float *pMaxSpeedOut, float *pMaxAngularSpeedOut) {
+	if (pMaxSpeedOut != nullptr) {
+		*pMaxSpeedOut = BULLET2HL(m_Shadow.m_MaxSpeed);
+	}
+	if (pMaxAngularSpeedOut != nullptr) {
+		*pMaxAngularSpeedOut = RAD2DEG(m_Shadow.m_MaxAngular);
+	}
 }
 
 bool CPhysicsShadowController::AllowsTranslation() {
