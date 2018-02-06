@@ -57,7 +57,7 @@ CPhysicsShadowController::~CPhysicsShadowController() {
 
 void CPhysicsShadowController::MaxSpeed(float maxSpeed, float maxAngularSpeed) {
 	m_Shadow.m_MaxSpeed = m_Shadow.m_MaxDampSpeed = HL2BULLET(maxSpeed);
-	m_Shadow.m_MaxAngular = m_Shadow.m_MaxDampAngular = DEG2RAG(maxAngularSpeed);
+	m_Shadow.m_MaxAngular = m_Shadow.m_MaxDampAngular = DEG2RAD(maxAngularSpeed);
 }
 
 void CPhysicsShadowController::StepUp(float height) {
