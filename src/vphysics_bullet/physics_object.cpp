@@ -933,7 +933,8 @@ void CPhysicsObject::NotifyAttachedToMotionController(IPhysicsMotionController *
 }
 
 void CPhysicsObject::NotifyDetachedFromMotionController(IPhysicsMotionController *controller) {
-	m_MotionControllers.FindAndFastRemove(controller);
+	// Not using FastRemove not to change order in case a controller reads the current velocity.
+	m_MotionControllers.FindAndRemove(controller);
 }
 
 void CPhysicsObject::DetachFromMotionControllers() {
