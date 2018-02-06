@@ -5,6 +5,7 @@
 #include "physics_collision.h"
 #include "physics_motioncontroller.h"
 #include "physics_object.h"
+#include "physics_shadow.h"
 #include "const.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -245,6 +246,16 @@ float CPhysicsEnvironment::GetAirDensity() const {
  * Controllers
  **************/
 
+IPhysicsShadowController *CPhysicsEnvironment::CreateShadowController(IPhysicsObject *pObject,
+		bool allowTranslation, bool allowRotation) {
+	pObject->RemoveShadowController();
+	return new CPhysicsShadowController(allowTranslation, allowRotation);
+}
+
+void CPhysicsEnvironment::DestroyShadowController(IPhysicsShadowController *pController) {
+	delete pController;
+}
+
 IPhysicsMotionController *CPhysicsEnvironment::CreateMotionController(IMotionEvent *pHandler) {
 	return new CPhysicsMotionController(pHandler);
 }
@@ -350,6 +361,7 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 		// Unconstrained motion.
 		object->ApplyDrag(timeStep);
 		object->SimulateMotionControllers(IPhysicsMotionController::MEDIUM_PRIORITY, timeStep);
+		object->SimulateShadowAndPlayer(timeStep);
 
 		// Vehicles.
 

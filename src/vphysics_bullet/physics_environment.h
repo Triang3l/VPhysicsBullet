@@ -32,6 +32,9 @@ public:
 			const Vector &position, const QAngle &angles, objectparams_t *pParams, bool isStatic);
 	virtual void DestroyObject(IPhysicsObject *pObject);
 
+	virtual IPhysicsShadowController *CreateShadowController(IPhysicsObject *pObject,
+			bool allowTranslation, bool allowRotation);
+	virtual void DestroyShadowController(IPhysicsShadowController *pController);
 	virtual IPhysicsMotionController *CreateMotionController(IMotionEvent *pHandler);
 	virtual void DestroyMotionController(IPhysicsMotionController *pController);
 

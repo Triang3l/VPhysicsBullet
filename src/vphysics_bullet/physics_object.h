@@ -161,7 +161,7 @@ public:
 	void StepUp(btScalar height); // May be called outside PSIs.
 	btScalar ComputeBulletShadowControl(struct ShadowControlBulletParameters_t &params,
 			btScalar secondsToArrival, btScalar timeStep);
-	void SimulateShadowAndPlayerController(btScalar timeStep);
+	void SimulateShadowAndPlayer(btScalar timeStep);
 
 	FORCEINLINE CPhysicsObject *GetNextCollideObject() const {
 		return m_CollideObjectNext;

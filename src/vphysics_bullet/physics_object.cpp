@@ -1126,7 +1126,7 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 	return secondsToArrival;
 }
 
-void CPhysicsObject::SimulateShadowAndPlayerController(btScalar timeStep) {
+void CPhysicsObject::SimulateShadowAndPlayer(btScalar timeStep) {
 	if (m_Shadow != nullptr) {
 		static_cast<CPhysicsShadowController *>(m_Shadow)->Simulate(timeStep);
 	}
