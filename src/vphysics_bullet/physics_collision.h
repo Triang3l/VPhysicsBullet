@@ -332,6 +332,8 @@ private:
 
 class CPhysicsCollision : public IPhysicsCollision {
 public:
+	CPhysicsCollision();
+
 	// IPhysicsCollision methods.
 
 	virtual CPhysConvex *ConvexFromVerts(Vector **pVerts, int vertCount);
@@ -417,21 +419,38 @@ private:
 
 	static void ClearTrace(trace_t *trace);
 	btCollisionObject m_TraceCollisionObject;
+	btBoxShape m_TraceBoxShape;
 
-	struct TraceBoxRayResultCallback : public btCollisionWorld::RayResultCallback {
+	struct TraceRayResultCallback : public btCollisionWorld::RayResultCallback {
 		unsigned int m_ContentsMask;
 		IConvexInfo *m_ConvexInfo;
 		const btCompoundShape *m_CompoundShape; // nullptr if not compound, thus has no contents.
-
 		btMatrix3x3 m_NormalBasis;
 
 		btVector3 m_ClosestHitNormal;
 		unsigned int m_ClosestHitContents;
 
-		TraceBoxRayResultCallback(
+		TraceRayResultCallback(
 				unsigned int contentsMask, IConvexInfo *convexInfo, const CPhysCollide *collide,
 				const btMatrix3x3 &normalBasis);
 		virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult &rayResult, bool normalInWorldSpace);
+	};
+
+	struct TraceConvexResultCallback : public btCollisionWorld::ConvexResultCallback {
+		unsigned int m_ContentsMask;
+		IConvexInfo *m_ConvexInfo;
+		const btCompoundShape *m_CompoundShape; // nullptr if not compound, thus has no contents.
+		btMatrix3x3 m_NormalBasis;
+
+		const btCollisionObject *m_HitCollisionObject;
+		btVector3 m_ClosestHitNormal;
+		btVector3 m_ClosestHitPoint;
+		unsigned int m_ClosestHitContents;
+
+		TraceConvexResultCallback(
+				unsigned int contentsMask, IConvexInfo *convexInfo, const CPhysCollide *collide,
+				const btMatrix3x3 &normalBasis);
+		virtual btScalar addSingleResult(btCollisionWorld::LocalConvexResult &convexResult, bool normalInWorldSpace);
 	};
 
 	CUtlVector<CPhysCollide_Sphere *> m_SphereCache;

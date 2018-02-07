@@ -18,6 +18,10 @@
 static CPhysicsCollision s_PhysCollision;
 CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
 
+CPhysicsCollision::CPhysicsCollision() : m_TraceBoxShape(btVector3(1.0f, 1.0f, 1.0f)) {
+	m_TraceBoxShape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
+}
+
 /***************************
  * Serialization structures
  ***************************/
@@ -707,6 +711,9 @@ CPhysConvex_Box::CPhysConvex_Box(const btVector3 &halfExtents, const btVector3 &
 		m_Shape(halfExtents), m_Origin(origin) {
 	Initialize();
 	m_Shape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
+	// The constructor subtracts the default margin.
+	// Assume the margin is outside, just like for convex hulls.
+	m_Shape.setImplicitShapeDimensions(halfExtents);
 }
 
 btScalar CPhysConvex_Box::GetVolume() const {
@@ -990,13 +997,12 @@ void CPhysicsCollision::DestroyCollide(CPhysCollide *pCollide) {
  *********/
 
 void CPhysicsCollision::ClearTrace(trace_t *trace) {
-	static csurface_t nullSurface = { "**empty**", 0 };
 	memset(trace, 0, sizeof(*trace));
 	trace->fraction = 1.0f;
-	trace->surface = nullSurface;
+	trace->surface.name = "**empty**";
 }
 
-CPhysicsCollision::TraceBoxRayResultCallback::TraceBoxRayResultCallback(
+CPhysicsCollision::TraceRayResultCallback::TraceRayResultCallback(
 		unsigned int contentsMask, IConvexInfo *convexInfo, const CPhysCollide *collide,
 		const btMatrix3x3 &normalBasis) :
 		m_ContentsMask(contentsMask), m_ConvexInfo(convexInfo),
@@ -1009,7 +1015,7 @@ CPhysicsCollision::TraceBoxRayResultCallback::TraceBoxRayResultCallback(
 	}
 }
 
-btScalar CPhysicsCollision::TraceBoxRayResultCallback::addSingleResult(
+btScalar CPhysicsCollision::TraceRayResultCallback::addSingleResult(
 		btCollisionWorld::LocalRayResult &rayResult, bool normalInWorldSpace) {
 	unsigned int contents = CONTENTS_SOLID;
 	if (m_ConvexInfo != nullptr && m_CompoundShape != nullptr && rayResult.m_localShapeInfo != nullptr) {
@@ -1028,6 +1034,43 @@ btScalar CPhysicsCollision::TraceBoxRayResultCallback::addSingleResult(
 	} else {
 		m_ClosestHitNormal = m_NormalBasis * rayResult.m_hitNormalLocal;
 	}
+	m_ClosestHitContents = contents;
+	return m_closestHitFraction;
+}
+
+CPhysicsCollision::TraceConvexResultCallback::TraceConvexResultCallback(
+		unsigned int contentsMask, IConvexInfo *convexInfo, const CPhysCollide *collide,
+		const btMatrix3x3 &normalBasis) :
+		m_ContentsMask(contentsMask), m_ConvexInfo(convexInfo),
+		m_NormalBasis(normalBasis),
+		m_HitCollisionObject(nullptr), m_ClosestHitContents(CONTENTS_SOLID) {
+	if (CPhysCollide_Compound::IsCompound(collide)) {
+		m_CompoundShape = static_cast<const CPhysCollide_Compound *>(collide)->GetCompoundShape();
+	} else {
+		m_CompoundShape = nullptr;
+	}
+}
+
+btScalar CPhysicsCollision::TraceConvexResultCallback::addSingleResult(
+		btCollisionWorld::LocalConvexResult &convexResult, bool normalInWorldSpace) {
+	unsigned int contents = CONTENTS_SOLID;
+	if (m_ConvexInfo != nullptr && m_CompoundShape != nullptr && convexResult.m_localShapeInfo != nullptr) {
+		int childIndex = convexResult.m_localShapeInfo->m_triangleIndex;
+		if (childIndex >= 0) {
+			contents = m_ConvexInfo->GetContents(m_CompoundShape->getChildShape(childIndex)->getUserIndex());
+		}
+	}
+	if (!(m_ContentsMask & contents)) {
+		return m_closestHitFraction;
+	}
+	m_closestHitFraction = convexResult.m_hitFraction;
+	m_HitCollisionObject = convexResult.m_hitCollisionObject;
+	if (normalInWorldSpace) {
+		m_ClosestHitNormal = convexResult.m_hitNormalLocal;
+	} else {
+		m_ClosestHitNormal = m_NormalBasis * convexResult.m_hitNormalLocal;
+	}
+	m_ClosestHitPoint = convexResult.m_hitPointLocal; // Actually it's in world coordinates.
 	m_ClosestHitContents = contents;
 	return m_closestHitFraction;
 }
@@ -1052,7 +1095,7 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 	bool hasHit;
 	btVector3 hitNormal, hitPoint;
 	if (ray.m_IsRay) {
-		TraceBoxRayResultCallback resultCallback(
+		TraceRayResultCallback resultCallback(
 				contentsMask, pConvexInfo, pCollide, colObjWorldTransform.getBasis());
 		btCollisionWorld::rayTestSingle(btTransform::getIdentity(), rayToTrans,
 				&m_TraceCollisionObject, shape, colObjWorldTransform, resultCallback);
@@ -1062,12 +1105,30 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 		hitNormal = resultCallback.m_ClosestHitNormal;
 		hitPoint = rayToTrans.getOrigin() * resultCallback.m_closestHitFraction;
 	} else {
-		// TODO: Box sweep test.
+		btVector3 halfExtents;
+		ConvertPositionToBullet(ray.m_Extents, halfExtents);
+		m_TraceBoxShape.setImplicitShapeDimensions(halfExtents.absolute());
+		// TODO: Check if the size needs to be exact (inner margin rather than outer).
+		TraceConvexResultCallback resultCallback(
+				contentsMask, pConvexInfo, pCollide, colObjWorldTransform.getBasis());
+		btCollisionWorld::objectQuerySingle(&m_TraceBoxShape, btTransform::getIdentity(), rayToTrans,
+				&m_TraceCollisionObject, shape, colObjWorldTransform, resultCallback,
+				VPHYSICS_CONVEX_DISTANCE_MARGIN);
+		ptr->fraction = resultCallback.m_closestHitFraction;
+		ptr->contents = resultCallback.m_ClosestHitContents;
+		hasHit = (resultCallback.m_HitCollisionObject != nullptr);
+		hitNormal = resultCallback.m_ClosestHitNormal;
+		if (hasHit) {
+			hitPoint = resultCallback.m_ClosestHitPoint;
+		} else {
+			hitPoint = rayToTrans.getOrigin(); // This is wrong, but it's invalid anyway if there's no hit.
+		}
 	}
 
 	VectorAdd(ray.m_Start, ray.m_StartOffset, ptr->startpos);
 	VectorMA(ptr->startpos, ptr->fraction, ray.m_Delta, ptr->endpos);
 	if (ptr->fraction > 0.0f) {
+		// TOOD: Ensure the fraction check is enough for startsolid check for rays and fully submerged sweeps.
 		if (!hasHit) {
 			btScalar rayLength2 = rayToTrans.getOrigin().length2();
 			if (rayLength2 > 1e-6) {
