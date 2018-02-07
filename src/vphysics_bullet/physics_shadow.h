@@ -69,6 +69,7 @@ public:
 
 	// IPhysicsShadowController methods.
 
+	virtual void Update(const Vector &position, const QAngle &angles, float timeOffset);
 	virtual void MaxSpeed(float maxSpeed, float maxAngularSpeed);
 	virtual void StepUp(float height);
 	virtual void SetTeleportDistance(float teleportDistance);
@@ -77,6 +78,7 @@ public:
 	virtual void GetLastImpulse(Vector *pOut);
 	virtual void UseShadowMaterial(bool bUseShadowMaterial);
 	virtual void ObjectMaterialChanged(int materialIndex);
+	virtual float GetTargetPosition(Vector *pPositionOut, QAngle *pAnglesOut);
 	virtual float GetTeleportDistance();
 	virtual void GetMaxSpeed(float *pMaxSpeedOut, float *pMaxAngularSpeedOut);
 

@@ -55,6 +55,26 @@ CPhysicsShadowController::~CPhysicsShadowController() {
 	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToShadowController(nullptr);
 }
 
+void CPhysicsShadowController::Update(const Vector &position, const QAngle &angles, float timeOffset) {
+	btTransform oldTransform = m_Shadow.m_TargetObjectTransform;
+	btVector3 &origin = m_Shadow.m_TargetObjectTransform.getOrigin();
+	btMatrix3x3 &basis = m_Shadow.m_TargetObjectTransform.getBasis();
+	ConvertPositionToBullet(position, origin);
+	ConvertRotationToBullet(angles, basis);
+	m_SecondsToArrival = btMax(btScalar(timeOffset), btScalar(0.0f));
+	m_Enable = true;
+	// Don't wake up if calling with exactly the same data repeatedly.
+	if ((origin - oldTransform.getOrigin()).length2() < 1e-6f) {
+		btVector3 basisDelta = (basis[0] - oldTransform.getBasis()[0]).absolute() +
+				(basis[1] - oldTransform.getBasis()[1]).absolute() +
+				(basis[2] - oldTransform.getBasis()[2]).absolute();
+		if (basisDelta.length2() < 1e-6f) {
+			return;
+		}
+	}
+	m_Object->Wake();
+}
+
 void CPhysicsShadowController::MaxSpeed(float maxSpeed, float maxAngularSpeed) {
 	m_Shadow.m_MaxSpeed = m_Shadow.m_MaxDampSpeed = HL2BULLET(maxSpeed);
 	m_Shadow.m_MaxAngular = m_Shadow.m_MaxDampAngular = DEG2RAD(maxAngularSpeed);
@@ -66,6 +86,16 @@ void CPhysicsShadowController::StepUp(float height) {
 
 void CPhysicsShadowController::SetTeleportDistance(float teleportDistance) {
 	m_Shadow.m_TeleportDistance = HL2BULLET(teleportDistance);
+}
+
+float CPhysicsShadowController::GetTargetPosition(Vector *pPositionOut, QAngle *pAnglesOut) {
+	if (pPositionOut != nullptr) {
+		ConvertPositionToHL(m_Shadow.m_TargetObjectTransform.getOrigin(), *pPositionOut);
+	}
+	if (pAnglesOut != nullptr) {
+		ConvertRotationToHL(m_Shadow.m_TargetObjectTransform.getBasis(), *pAnglesOut);
+	}
+	return (float) m_SecondsToArrival;
 }
 
 float CPhysicsShadowController::GetTeleportDistance() {
