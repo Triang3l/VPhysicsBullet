@@ -34,6 +34,11 @@ public:
 	virtual btScalar GetSurfaceArea() const { return 0.0f; }
 	virtual btVector3 GetMassCenter() const { return btVector3(0.0f, 0.0f, 0.0f); }
 	virtual btVector3 GetInertia() const { return btVector3(1.0f, 1.0f, 1.0f); }
+	// Plane points outwards water.
+	virtual btScalar GetSubmergedVolume(const btVector4 &plane, btVector3 &volumeWeightedBuoyancyCenter) const {
+		volumeWeightedBuoyancyCenter.setZero();
+		return 0.0f;
+	}
 
 	virtual btVector3 GetOriginInCompound() const { return btVector3(0.0f, 0.0f, 0.0f); }
 
@@ -69,6 +74,13 @@ public:
 	virtual btScalar GetSurfaceArea() const; // Slow, only needed for tools.
 	virtual btVector3 GetMassCenter() const;
 	virtual btVector3 GetInertia() const;
+
+	// Returns false if fully submerged (and doesn't write volume and center*volume in this case).
+	static bool GetConvexTriangleMeshSubmergedVolume(
+			const btVector3 &origin, const btVector3 *points, int pointCount,
+			const unsigned int *indices, int indexCount,
+			const btVector4 &plane, btScalar &volume, btVector3 &volumeWeightedBuoyancyCenter);
+	virtual btScalar GetSubmergedVolume(const btVector4 &plane, btVector3 &volumeWeightedBuoyancyCenter) const;
 
 	FORCEINLINE bool HasPerTriangleMaterials() const {
 		return m_TriangleMaterials.size() > 0;

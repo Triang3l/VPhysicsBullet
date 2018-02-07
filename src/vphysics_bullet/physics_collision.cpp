@@ -6,6 +6,7 @@
 #include "physics_object.h"
 #include <LinearMath/btGeometryUtil.h>
 #include "mathlib/polyhedron.h"
+#include "mathlib/vplane.h"
 #include "tier0/dbg.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -373,11 +374,11 @@ void CPhysConvex_Hull::CalculateVolumeProperties() {
 		const btVector3 &p2 = points[indices[indexIndex + 2]];
 		btScalar tetrahedronSixVolume = btFabs((p0 - ref).triple(p1 - ref, p2 - ref));
 		sixVolume += tetrahedronSixVolume;
-		massCenterSum += (0.25f * tetrahedronSixVolume) * (p0 + p1 + p2 + ref);
+		massCenterSum += tetrahedronSixVolume * (p0 + p1 + p2 + ref);
 	}
 	m_Volume = (1.0f / 6.0f) * sixVolume;
 	if (m_Volume > 0.0f) {
-		m_MassCenter = massCenterSum / sixVolume;
+		m_MassCenter = massCenterSum / (4.0f * sixVolume);
 		m_Inertia.setZero();
 		for (int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
 			btVector3 a = points[indices[indexIndex]] - m_MassCenter;
@@ -427,6 +428,152 @@ btVector3 CPhysConvex_Hull::GetMassCenter() const {
 btVector3 CPhysConvex_Hull::GetInertia() const {
 	const_cast<CPhysConvex_Hull *>(this)->CalculateVolumeProperties();
 	return m_Inertia;
+}
+
+bool CPhysConvex_Hull::GetConvexTriangleMeshSubmergedVolume(
+		const btVector3 &origin, const btVector3 *points, int pointCount,
+		const unsigned int *indices, int indexCount,
+		const btVector4 &plane, btScalar &volume, btVector3 &volumeWeightedBuoyancyCenter) {
+	const btScalar onThreshold = HL2BULLET(VP_EPSILON);
+
+	// Finding the origin of tetrahedron volume calculations,
+	// either on the line between the highest and the deepest points
+	// or any point on the plane if there's one.
+	// Also handling the cases when the mesh is fully submerged or dry.
+	int highestPointIndex = -1, deepestPointIndex = -1, pointOnPlaneIndex = -1;
+	btScalar highestPointDistance = -BT_LARGE_FLOAT, deepestPointDistance = BT_LARGE_FLOAT;
+	for (int pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
+		btScalar pointDistance = plane.dot(points[pointIndex] + origin) + plane.getW();
+		if (btFabs(pointDistance) < onThreshold) {
+			pointOnPlaneIndex = pointIndex;
+			continue;
+		}
+		if (pointDistance > 0.0f) {
+			if (pointDistance > highestPointDistance) {
+				highestPointDistance = pointDistance;
+				highestPointIndex = pointIndex;
+			}
+		} else {
+			if (pointDistance < deepestPointDistance) {
+				deepestPointDistance = pointDistance;
+				deepestPointIndex = pointIndex;
+			}
+		}
+	}
+	if (deepestPointIndex < 0) {
+		// Fully above water.
+		volume = 0.0f;
+		volumeWeightedBuoyancyCenter.setZero();
+		return true;
+	}
+	if (highestPointIndex < 0) {
+		// Fully submerged - use the mass center.
+		return false;
+	}
+	btVector3 ref;
+	if (pointOnPlaneIndex >= 0) {
+		ref = points[pointOnPlaneIndex] + origin;
+	} else {
+		btVector3 deepestToHighest = points[highestPointIndex] - points[deepestPointIndex];
+		ref = points[deepestPointIndex] + origin -
+				((deepestPointDistance / plane.dot(deepestToHighest)) * deepestToHighest);
+	}
+
+	// Finding the volumes and mass centers of submerged tetrahedra.
+	for (int indexIndex = 0; indexIndex < indexCount; indexIndex += 3) {
+		btVector3 p[3];
+		int above[3], below[3], countAbove = 0, countBelow = 0;
+		for (int pointIndex = 0; pointIndex < 3; ++pointIndex) {
+			p[pointIndex] = points[indices[indexIndex + pointIndex]] + origin;
+			btScalar pointDistance = plane.dot(p[pointIndex]) + plane.getW();
+			if (btFabs(pointDistance) < onThreshold) {
+				continue;
+			}
+			if (pointDistance > 0.0f) {
+				above[countAbove++] = pointIndex;
+			} else {
+				below[countBelow++] = pointIndex;
+			}
+		}
+
+		if (countBelow == 0) { // Fully above water - skip.
+			continue;
+		}
+
+		btScalar tetrahedronSixVolume;
+
+		if (countAbove == 0) { // Fully submerged.
+			tetrahedronSixVolume = btFabs((p[0] - ref).triple(p[1] - ref, p[2] - ref));
+			volume += tetrahedronSixVolume;
+			volumeWeightedBuoyancyCenter += tetrahedronSixVolume * (p[0] + p[1] + p[2] + ref);
+			continue;
+		}
+
+		if (countBelow == 1) { // The submerged part is a triangle.
+			const btVector3 &pb = p[below[0]];
+			btScalar pbDistance = plane.dot(pb) + plane.getW();
+
+			// One edge is always clipped, since there's at least 1 point above.
+			btVector3 pbToPa = p[above[0]] - pb;
+			btVector3 po1 = pb - ((pbDistance / plane.dot(pbToPa)) * pbToPa);
+
+			// Another point is either on an edge or on the plane.
+			btVector3 po2;
+			if (countAbove >= 2) {
+				pbToPa = p[above[1]] - pb;
+				po2 = pb - ((pbDistance / plane.dot(pbToPa)) * pbToPa);
+			} else {
+				int po2Index = above[0] + 1;
+				if (po2Index >= 3) {
+					po2Index -= 3;
+				}
+				if (po2Index == below[0]) {
+					++po2Index;
+					if (po2Index >= 3) {
+						po2Index -= 3;
+					}
+				}
+				po2 = p[po2Index];
+			}
+
+			tetrahedronSixVolume = btFabs((pb - ref).triple(po1 - ref, po2 - ref));
+			volume += tetrahedronSixVolume;
+			volumeWeightedBuoyancyCenter += tetrahedronSixVolume * (pb + po1 + po2 + ref);
+		} else { // The submerged part is a quadrilateral.
+			const btVector3 &pa = p[above[0]], &pb1 = p[below[0]], &pb2 = p[below[1]];
+			btScalar paDistance = plane.dot(pa) + plane.getW();
+
+			btVector3 paToPb = pa - pb1;
+			btVector3 po1 = pa - ((paDistance / plane.dot(paToPb)) * paToPb);
+
+			paToPb = pa - pb2;
+			btVector3 po2 = pa - ((paDistance / plane.dot(paToPb)) * paToPb);
+
+			tetrahedronSixVolume = btFabs((pb1 - ref).triple(po1 - ref, po2 - ref));
+			volume += tetrahedronSixVolume;
+			volumeWeightedBuoyancyCenter += tetrahedronSixVolume * (pb1 + po1 + po2 + ref);
+
+			tetrahedronSixVolume = btFabs((pb1 - ref).triple(po2 - ref, pb2 - ref));
+			volume += tetrahedronSixVolume;
+			volumeWeightedBuoyancyCenter += tetrahedronSixVolume * (pb1 + po2 + pb2 + ref);
+		}
+	}
+
+	volume *= 1.0f / 6.0f;
+	volumeWeightedBuoyancyCenter *= 1.0f / 24.0f;
+
+	return true;
+}
+
+float CPhysConvex_Hull::GetSubmergedVolume(const btVector4 &plane, btVector3 &volumeWeightedBuoyancyCenter) const {
+	btScalar volume;
+	const btVector3 &origin = GetOriginInCompound();
+	if (!GetConvexTriangleMeshSubmergedVolume(origin, m_Shape.getPoints(), m_Shape.getNumPoints(),
+			&m_TriangleIndices[0], m_TriangleIndices.size(), plane, volume, volumeWeightedBuoyancyCenter)) {
+		volume = GetVolume();
+		volumeWeightedBuoyancyCenter = (origin + GetMassCenter()) * volume;
+	}
+	return volume;
 }
 
 // This is a hack, gives per-plane surface index, not per-triangle,
