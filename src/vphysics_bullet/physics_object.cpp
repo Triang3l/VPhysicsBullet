@@ -371,7 +371,7 @@ void CPhysicsObject::ApplyDamping(btScalar timeStep) {
 	}
 	m_RigidBody->setLinearVelocity(linearVelocity * damping);
 
-	if (m_Shadow != nullptr) {
+	if (m_Shadow == nullptr) {
 		rotDamping *= timeStep;
 		if (rotDamping < 0.4f) {
 			rotDamping = btScalar(1.0f) - rotDamping;
