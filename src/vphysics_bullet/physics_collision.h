@@ -366,6 +366,14 @@ public:
 	virtual CPhysCollide *BBoxToCollide(const Vector &mins, const Vector &maxs);
 	virtual int GetConvexesUsedInCollideable(const CPhysCollide *pCollideable,
 			CPhysConvex **pOutputArray, int iOutputArrayLimit);
+	virtual void TraceBox(const Vector &start, const Vector &end,
+			const Vector &mins, const Vector &maxs, const CPhysCollide *pCollide,
+			const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr);
+	virtual void TraceBox(const Ray_t &ray, const CPhysCollide *pCollide,
+			const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr);
+	virtual void TraceBox(const Ray_t &ray, unsigned int contentsMask,
+			IConvexInfo *pConvexInfo, const CPhysCollide *pCollide,
+			const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr);
 	virtual void VCollideLoad(vcollide_t *pOutput,
 			int solidCount, const char *pBuffer, int size, bool swap);
 	virtual void VCollideUnload(vcollide_t *pVCollide);
@@ -407,7 +415,24 @@ private:
 
 	CUtlVector<CPhysConvex *> m_CompoundConvexDeleteQueue;
 
+	static void ClearTrace(trace_t *trace);
 	btCollisionObject m_TraceCollisionObject;
+
+	struct TraceBoxRayResultCallback : public btCollisionWorld::RayResultCallback {
+		unsigned int m_ContentsMask;
+		IConvexInfo *m_ConvexInfo;
+		const btCompoundShape *m_CompoundShape; // nullptr if not compound, thus has no contents.
+
+		btMatrix3x3 m_NormalBasis;
+
+		btVector3 m_ClosestHitNormal;
+		unsigned int m_ClosestHitContents;
+
+		TraceBoxRayResultCallback(
+				unsigned int contentsMask, IConvexInfo *convexInfo, const CPhysCollide *collide,
+				const btMatrix3x3 &normalBasis);
+		virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult &rayResult, bool normalInWorldSpace);
+	};
 
 	CUtlVector<CPhysCollide_Sphere *> m_SphereCache;
 };

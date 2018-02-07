@@ -5,6 +5,7 @@
 #include "physics_parse.h"
 #include "physics_object.h"
 #include <LinearMath/btGeometryUtil.h>
+#include "cmodel.h"
 #include "mathlib/polyhedron.h"
 #include "mathlib/vplane.h"
 #include "tier0/dbg.h"
@@ -876,10 +877,15 @@ void CPhysCollide::ComputeOrthographicAreas(btScalar axisEpsilon) {
 	};
 	btTransform rayFrom = btTransform::getIdentity(), rayTo = btTransform::getIdentity();
 	struct OrthographicAreasResultCallback : public btCollisionWorld::RayResultCallback {
+		void ResetOrthographicAreasResult() {
+			m_collisionObject = nullptr;
+			m_closestHitFraction = 1.0f;
+		}
 		virtual	btScalar addSingleResult(
 				btCollisionWorld::LocalRayResult &rayResult, bool normalInWorldSpace) {
 			m_collisionObject = rayResult.m_collisionObject;
-			return rayResult.m_hitFraction;
+			m_closestHitFraction = 0.0f; // Stop tracing once a hit is detected.
+			return 0.0f;
 		}
 	};
 	OrthographicAreasResultCallback result;
@@ -893,7 +899,7 @@ void CPhysCollide::ComputeOrthographicAreas(btScalar axisEpsilon) {
 		rayFrom.getOrigin()[1] = rayTo.getOrigin()[1] = rayOrigins.getY() + btScalar(y) * axisEpsilon;
 		for (int z = 0; z < rayCounts[2]; ++z) {
 			rayFrom.getOrigin()[2] = rayTo.getOrigin()[2] = rayOrigins.getZ() + btScalar(z) * axisEpsilon;
-			result.m_collisionObject = nullptr;
+			result.ResetOrthographicAreasResult();
 			btCollisionWorld::rayTestSingle(rayFrom, rayTo, collisionObject, shape,
 					btTransform::getIdentity(), result);
 			if (result.m_collisionObject != nullptr) {
@@ -910,7 +916,7 @@ void CPhysCollide::ComputeOrthographicAreas(btScalar axisEpsilon) {
 		rayFrom.getOrigin()[0] = rayTo.getOrigin()[0] = rayOrigins.getX() + btScalar(x) * axisEpsilon;
 		for (int z = 0; z < rayCounts[2]; ++z) {
 			rayFrom.getOrigin()[2] = rayTo.getOrigin()[2] = rayOrigins.getZ() + btScalar(z) * axisEpsilon;
-			result.m_collisionObject = nullptr;
+			result.ResetOrthographicAreasResult();
 			btCollisionWorld::rayTestSingle(rayFrom, rayTo, collisionObject, shape,
 					btTransform::getIdentity(), result);
 			if (result.m_collisionObject != nullptr) {
@@ -927,7 +933,7 @@ void CPhysCollide::ComputeOrthographicAreas(btScalar axisEpsilon) {
 		rayFrom.getOrigin()[0] = rayTo.getOrigin()[0] = rayOrigins.getX() + btScalar(x) * axisEpsilon;
 		for (int y = 0; y < rayCounts[1]; ++y) {
 			rayFrom.getOrigin()[1] = rayTo.getOrigin()[1] = rayOrigins.getY() + btScalar(y) * axisEpsilon;
-			result.m_collisionObject = nullptr;
+			result.ResetOrthographicAreasResult();
 			btCollisionWorld::rayTestSingle(rayFrom, rayTo, collisionObject, shape,
 					btTransform::getIdentity(), result);
 			if (result.m_collisionObject != nullptr) {
@@ -977,6 +983,119 @@ void CPhysicsCollision::DestroyCollide(CPhysCollide *pCollide) {
 	}
 	delete pCollide;
 	CleanupCompoundConvexDeleteQueue();
+}
+
+/*********
+ * Traces
+ *********/
+
+void CPhysicsCollision::ClearTrace(trace_t *trace) {
+	static csurface_t nullSurface = { "**empty**", 0 };
+	memset(trace, 0, sizeof(*trace));
+	trace->fraction = 1.0f;
+	trace->surface = nullSurface;
+}
+
+CPhysicsCollision::TraceBoxRayResultCallback::TraceBoxRayResultCallback(
+		unsigned int contentsMask, IConvexInfo *convexInfo, const CPhysCollide *collide,
+		const btMatrix3x3 &normalBasis) :
+		m_ContentsMask(contentsMask), m_ConvexInfo(convexInfo),
+		m_NormalBasis(normalBasis),
+		m_ClosestHitContents(CONTENTS_SOLID) {
+	if (CPhysCollide_Compound::IsCompound(collide)) {
+		m_CompoundShape = static_cast<const CPhysCollide_Compound *>(collide)->GetCompoundShape();
+	} else {
+		m_CompoundShape = nullptr;
+	}
+}
+
+btScalar CPhysicsCollision::TraceBoxRayResultCallback::addSingleResult(
+		btCollisionWorld::LocalRayResult &rayResult, bool normalInWorldSpace) {
+	unsigned int contents = CONTENTS_SOLID;
+	if (m_ConvexInfo != nullptr && m_CompoundShape != nullptr && rayResult.m_localShapeInfo != nullptr) {
+		int childIndex = rayResult.m_localShapeInfo->m_triangleIndex;
+		if (childIndex >= 0) {
+			contents = m_ConvexInfo->GetContents(m_CompoundShape->getChildShape(childIndex)->getUserIndex());
+		}
+	}
+	if (!(m_ContentsMask & contents)) {
+		return m_closestHitFraction;
+	}
+	m_closestHitFraction = rayResult.m_hitFraction;
+	m_collisionObject = rayResult.m_collisionObject;
+	if (normalInWorldSpace) {
+		m_ClosestHitNormal = rayResult.m_hitNormalLocal;
+	} else {
+		m_ClosestHitNormal = m_NormalBasis * rayResult.m_hitNormalLocal;
+	}
+	m_ClosestHitContents = contents;
+	return m_closestHitFraction;
+}
+
+void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
+		IConvexInfo *pConvexInfo, const CPhysCollide *pCollide,
+		const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr) {
+	ClearTrace(ptr);
+
+	// For better precision during the sweep, assume the trace starts at zero.
+	btTransform rayToTrans;
+	rayToTrans.getBasis().setIdentity();
+	ConvertPositionToBullet(ray.m_Delta, rayToTrans.getOrigin());
+
+	const btCollisionShape *shape = pCollide->GetShape();
+	m_TraceCollisionObject.setCollisionShape(const_cast<btCollisionShape *>(shape));
+	btTransform colObjWorldTransform;
+	ConvertPositionToBullet(collideOrigin - ray.m_Start, colObjWorldTransform.getOrigin());
+	ConvertRotationToBullet(collideAngles, colObjWorldTransform.getBasis());
+	colObjWorldTransform.getOrigin() += colObjWorldTransform.getBasis() * pCollide->GetMassCenter();
+
+	bool hasHit;
+	btVector3 hitNormal, hitPoint;
+	if (ray.m_IsRay) {
+		TraceBoxRayResultCallback resultCallback(
+				contentsMask, pConvexInfo, pCollide, colObjWorldTransform.getBasis());
+		btCollisionWorld::rayTestSingle(btTransform::getIdentity(), rayToTrans,
+				&m_TraceCollisionObject, shape, colObjWorldTransform, resultCallback);
+		ptr->fraction = resultCallback.m_closestHitFraction;
+		ptr->contents = resultCallback.m_ClosestHitContents;
+		hasHit = (resultCallback.m_collisionObject != nullptr);
+		hitNormal = resultCallback.m_ClosestHitNormal;
+		hitPoint = rayToTrans.getOrigin() * resultCallback.m_closestHitFraction;
+	} else {
+		// TODO: Box sweep test.
+	}
+
+	VectorAdd(ray.m_Start, ray.m_StartOffset, ptr->startpos);
+	VectorMA(ptr->startpos, ptr->fraction, ray.m_Delta, ptr->endpos);
+	if (ptr->fraction > 0.0f) {
+		if (!hasHit) {
+			btScalar rayLength2 = rayToTrans.getOrigin().length2();
+			if (rayLength2 > 1e-6) {
+				hitNormal = rayToTrans.getOrigin() / -btSqrt(rayLength2);
+			} else {
+				hitNormal.setValue(-1.0f, 0.0f, 0.0f);
+			}
+		}
+		ConvertDirectionToHL(hitNormal, ptr->plane.normal);
+		Vector hitPointHL;
+		ConvertPositionToHL(hitPoint, hitPointHL);
+		ptr->plane.dist = DotProduct(hitPointHL + ray.m_Start, ptr->plane.normal);
+	} else {
+		ptr->startsolid = ptr->allsolid = true;
+	}
+}
+
+void CPhysicsCollision::TraceBox(const Vector &start, const Vector &end,
+		const Vector &mins, const Vector &maxs, const CPhysCollide *pCollide,
+		const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr) {
+	Ray_t ray;
+	ray.Init(start, end, mins, maxs);
+	TraceBox(ray, MASK_ALL, nullptr, pCollide, collideOrigin, collideAngles, ptr);
+}
+
+void CPhysicsCollision::TraceBox(const Ray_t &ray, const CPhysCollide *pCollide,
+		const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr) {
+	TraceBox(ray, MASK_ALL, nullptr, pCollide, collideOrigin, collideAngles, ptr);
 }
 
 /******************
