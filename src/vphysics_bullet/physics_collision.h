@@ -376,6 +376,9 @@ public:
 	virtual void TraceBox(const Ray_t &ray, unsigned int contentsMask,
 			IConvexInfo *pConvexInfo, const CPhysCollide *pCollide,
 			const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr);
+	virtual void TraceCollide(const Vector &start, const Vector &end,
+			const CPhysCollide *pSweepCollide, const QAngle &sweepAngles, const CPhysCollide *pCollide,
+			const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr);
 	virtual void VCollideLoad(vcollide_t *pOutput,
 			int solidCount, const char *pBuffer, int size, bool swap);
 	virtual void VCollideUnload(vcollide_t *pVCollide);
@@ -451,6 +454,18 @@ private:
 				unsigned int contentsMask, IConvexInfo *convexInfo, const CPhysCollide *collide,
 				const btMatrix3x3 &normalBasis);
 		virtual btScalar addSingleResult(btCollisionWorld::LocalConvexResult &convexResult, bool normalInWorldSpace);
+	};
+
+	struct TraceConvexSolidResultCallback : public btCollisionWorld::ConvexResultCallback {
+		btMatrix3x3 m_NormalBasis;
+
+		const btCollisionObject *m_HitCollisionObject;
+		btVector3 m_ClosestHitNormal;
+		btVector3 m_ClosestHitPoint;
+
+		TraceConvexSolidResultCallback(const btMatrix3x3 &normalBasis);
+		virtual btScalar addSingleResult(btCollisionWorld::LocalConvexResult &convexResult, bool normalInWorldSpace);
+		void ResetTraceConvexSolidResult();
 	};
 
 	CUtlVector<CPhysCollide_Sphere *> m_SphereCache;

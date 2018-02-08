@@ -999,6 +999,7 @@ void CPhysicsCollision::DestroyCollide(CPhysCollide *pCollide) {
 void CPhysicsCollision::ClearTrace(trace_t *trace) {
 	memset(trace, 0, sizeof(*trace));
 	trace->fraction = 1.0f;
+	trace->contents = CONTENTS_SOLID;
 	trace->surface.name = "**empty**";
 }
 
@@ -1028,6 +1029,7 @@ btScalar CPhysicsCollision::TraceRayResultCallback::addSingleResult(
 		return m_closestHitFraction;
 	}
 	m_closestHitFraction = rayResult.m_hitFraction;
+	Assert(rayResult.m_collisionObject != nullptr);
 	m_collisionObject = rayResult.m_collisionObject;
 	if (normalInWorldSpace) {
 		m_ClosestHitNormal = rayResult.m_hitNormalLocal;
@@ -1064,6 +1066,7 @@ btScalar CPhysicsCollision::TraceConvexResultCallback::addSingleResult(
 		return m_closestHitFraction;
 	}
 	m_closestHitFraction = convexResult.m_hitFraction;
+	Assert(rayResult.m_hitCollisionObject != nullptr);
 	m_HitCollisionObject = convexResult.m_hitCollisionObject;
 	if (normalInWorldSpace) {
 		m_ClosestHitNormal = convexResult.m_hitNormalLocal;
@@ -1085,8 +1088,8 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 	rayToTrans.getBasis().setIdentity();
 	ConvertPositionToBullet(ray.m_Delta, rayToTrans.getOrigin());
 
-	const btCollisionShape *shape = pCollide->GetShape();
-	m_TraceCollisionObject.setCollisionShape(const_cast<btCollisionShape *>(shape));
+	const btCollisionShape *colObjShape = pCollide->GetShape();
+	m_TraceCollisionObject.setCollisionShape(const_cast<btCollisionShape *>(colObjShape));
 	btTransform colObjWorldTransform;
 	ConvertPositionToBullet(collideOrigin - ray.m_Start, colObjWorldTransform.getOrigin());
 	ConvertRotationToBullet(collideAngles, colObjWorldTransform.getBasis());
@@ -1098,28 +1101,32 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 		TraceRayResultCallback resultCallback(
 				contentsMask, pConvexInfo, pCollide, colObjWorldTransform.getBasis());
 		btCollisionWorld::rayTestSingle(btTransform::getIdentity(), rayToTrans,
-				&m_TraceCollisionObject, shape, colObjWorldTransform, resultCallback);
-		ptr->fraction = resultCallback.m_closestHitFraction;
-		ptr->contents = resultCallback.m_ClosestHitContents;
+				&m_TraceCollisionObject, colObjShape, colObjWorldTransform, resultCallback);
 		hasHit = (resultCallback.m_collisionObject != nullptr);
 		hitNormal = resultCallback.m_ClosestHitNormal;
-		hitPoint = rayToTrans.getOrigin() * resultCallback.m_closestHitFraction;
+		hitPoint = rayToTrans.getOrigin();
+		if (hasHit) {
+			hitPoint *= resultCallback.m_closestHitFraction;
+			ptr->fraction = resultCallback.m_closestHitFraction;
+			ptr->contents = resultCallback.m_ClosestHitContents;
+		}
 	} else {
 		btVector3 halfExtents;
 		ConvertPositionToBullet(ray.m_Extents, halfExtents);
 		m_TraceBoxShape.setImplicitShapeDimensions(halfExtents.absolute());
 		// TODO: Check if the size needs to be exact (inner margin rather than outer).
+		// Probably not because of allowed penetration (which has the same value as the margin).
 		TraceConvexResultCallback resultCallback(
 				contentsMask, pConvexInfo, pCollide, colObjWorldTransform.getBasis());
 		btCollisionWorld::objectQuerySingle(&m_TraceBoxShape, btTransform::getIdentity(), rayToTrans,
-				&m_TraceCollisionObject, shape, colObjWorldTransform, resultCallback,
+				&m_TraceCollisionObject, colObjShape, colObjWorldTransform, resultCallback,
 				VPHYSICS_CONVEX_DISTANCE_MARGIN);
-		ptr->fraction = resultCallback.m_closestHitFraction;
-		ptr->contents = resultCallback.m_ClosestHitContents;
 		hasHit = (resultCallback.m_HitCollisionObject != nullptr);
 		hitNormal = resultCallback.m_ClosestHitNormal;
 		if (hasHit) {
 			hitPoint = resultCallback.m_ClosestHitPoint;
+			ptr->fraction = resultCallback.m_closestHitFraction;
+			ptr->contents = resultCallback.m_ClosestHitContents;
 		} else {
 			hitPoint = rayToTrans.getOrigin(); // This is wrong, but it's invalid anyway if there's no hit.
 		}
@@ -1127,21 +1134,20 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 
 	VectorAdd(ray.m_Start, ray.m_StartOffset, ptr->startpos);
 	VectorMA(ptr->startpos, ptr->fraction, ray.m_Delta, ptr->endpos);
-	if (ptr->fraction > 0.0f) {
-		// TOOD: Ensure the fraction check is enough for startsolid check for rays and fully submerged sweeps.
-		if (!hasHit) {
-			btScalar rayLength2 = rayToTrans.getOrigin().length2();
-			if (rayLength2 > 1e-6) {
-				hitNormal = rayToTrans.getOrigin() / -btSqrt(rayLength2);
-			} else {
-				hitNormal.setValue(-1.0f, 0.0f, 0.0f);
-			}
+	if (!hasHit) {
+		btScalar rayLength2 = rayToTrans.getOrigin().length2();
+		if (rayLength2 > 1e-6) {
+			hitNormal = rayToTrans.getOrigin() / -btSqrt(rayLength2);
+		} else {
+			hitNormal.setValue(-1.0f, 0.0f, 0.0f);
 		}
-		ConvertDirectionToHL(hitNormal, ptr->plane.normal);
-		Vector hitPointHL;
-		ConvertPositionToHL(hitPoint, hitPointHL);
-		ptr->plane.dist = DotProduct(hitPointHL + ray.m_Start, ptr->plane.normal);
-	} else {
+	}
+	ConvertDirectionToHL(hitNormal, ptr->plane.normal);
+	Vector hitPointHL;
+	ConvertPositionToHL(hitPoint, hitPointHL);
+	ptr->plane.dist = DotProduct(hitPointHL + ray.m_Start, ptr->plane.normal);
+	// TODO: Ensure the fraction check is enough for startsolid check for rays and fully submerged sweeps.
+	if (ptr->fraction <= 0.0f) {
 		ptr->startsolid = ptr->allsolid = true;
 	}
 }
@@ -1157,6 +1163,117 @@ void CPhysicsCollision::TraceBox(const Vector &start, const Vector &end,
 void CPhysicsCollision::TraceBox(const Ray_t &ray, const CPhysCollide *pCollide,
 		const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr) {
 	TraceBox(ray, MASK_ALL, nullptr, pCollide, collideOrigin, collideAngles, ptr);
+}
+
+CPhysicsCollision::TraceConvexSolidResultCallback::TraceConvexSolidResultCallback(
+		const btMatrix3x3 &normalBasis) : m_NormalBasis(normalBasis), m_HitCollisionObject(nullptr) {}
+
+btScalar CPhysicsCollision::TraceConvexSolidResultCallback::addSingleResult(
+		btCollisionWorld::LocalConvexResult &convexResult, bool normalInWorldSpace) {
+	m_closestHitFraction = convexResult.m_hitFraction;
+	Assert(rayResult.m_hitCollisionObject != nullptr);
+	m_HitCollisionObject = convexResult.m_hitCollisionObject;
+	if (normalInWorldSpace) {
+		m_ClosestHitNormal = convexResult.m_hitNormalLocal;
+	} else {
+		m_ClosestHitNormal = m_NormalBasis * convexResult.m_hitNormalLocal;
+	}
+	m_ClosestHitPoint = convexResult.m_hitPointLocal; // Actually it's in world coordinates.
+	return m_closestHitFraction;
+}
+
+void CPhysicsCollision::TraceConvexSolidResultCallback::ResetTraceConvexSolidResult() {
+	m_closestHitFraction = 1.0f;
+	m_HitCollisionObject = nullptr;
+}
+
+void CPhysicsCollision::TraceCollide(const Vector &start, const Vector &end,
+		const CPhysCollide *pSweepCollide, const QAngle &sweepAngles, const CPhysCollide *pCollide,
+		const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr) {
+	ClearTrace(ptr);
+
+	const btCollisionShape *sweepShape = pSweepCollide->GetShape();
+	if (!sweepShape->isCompound() && !sweepShape->isConvex()) {
+		return;
+	}
+
+	btVector3 rayDelta;
+	ConvertPositionToBullet(end - start, rayDelta);
+	btTransform rayFromTrans, rayToTrans;
+	ConvertRotationToBullet(sweepAngles, rayFromTrans.getBasis());
+	rayToTrans.getBasis() = rayFromTrans.getBasis();
+	btVector3 sweepWorldMassCenter = rayFromTrans.getBasis() * pSweepCollide->GetMassCenter();
+	// Origins will be set later.
+
+	const btCollisionShape *colObjShape = pCollide->GetShape();
+	m_TraceCollisionObject.setCollisionShape(const_cast<btCollisionShape *>(colObjShape));
+	btTransform colObjWorldTransform;
+	ConvertPositionToBullet(collideOrigin - start, colObjWorldTransform.getOrigin());
+	ConvertRotationToBullet(collideAngles, colObjWorldTransform.getBasis());
+	colObjWorldTransform.getOrigin() += colObjWorldTransform.getBasis() * pCollide->GetMassCenter();
+
+	TraceConvexSolidResultCallback resultCallback(colObjWorldTransform.getBasis());
+	bool hasHit = false;
+	btVector3 hitNormal, hitPoint = rayDelta;
+	if (sweepShape->isCompound()) {
+		const btCompoundShape *sweepCompound = static_cast<const btCompoundShape *>(sweepShape);
+		int childCount = sweepCompound->getNumChildShapes();
+		for (int childIndex = 0; childIndex < childCount; ++childIndex) {
+			const btCollisionShape *childShape = sweepCompound->getChildShape(childIndex);
+			if (!childShape->isConvex()) {
+				continue;
+			}
+			rayFromTrans.getOrigin() = sweepWorldMassCenter + (rayFromTrans.getBasis() *
+					sweepCompound->getChildTransform(childIndex).getOrigin());
+			rayToTrans.getOrigin() = rayFromTrans.getOrigin() + rayDelta;
+			resultCallback.ResetTraceConvexSolidResult();
+			btCollisionWorld::objectQuerySingle(static_cast<const btConvexShape *>(childShape),
+					rayFromTrans, rayToTrans, &m_TraceCollisionObject, colObjShape, colObjWorldTransform,
+					resultCallback, VPHYSICS_CONVEX_DISTANCE_MARGIN);
+			if (resultCallback.m_HitCollisionObject == nullptr) {
+				continue;
+			}
+			hasHit = true;
+			hitNormal = resultCallback.m_ClosestHitNormal;
+			hitPoint = resultCallback.m_ClosestHitPoint;
+			ptr->fraction *= resultCallback.m_closestHitFraction;
+			rayDelta *= resultCallback.m_closestHitFraction;
+			if (ptr->fraction <= 0.0f) {
+				break;
+			}
+		}
+	} else {
+		rayFromTrans.getOrigin() = sweepWorldMassCenter;
+		rayToTrans.getOrigin() = rayFromTrans.getOrigin() + rayDelta;
+		btCollisionWorld::objectQuerySingle(static_cast<const btConvexShape *>(sweepShape),
+				rayFromTrans, rayToTrans, &m_TraceCollisionObject, colObjShape, colObjWorldTransform,
+				resultCallback, VPHYSICS_CONVEX_DISTANCE_MARGIN);
+		if (resultCallback.m_HitCollisionObject != nullptr) {
+			hasHit = true;
+			hitNormal = resultCallback.m_ClosestHitNormal;
+			hitPoint = resultCallback.m_ClosestHitPoint;
+			ptr->fraction = resultCallback.m_closestHitFraction;
+		}
+	}
+
+	ptr->startpos = start;
+	VectorMA(ptr->startpos, ptr->fraction, end - start, ptr->endpos);
+	if (!hasHit) {
+		btScalar rayLength2 = rayDelta.length2();
+		if (rayLength2 > 1e-6) {
+			hitNormal = rayDelta / -btSqrt(rayLength2);
+		} else {
+			hitNormal.setValue(-1.0f, 0.0f, 0.0f);
+		}
+	}
+	ConvertDirectionToHL(hitNormal, ptr->plane.normal);
+	Vector hitPointHL;
+	ConvertPositionToHL(hitPoint, hitPointHL);
+	ptr->plane.dist = DotProduct(hitPointHL + start, ptr->plane.normal);
+	// TODO: Ensure the fraction check is enough for startsolid check for fully submerged sweeps.
+	if (ptr->fraction <= 0.0f) {
+		ptr->startsolid = ptr->allsolid = true;
+	}
 }
 
 /******************
