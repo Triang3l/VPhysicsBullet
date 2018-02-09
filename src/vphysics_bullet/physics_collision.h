@@ -40,6 +40,16 @@ public:
 		return 0.0f;
 	}
 
+	virtual int GetTriangleCount() const { return 0; }
+	virtual void GetTriangleVertices(int triangleIndex, btVector3 vertices[3]) const {
+		vertices[0].setZero();
+		vertices[1].setZero();
+		vertices[2].setZero();	
+	}
+	// These are unremapped materials.
+	virtual int GetTriangleMaterialIndex(int triangleIndex) const { return 0; }
+	virtual void SetTriangleMaterialIndex(int triangleIndex, int index7bits) {}
+
 	virtual btVector3 GetOriginInCompound() const { return btVector3(0.0f, 0.0f, 0.0f); }
 
 protected:
@@ -82,13 +92,12 @@ public:
 			const btVector4 &plane, btScalar &volume, btVector3 &volumeWeightedBuoyancyCenter);
 	virtual btScalar GetSubmergedVolume(const btVector4 &plane, btVector3 &volumeWeightedBuoyancyCenter) const;
 
-	FORCEINLINE bool HasPerTriangleMaterials() const {
-		return m_TriangleMaterials.size() > 0;
-	}
-	// Returns an unremapped surface index, or 0 if no triangle-specific material.
-	// Doesn't remap just in case the non-zero indices are mapped to 0.
-	int GetTriangleMaterialIndex(const btVector3 &point) const;
-	void SetTriangleMaterialIndex(int triangleIndex, int index7bits);
+	virtual int GetTriangleCount() const;
+	virtual void GetTriangleVertices(int triangleIndex, btVector3 vertices[3]) const;
+	FORCEINLINE bool HasPerTriangleMaterials() const { return m_TriangleMaterials.size() > 0; }
+	virtual int GetTriangleMaterialIndex(int triangleIndex) const;
+	int GetTriangleMaterialIndexAtPoint(const btVector3 &point) const;
+	virtual void SetTriangleMaterialIndex(int triangleIndex, int index7bits);
 
 protected:
 	virtual void Initialize();
@@ -384,6 +393,8 @@ public:
 	virtual void VCollideUnload(vcollide_t *pVCollide);
 	virtual IVPhysicsKeyParser *VPhysicsKeyParserCreate(const char *pKeyData);
 	virtual void VPhysicsKeyParserDestroy(IVPhysicsKeyParser *pParser);
+	virtual ICollisionQuery *CreateQueryModel(CPhysCollide *pCollide);
+	virtual void DestroyQueryModel(ICollisionQuery *pQuery);
 	virtual IPhysicsCollision *ThreadContextCreate();
 	virtual void ThreadContextDestroy(IPhysicsCollision *pThreadContext);
 	virtual CPhysCollide *CreateVirtualMesh(const virtualmeshparams_t &params);
@@ -469,6 +480,29 @@ private:
 	};
 
 	CUtlVector<CPhysCollide_Sphere *> m_SphereCache;
+};
+
+class CCollisionQuery : public ICollisionQuery {
+public:
+	CCollisionQuery(CPhysCollide *collide);
+	virtual int ConvexCount();
+	virtual int TriangleCount(int convexIndex);
+	virtual unsigned int GetGameData(int convexIndex);
+	virtual void GetTriangleVerts(int convexIndex, int triangleIndex, Vector *verts);
+	virtual void SetTriangleVerts(int convexIndex, int triangleIndex, const Vector *verts);
+	virtual int GetTriangleMaterialIndex(int convexIndex, int triangleIndex);
+	virtual int SetTriangleMaterialIndex(int convexIndex, int triangleIndex, int index7bits);
+
+private:
+	btCompoundShape *m_CompoundShape;	
+
+	inline CPhysConvex *GetConvex(int convexIndex) const {
+		if (convexIndex < 0 || convexIndex >= ConvexCount()) {
+			return nullptr;
+		}
+		return reinterpret_cast<CPhysConvex *>(
+				m_CompoundShape->getChildShape(convexIndex)->getUserPointer());
+	}
 };
 
 extern CPhysicsCollision *g_pPhysCollision;

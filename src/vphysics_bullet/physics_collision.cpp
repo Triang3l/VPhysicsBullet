@@ -581,11 +581,31 @@ float CPhysConvex_Hull::GetSubmergedVolume(const btVector4 &plane, btVector3 &vo
 	return volume;
 }
 
+int CPhysConvex_Hull::GetTriangleCount() const {
+	return m_TriangleIndices.size() / 3;
+}
+
+void CPhysConvex_Hull::GetTriangleVertices(int triangleIndex, btVector3 vertices[3]) const {
+	const btVector3 *points = m_Shape.getPoints();
+	const unsigned int *indices = &m_TriangleIndices[0];
+	int indexIndex = triangleIndex * 3;
+	vertices[0] = points[indices[indexIndex]];
+	vertices[1] = points[indices[indexIndex + 1]];
+	vertices[2] = points[indices[indexIndex + 2]];
+}
+
+int CPhysConvex_Hull::GetTriangleMaterialIndex(int triangleIndex) const {
+	if (m_TriangleMaterials.size() == 0) {
+		return 0;
+	}
+	return m_TriangleMaterials[triangleIndex];
+}
+
 // This is a hack, gives per-plane surface index, not per-triangle,
 // as Bullet doesn't do per-triangle collision detection for convexes.
 // However, per-triangle materials are used only by world brushes,
 // which can't have coplanar triangles with different materials.
-int CPhysConvex_Hull::GetTriangleMaterialIndex(const btVector3 &point) const {
+int CPhysConvex_Hull::GetTriangleMaterialIndexAtPoint(const btVector3 &point) const {
 	int triangleCount = m_TriangleMaterials.size();
 	if (triangleCount == 0) {
 		return 0;
@@ -1219,15 +1239,12 @@ void CPhysicsCollision::TraceCollide(const Vector &start, const Vector &end,
 		const btCompoundShape *sweepCompound = static_cast<const btCompoundShape *>(sweepShape);
 		int childCount = sweepCompound->getNumChildShapes();
 		for (int childIndex = 0; childIndex < childCount; ++childIndex) {
-			const btCollisionShape *childShape = sweepCompound->getChildShape(childIndex);
-			if (!childShape->isConvex()) {
-				continue;
-			}
 			rayFromTrans.getOrigin() = sweepWorldMassCenter + (rayFromTrans.getBasis() *
 					sweepCompound->getChildTransform(childIndex).getOrigin());
 			rayToTrans.getOrigin() = rayFromTrans.getOrigin() + rayDelta;
 			resultCallback.ResetTraceConvexSolidResult();
-			btCollisionWorld::objectQuerySingle(static_cast<const btConvexShape *>(childShape),
+			btCollisionWorld::objectQuerySingle(
+					static_cast<const btConvexShape *>(sweepCompound->getChildShape(childIndex)),
 					rayFromTrans, rayToTrans, &m_TraceCollisionObject, colObjShape, colObjWorldTransform,
 					resultCallback, VPHYSICS_CONVEX_DISTANCE_MARGIN);
 			if (resultCallback.m_HitCollisionObject == nullptr) {
@@ -1516,6 +1533,80 @@ int CPhysCollide_Compound::GetConvexes(CPhysConvex **output, int limit) const {
 				m_Shape.getChildShape(childIndex)->getUserPointer());
 	}
 	return childCount;
+}
+
+CCollisionQuery::CCollisionQuery(CPhysCollide *collide) {
+	if (CPhysCollide_Compound::IsCompound(collide)) {
+		m_CompoundShape = static_cast<CPhysCollide_Compound *>(collide)->GetCompoundShape();
+	} else {
+		m_CompoundShape = nullptr;
+	}
+}
+
+int CCollisionQuery::ConvexCount() {
+	if (m_CompoundShape == nullptr) {
+		return 0;
+	}
+	return m_CompoundShape->getNumChildShapes();
+}
+
+int CCollisionQuery::TriangleCount(int convexIndex) {
+	const CPhysConvex *convex = GetConvex(convexIndex);
+	if (convex == nullptr) {
+		return 0;
+	}
+	return convex->GetTriangleCount();
+}
+
+unsigned int CCollisionQuery::GetGameData(int convexIndex) {
+	if (convexIndex < 0 || convexIndex >= ConvexCount()) {
+		return 0;
+	}
+	return (unsigned int) m_CompoundShape->getChildShape(convexIndex)->getUserIndex();
+}
+
+void CCollisionQuery::GetTriangleVerts(int convexIndex, int triangleIndex, Vector *verts) {
+	const CPhysConvex *convex = GetConvex(convexIndex);
+	if (convex == nullptr || triangleIndex < 0 || triangleIndex >= convex->GetTriangleCount()) {
+		verts[0].Zero();
+		verts[1].Zero();
+		verts[2].Zero();
+		return;
+	}
+	btVector3 vertices[3];
+	convex->GetTriangleVertices(triangleIndex, vertices);
+	const btVector3 &origin = convex->GetOriginInCompound();
+	ConvertPositionToHL(vertices[0] + origin, verts[0]);
+	ConvertPositionToHL(vertices[1] + origin, verts[1]);
+	ConvertPositionToHL(vertices[2] + origin, verts[2]);
+}
+
+void CCollisionQuery::SetTriangleVerts(int convexIndex, int triangleIndex, const Vector *verts) {
+	// Not implemented in IVP VPhysics.
+}
+
+int CCollisionQuery::GetTriangleMaterialIndex(int convexIndex, int triangleIndex) {
+	const CPhysConvex *convex = GetConvex(convexIndex);
+	if (convex == nullptr || triangleIndex < 0 || triangleIndex >= convex->GetTriangleCount()) {
+		return 0;
+	}
+	return convex->GetTriangleMaterialIndex(triangleIndex);
+}
+
+void CCollisionQuery::SetTriangleMaterialIndex(int convexIndex, int triangleIndex, int index7bits) {
+	CPhysConvex *convex = GetConvex(convexIndex);
+	if (convex == nullptr || triangleIndex < 0 || triangleIndex >= convex->GetTriangleCount()) {
+		return;
+	}
+	convex->SetTriangleMaterialIndex(triangleIndex, index7bits);
+}
+
+ICollisionQuery *CPhysicsCollision::CreateQueryModel(CPhysCollide *pCollide) {
+	return new CCollisionQuery(pCollide);
+}
+
+void CPhysicsCollision::DestroyQueryModel(ICollisionQuery *pQuery) {
+	delete pQuery;
 }
 
 CPhysCollide_Compound::~CPhysCollide_Compound() {
