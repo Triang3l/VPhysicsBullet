@@ -751,6 +751,25 @@ btVector3 CPhysConvex_Box::GetInertia() const {
 	return CPhysicsCollision::BoxInertia(2.0f * m_Shape.getHalfExtentsWithoutMargin());
 }
 
+float CPhysConvex_Box::GetSubmergedVolume(const btVector4 &plane, btVector3 &volumeWeightedBuoyancyCenter) const {
+	btScalar volume;
+	const btVector3 &origin = GetOriginInCompound();
+	const btVector3 &halfExtents = m_Shape.getHalfExtentsWithoutMargin();
+	btVector3 points[8];
+	for (int pointIndex = 0; pointIndex < 8; ++pointIndex) {
+		points[pointIndex].setValue(
+				halfExtents.getX() * ((pointIndex & 4) ? 1.0f : -1.0f),
+				halfExtents.getY() * ((pointIndex & 2) ? 1.0f : -1.0f),
+ 				halfExtents.getZ() * ((pointIndex & 1) ? 1.0f : -1.0f));
+	}
+	if (!GetConvexTriangleMeshSubmergedVolume(origin, points, 8,
+			s_BoxTriangleIndices, 36, plane, volume, volumeWeightedBuoyancyCenter)) {
+		volume = GetVolume();
+		volumeWeightedBuoyancyCenter = origin * volume;
+	}
+	return volume;
+}
+
 int CPhysConvex_Box::GetTriangleCount() const {
 	return 36;
 }

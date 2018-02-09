@@ -84,7 +84,6 @@ public:
 	virtual btScalar GetSurfaceArea() const; // Slow, only needed for tools.
 	virtual btVector3 GetMassCenter() const;
 	virtual btVector3 GetInertia() const;
-
 	// Returns false if fully submerged (and doesn't write volume and center*volume in this case).
 	static bool GetConvexTriangleMeshSubmergedVolume(
 			const btVector3 &origin, const btVector3 *points, int pointCount,
@@ -137,6 +136,7 @@ public:
 	virtual btScalar GetVolume() const;
 	virtual btScalar GetSurfaceArea() const;
 	virtual btVector3 GetInertia() const;
+	virtual btScalar GetSubmergedVolume(const btVector4 &plane, btVector3 &volumeWeightedBuoyancyCenter) const;
 
 	virtual int GetTriangleCount() const;
 	virtual void GetTriangleVertices(int triangleIndex, btVector3 vertices[3]) const;
