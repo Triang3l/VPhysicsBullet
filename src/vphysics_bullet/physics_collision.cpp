@@ -751,6 +751,38 @@ btVector3 CPhysConvex_Box::GetInertia() const {
 	return CPhysicsCollision::BoxInertia(2.0f * m_Shape.getHalfExtentsWithoutMargin());
 }
 
+int CPhysConvex_Box::GetTriangleCount() const {
+	return 36;
+}
+
+void CPhysConvex_Box::GetTriangleVertices(int triangleIndex, btVector3 vertices[3]) const {
+	const btVector3 &halfExtents = m_Shape.getHalfExtentsWithoutMargin();
+	const btVector3 &origin = GetOriginInCompound();
+	int indexIndex = triangleIndex * 3;
+	for (int vertexIndex = 0; vertexIndex < 3; ++vertexIndex) {
+		unsigned int index = s_BoxTriangleIndices[indexIndex + vertexIndex];
+		vertices[vertexIndex].setValue(
+				origin.getX() + (halfExtents.getX() * ((index & 4) ? 1.0f : -1.0f)),
+				origin.getY() + (halfExtents.getY() * ((index & 2) ? 1.0f : -1.0f)),
+ 				origin.getZ() + (halfExtents.getZ() * ((index & 1) ? 1.0f : -1.0f)));
+	}
+}
+
+const unsigned int CPhysConvex_Box::s_BoxTriangleIndices[36] = {
+	0, 1, 3,
+	0, 3, 2,
+	4, 5, 1,
+	4, 1, 0,
+	2, 3, 7,
+	2, 7, 6,
+	1, 5, 7,
+	1, 7, 3,
+	4, 0, 2,
+	4, 2, 6,
+	5, 4, 6,
+	5, 6, 7
+};
+
 CPhysCollide_Compound *CPhysicsCollision::CreateBBox(const Vector &mins, const Vector &maxs) {
 	if (mins == maxs) {
 		return nullptr;

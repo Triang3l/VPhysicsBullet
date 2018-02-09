@@ -138,7 +138,13 @@ public:
 	virtual btScalar GetSurfaceArea() const;
 	virtual btVector3 GetInertia() const;
 
+	virtual int GetTriangleCount() const;
+	virtual void GetTriangleVertices(int triangleIndex, btVector3 vertices[3]) const;
+
 	virtual btVector3 GetOriginInCompound() const { return m_Origin; }
+
+	// These are correctly oriented for the ---, --+, -+-... sequence.
+	static const unsigned int s_BoxTriangleIndices[36];
 
 private:
 	btBoxShape m_Shape;
@@ -491,7 +497,7 @@ public:
 	virtual void GetTriangleVerts(int convexIndex, int triangleIndex, Vector *verts);
 	virtual void SetTriangleVerts(int convexIndex, int triangleIndex, const Vector *verts);
 	virtual int GetTriangleMaterialIndex(int convexIndex, int triangleIndex);
-	virtual int SetTriangleMaterialIndex(int convexIndex, int triangleIndex, int index7bits);
+	virtual void SetTriangleMaterialIndex(int convexIndex, int triangleIndex, int index7bits);
 
 private:
 	btCompoundShape *m_CompoundShape;	
