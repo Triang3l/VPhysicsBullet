@@ -179,6 +179,11 @@ public:
 	virtual void SetMassCenter(const btVector3 &massCenter) {}
 	virtual btVector3 GetInertia() const { return btVector3(1.0f, 1.0f, 1.0f); }
 
+	virtual btScalar GetSubmergedVolume(const btVector4 &plane, btVector3 &buoyancyCenter) const {
+		buoyancyCenter.setZero();
+		return 0.0f;
+	}
+
 	FORCEINLINE const btVector3 &GetOrthographicAreas() const { return m_OrthographicAreas; }
 	void SetOrthographicAreas(const btVector3 &areas);
 	virtual void ComputeOrthographicAreas(btScalar axisEpsilon);
@@ -240,6 +245,8 @@ public:
 	virtual btVector3 GetMassCenter() const { return m_MassCenter; }
 	virtual void SetMassCenter(const btVector3 &massCenter);
 
+	virtual btScalar GetSubmergedVolume(const btVector4 &plane, btVector3 &buoyancyCenter) const;
+
 	virtual int GetConvexes(CPhysConvex **output, int limit) const;
 
 private:
@@ -291,6 +298,8 @@ public:
 			const btVector3 &direction) const;
 
 	virtual btVector3 GetInertia() const;
+
+	virtual btScalar GetSubmergedVolume(const btVector4 &plane, btVector3 &buoyancyCenter) const;
 
 	virtual void ComputeOrthographicAreas(btScalar axisEpsilon);
 

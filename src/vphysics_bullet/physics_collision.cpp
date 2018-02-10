@@ -570,7 +570,7 @@ bool CPhysConvex_Hull::GetConvexTriangleMeshSubmergedVolume(
 	return true;
 }
 
-float CPhysConvex_Hull::GetSubmergedVolume(const btVector4 &plane, btVector3 &volumeWeightedBuoyancyCenter) const {
+btScalar CPhysConvex_Hull::GetSubmergedVolume(const btVector4 &plane, btVector3 &volumeWeightedBuoyancyCenter) const {
 	btScalar volume;
 	const btVector3 &origin = GetOriginInCompound();
 	if (!GetConvexTriangleMeshSubmergedVolume(origin, m_Shape.getPoints(), m_Shape.getNumPoints(),
@@ -751,7 +751,7 @@ btVector3 CPhysConvex_Box::GetInertia() const {
 	return CPhysicsCollision::BoxInertia(2.0f * m_Shape.getHalfExtentsWithoutMargin());
 }
 
-float CPhysConvex_Box::GetSubmergedVolume(const btVector4 &plane, btVector3 &volumeWeightedBuoyancyCenter) const {
+btScalar CPhysConvex_Box::GetSubmergedVolume(const btVector4 &plane, btVector3 &volumeWeightedBuoyancyCenter) const {
 	btScalar volume;
 	const btVector3 &origin = GetOriginInCompound();
 	const btVector3 &halfExtents = m_Shape.getHalfExtentsWithoutMargin();
@@ -1574,6 +1574,23 @@ void CPhysCollide_Compound::CalculateInertia() {
 	}
 }
 
+btScalar CPhysCollide_Compound::GetSubmergedVolume(const btVector4 &plane, btVector3 &buoyancyCenter) const {
+	btScalar volume = 0.0f;
+	btVector3 volumeWeightedBuoyancyCenter;
+	buoyancyCenter.setZero();
+	int childCount = m_Shape.getNumChildShapes();
+	for (int childIndex = 0; childIndex < childCount; ++childIndex) {
+		volume += reinterpret_cast<const CPhysConvex *>(
+				m_Shape.getChildShape(childIndex)->getUserPointer())->GetSubmergedVolume(
+						plane, volumeWeightedBuoyancyCenter);
+		buoyancyCenter += volumeWeightedBuoyancyCenter;
+	}
+	if (volume > 0.0f) {
+		buoyancyCenter /= volume;
+	}
+	return volume;
+}
+
 int CPhysCollide_Compound::GetConvexes(CPhysConvex **output, int limit) const {
 	int childCount = m_Shape.getNumChildShapes();
 	if (childCount < limit) {
@@ -1730,6 +1747,27 @@ btVector3 CPhysCollide_Sphere::GetInertia() const {
 	btScalar elem = GetRadius();
 	elem *= elem * 0.4;
 	return btVector3(elem, elem, elem);
+}
+
+btScalar CPhysCollide_Sphere::GetSubmergedVolume(const btVector4 &plane, btVector3 &buoyancyCenter) const {
+	btScalar radius = GetRadius();
+	btScalar distance = -plane.getW();
+	btScalar capHeight = radius - btFabs(distance);
+	if (capHeight < HL2BULLET(VP_EPSILON)) {
+		buoyancyCenter.setZero();
+		if (distance > 0.0f) {
+			return GetVolume();
+		}
+		return 0.0f;
+	}
+	if (distance > 0.0f) {
+		capHeight += radius;
+	}
+	btScalar twoRadiiMinusHeight = 2.0f * radius - capHeight;
+	btScalar threeRadiiMinusHeight = 3.0f * radius - capHeight;
+	buoyancyCenter = (-0.75f * (twoRadiiMinusHeight * twoRadiiMinusHeight /
+			threeRadiiMinusHeight)) * static_cast<const btVector3 &>(plane);
+	return (SIMD_PI / 3.0f) * capHeight * capHeight * threeRadiiMinusHeight;
 }
 
 void CPhysCollide_Sphere::ComputeOrthographicAreas(btScalar axisEpsilon) {
