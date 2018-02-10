@@ -103,6 +103,10 @@ private:
 class CPhysicsPlayerController : public IPhysicsPlayerController {
 public:
 	CPhysicsPlayerController(IPhysicsObject *object);
+	virtual ~CPhysicsPlayerController();
+
+	// IPhysicsPlayerController methods.
+
 	virtual void SetObject(IPhysicsObject *pObject);
 	virtual void StepUp(float height);
 	virtual void Jump();
@@ -111,6 +115,10 @@ public:
 	virtual void SetPushSpeedLimit(float maxPushSpeed);
 	virtual float GetPushMassLimit();
 	virtual float GetPushSpeedLimit();
+
+	// Internal methods.
+
+	virtual void NotifyPotentialGroundRemoving(IPhysicsObject *object);
 
 private:
 	IPhysicsObject *m_Object;

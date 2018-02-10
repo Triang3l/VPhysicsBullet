@@ -210,6 +210,12 @@ void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {
 		Assert(!physicsObject->IsTouchingTriggers());
 	}
 
+	int playerCount = m_PlayerControllers.Count();
+	for (int playerIndex = 0; playerIndex < playerCount; ++playerIndex) {
+		static_cast<CPhysicsPlayerController *>(
+				m_PlayerControllers[playerIndex])->NotifyPotentialGroundRemoving(object);
+	}
+
 	if (!object->IsStatic()) {
 		if (!physicsObject->WasAsleep()) {
 			m_ActiveNonStaticObjects.FindAndFastRemove(object);
@@ -271,6 +277,14 @@ IPhysicsMotionController *CPhysicsEnvironment::CreateMotionController(IMotionEve
 
 void CPhysicsEnvironment::DestroyMotionController(IPhysicsMotionController *pController) {
 	delete pController;
+}
+
+void CPhysicsEnvironment::NotifyPlayerControllerAttached(IPhysicsPlayerController *controller) {
+	m_PlayerControllers.AddToTail(controller);
+}
+
+void CPhysicsEnvironment::NotifyPlayerControllerDetached(IPhysicsPlayerController *controller) {
+	m_PlayerControllers.FindAndFastRemove(controller);
 }
 
 /*******************

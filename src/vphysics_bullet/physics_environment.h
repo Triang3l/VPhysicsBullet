@@ -83,6 +83,9 @@ public:
 
 	void NotifyObjectRemoving(IPhysicsObject *object);
 
+	void NotifyPlayerControllerAttached(IPhysicsPlayerController *controller);
+	void NotifyPlayerControllerDetached(IPhysicsPlayerController *controller);
+
 	FORCEINLINE btScalar GetTimeSinceLastPSI() const { return m_TimeSinceLastPSI; }
 	FORCEINLINE int GetSimulatedPSIs() const { return m_SimulatedPSIs; }
 	FORCEINLINE btScalar GetInvPSIScale() const { return m_InvPSIScale; }
@@ -119,6 +122,8 @@ private:
 	IPhysicsObjectEvent *m_ObjectEvents;
 	bool m_QueueDeleteObject;
 	CUtlVector<IPhysicsObject *> m_DeadObjects;
+
+	CUtlVector<IPhysicsPlayerController *> m_PlayerControllers;
 
 	btScalar m_SimulationTimeStep, m_SimulationInvTimeStep;
 	bool m_InSimulation;

@@ -109,12 +109,8 @@ CPhysicsObject::~CPhysicsObject() {
 	m_Callbacks = 0;
 	m_GameData = nullptr;
 
+	RemovePlayerController();
 	RemoveShadowController();
-	if (m_Player != nullptr) {
-		m_Environment->DestroyPlayerController(m_Player);
-		Assert(m_Player == nullptr);
-	}
-
 	DetachFromMotionControllers();
 
 	static_cast<CPhysicsEnvironment *>(m_Environment)->NotifyObjectRemoving(this);
@@ -1068,7 +1064,13 @@ void CPhysicsObject::NotifyAttachedToShadowController(IPhysicsShadowController *
 	UpdateMaterial();
 }
 
-void CPhysicsObject::NotifyAttachedToPlayerController(IPhysicsPlayerController *player) {
+void CPhysicsObject::NotifyAttachedToPlayerController(
+		IPhysicsPlayerController *player, bool notifyEnvironment) {
+	Assert((m_Player == nullptr && player != nullptr) || (m_Player != nullptr && player == nullptr));
+	CPhysicsEnvironment *environment = static_cast<CPhysicsEnvironment *>(m_Environment);
+	if (notifyEnvironment && m_Player != nullptr) {
+		environment->NotifyPlayerControllerDetached(m_Player);
+	}
 	m_Player = player;
 	unsigned short callbacks = GetCallbackFlags();
 	if (m_Player != nullptr) {
@@ -1077,6 +1079,9 @@ void CPhysicsObject::NotifyAttachedToPlayerController(IPhysicsPlayerController *
 		callbacks &= ~CALLBACK_IS_PLAYER_CONTROLLER;
 	}
 	SetCallbackFlags(callbacks);
+	if (notifyEnvironment && m_Player != nullptr) {
+		environment->NotifyPlayerControllerAttached(m_Player);
+	}
 }
 
 void CPhysicsObject::StepUp(btScalar height) {

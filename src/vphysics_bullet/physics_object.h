@@ -159,7 +159,8 @@ public:
 
 	bool IsControlledByGame() const;
 	void NotifyAttachedToShadowController(IPhysicsShadowController *shadow);
-	void NotifyAttachedToPlayerController(IPhysicsPlayerController *player);
+	void NotifyAttachedToPlayerController(
+			IPhysicsPlayerController *player, bool notifyEnvironment);
 	void StepUp(btScalar height); // May be called outside PSIs.
 	btScalar ComputeBulletShadowControl(struct ShadowControlBulletParameters_t &params,
 			btScalar secondsToArrival, btScalar timeStep);

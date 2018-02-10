@@ -155,16 +155,25 @@ void CPhysicsShadowController::Simulate(btScalar timeStep) {
 CPhysicsPlayerController::CPhysicsPlayerController(IPhysicsObject *object) :
 		m_Object(object),
 		m_PushInvMassLimit(1.0f / 50000.0f),
-		m_PushSpeedLimit(HL2BULLET(10000.0f)) {}
+		m_PushSpeedLimit(HL2BULLET(10000.0f)) {
+	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToPlayerController(this, true);
+}
+
+CPhysicsPlayerController::~CPhysicsPlayerController() {
+	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToPlayerController(nullptr, true);
+}
 
 void CPhysicsPlayerController::SetObject(IPhysicsObject *pObject) {
 	Assert(pObject != nullptr);
 	if (m_Object == pObject) {
 		return;
 	}
-	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToPlayerController(nullptr);
+	CPhysicsObject *oldObject = static_cast<CPhysicsObject *>(m_Object);
+	CPhysicsObject *newObject = static_cast<CPhysicsObject *>(pObject);
+	bool newEnvironment = (oldObject->GetEnvironment() != newObject->GetEnvironment());
+	oldObject->NotifyAttachedToPlayerController(nullptr, newEnvironment);
 	m_Object = pObject;
-	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToPlayerController(this);
+	newObject->NotifyAttachedToPlayerController(this, newEnvironment);
 }
 
 void CPhysicsPlayerController::StepUp(float height) {
