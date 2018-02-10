@@ -1047,6 +1047,16 @@ void CPhysicsObject::RemovePlayerController() {
 	}
 }
 
+bool CPhysicsObject::IsControlledByGame() const {
+	if (m_Shadow != nullptr && !m_Shadow->IsPhysicallyControlled()) {
+		return true;
+	}
+	if (GetCallbackFlags() & CALLBACK_IS_PLAYER_CONTROLLER) {
+		return true;
+	}
+	return false;
+}
+
 float CPhysicsObject::ComputeShadowControl(const hlshadowcontrol_params_t &params,
 		float secondsToArrival, float dt) {
 	return ComputeBulletShadowControl(ShadowControlBulletParameters_t(params), secondsToArrival, dt);
@@ -1060,6 +1070,13 @@ void CPhysicsObject::NotifyAttachedToShadowController(IPhysicsShadowController *
 
 void CPhysicsObject::NotifyAttachedToPlayerController(IPhysicsPlayerController *player) {
 	m_Player = player;
+	unsigned short callbacks = GetCallbackFlags();
+	if (m_Player != nullptr) {
+		callbacks |= CALLBACK_IS_PLAYER_CONTROLLER;
+	} else {
+		callbacks &= ~CALLBACK_IS_PLAYER_CONTROLLER;
+	}
+	SetCallbackFlags(callbacks);
 }
 
 void CPhysicsObject::StepUp(btScalar height) {

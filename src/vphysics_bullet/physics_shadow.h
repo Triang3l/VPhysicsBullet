@@ -76,6 +76,8 @@ public:
 	virtual void SetTeleportDistance(float teleportDistance);
 	virtual bool AllowsTranslation();
 	virtual bool AllowsRotation();
+	virtual void SetPhysicallyControlled(bool isPhysicallyControlled);
+	virtual bool IsPhysicallyControlled();
 	virtual void GetLastImpulse(Vector *pOut);
 	virtual void UseShadowMaterial(bool bUseShadowMaterial);
 	virtual void ObjectMaterialChanged(int materialIndex);
@@ -94,6 +96,7 @@ private:
 	btScalar m_SecondsToArrival;
 	bool m_Enable;
 	bool m_AllowPhysicsMovement, m_AllowPhysicsRotation;
+	bool m_PhysicallyControlled;
 	bool m_UseShadowMaterial;
 };
 

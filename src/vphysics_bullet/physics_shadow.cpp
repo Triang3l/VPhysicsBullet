@@ -45,6 +45,7 @@ CPhysicsShadowController::CPhysicsShadowController(IPhysicsObject *object,
 		m_Enable(false),
 		m_AllowPhysicsMovement(allowTranslation),
 		m_AllowPhysicsRotation(allowRotation),
+		m_PhysicallyControlled(false),
 		m_UseShadowMaterial(true) {
 	memset(&m_Shadow, 0, sizeof(m_Shadow));
 	m_Shadow.m_DampFactor = 1.0f;
@@ -117,6 +118,14 @@ bool CPhysicsShadowController::AllowsTranslation() {
 
 bool CPhysicsShadowController::AllowsRotation() {
 	return m_AllowPhysicsRotation;
+}
+
+void CPhysicsShadowController::SetPhysicallyControlled(bool isPhysicallyControlled) {
+	m_UseShadowMaterial = isPhysicallyControlled;
+}
+
+bool CPhysicsShadowController::IsPhysicallyControlled() {
+	return m_UseShadowMaterial;
 }
 
 void CPhysicsShadowController::GetLastImpulse(Vector *pOut) {

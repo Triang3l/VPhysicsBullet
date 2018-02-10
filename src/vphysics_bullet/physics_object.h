@@ -157,6 +157,7 @@ public:
 	void ApplyEventMotion(bool isWorld, bool isForce,
 			const btVector3 &linear, const btVector3 &angular);
 
+	bool IsControlledByGame() const;
 	void NotifyAttachedToShadowController(IPhysicsShadowController *shadow);
 	void NotifyAttachedToPlayerController(IPhysicsPlayerController *player);
 	void StepUp(btScalar height); // May be called outside PSIs.
