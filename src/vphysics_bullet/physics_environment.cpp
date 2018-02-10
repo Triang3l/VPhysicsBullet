@@ -381,10 +381,12 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 		object->ApplyForcesAndSpeedLimit(timeStep);
 		object->ApplyGravity(timeStep);
 
+		// Shadows.
+		object->SimulateShadowAndPlayer(timeStep);
+
 		// Unconstrained motion.
 		object->ApplyDrag(timeStep);
 		object->SimulateMotionControllers(IPhysicsMotionController::MEDIUM_PRIORITY, timeStep);
-		object->SimulateShadowAndPlayer(timeStep);
 
 		// Vehicles.
 
