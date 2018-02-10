@@ -502,7 +502,7 @@ public:
 private:
 	btCompoundShape *m_CompoundShape;	
 
-	inline CPhysConvex *GetConvex(int convexIndex) const {
+	inline CPhysConvex *GetConvex(int convexIndex) {
 		if (convexIndex < 0 || convexIndex >= ConvexCount()) {
 			return nullptr;
 		}

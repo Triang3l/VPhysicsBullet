@@ -762,7 +762,7 @@ float CPhysConvex_Box::GetSubmergedVolume(const btVector4 &plane, btVector3 &vol
 				halfExtents.getY() * ((pointIndex & 2) ? 1.0f : -1.0f),
  				halfExtents.getZ() * ((pointIndex & 1) ? 1.0f : -1.0f));
 	}
-	if (!GetConvexTriangleMeshSubmergedVolume(origin, points, 8,
+	if (!CPhysConvex_Hull::GetConvexTriangleMeshSubmergedVolume(origin, points, 8,
 			s_BoxTriangleIndices, 36, plane, volume, volumeWeightedBuoyancyCenter)) {
 		volume = GetVolume();
 		volumeWeightedBuoyancyCenter = origin * volume;
