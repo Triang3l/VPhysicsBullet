@@ -5,6 +5,7 @@
 #define PHYSICS_SHADOW_H
 
 #include "physics_internal.h"
+#include "vphysics/player_controller.h"
 
 struct ShadowControlBulletParameters_t {
 	// Positions are in object coordinates, not mass center coordinates.
@@ -94,6 +95,23 @@ private:
 	bool m_Enable;
 	bool m_AllowPhysicsMovement, m_AllowPhysicsRotation;
 	bool m_UseShadowMaterial;
+};
+
+class CPhysicsPlayerController : public IPhysicsPlayerController {
+public:
+	CPhysicsPlayerController(IPhysicsObject *object);
+	virtual void SetObject(IPhysicsObject *pObject);
+	virtual void StepUp(float height);
+	virtual void Jump();
+	virtual IPhysicsObject *GetObject();
+	virtual void SetPushMassLimit(float maxPushMass);
+	virtual void SetPushSpeedLimit(float maxPushSpeed);
+	virtual float GetPushMassLimit();
+	virtual float GetPushSpeedLimit();
+
+private:
+	IPhysicsObject *m_Object;
+	btScalar m_PushInvMassLimit, m_PushSpeedLimit;
 };
 
 #endif

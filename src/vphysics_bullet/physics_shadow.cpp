@@ -142,3 +142,53 @@ void CPhysicsShadowController::Simulate(btScalar timeStep) {
 	m_SecondsToArrival = btMax(m_SecondsToArrival - timeStep, btScalar(0.0f));
 	// TODO: For objects with physics movement allowed, do something with friction snapshots.
 }
+
+CPhysicsPlayerController::CPhysicsPlayerController(IPhysicsObject *object) :
+		m_Object(object),
+		m_PushInvMassLimit(1.0f / 50000.0f),
+		m_PushSpeedLimit(HL2BULLET(10000.0f)) {}
+
+void CPhysicsPlayerController::SetObject(IPhysicsObject *pObject) {
+	Assert(pObject != nullptr);
+	if (m_Object == pObject) {
+		return;
+	}
+	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToPlayerController(nullptr);
+	m_Object = pObject;
+	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToPlayerController(this);
+}
+
+void CPhysicsPlayerController::StepUp(float height) {
+	static_cast<CPhysicsObject *>(m_Object)->StepUp(HL2BULLET(height));
+}
+
+void CPhysicsPlayerController::Jump() {
+	// Not implemented in IVP VPhysics.
+}
+
+IPhysicsObject *CPhysicsPlayerController::GetObject() {
+	return m_Object;
+}
+
+void CPhysicsPlayerController::SetPushMassLimit(float maxPushMass) {
+	if (maxPushMass > 0.0f) {
+		m_PushInvMassLimit = 1.0f / maxPushMass;
+	} else {
+		m_PushInvMassLimit = BT_LARGE_FLOAT;
+	}
+}
+
+void CPhysicsPlayerController::SetPushSpeedLimit(float maxPushSpeed) {
+	m_PushSpeedLimit = HL2BULLET(maxPushSpeed);
+}
+
+float CPhysicsPlayerController::GetPushMassLimit() {
+	if (m_PushInvMassLimit >= BT_LARGE_FLOAT) {
+		return 0.0f;
+	}
+	return (float) (1.0f / m_PushInvMassLimit);
+}
+
+float CPhysicsPlayerController::GetPushSpeedLimit() {
+	return BULLET2HL(m_PushSpeedLimit);
+}

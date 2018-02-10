@@ -1040,6 +1040,13 @@ void CPhysicsObject::RemoveShadowController() {
 	}
 }
 
+void CPhysicsObject::RemovePlayerController() {
+	if (m_Player != nullptr) {
+		m_Environment->DestroyPlayerController(m_Player);
+		Assert(m_Player == nullptr);
+	}
+}
+
 float CPhysicsObject::ComputeShadowControl(const hlshadowcontrol_params_t &params,
 		float secondsToArrival, float dt) {
 	return ComputeBulletShadowControl(ShadowControlBulletParameters_t(params), secondsToArrival, dt);
@@ -1049,6 +1056,10 @@ void CPhysicsObject::NotifyAttachedToShadowController(IPhysicsShadowController *
 	m_Shadow = shadow;
 	UpdateMassProps();
 	UpdateMaterial();
+}
+
+void CPhysicsObject::NotifyAttachedToPlayerController(IPhysicsPlayerController *player) {
+	m_Player = player;
 }
 
 void CPhysicsObject::StepUp(btScalar height) {

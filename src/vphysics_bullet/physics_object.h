@@ -158,10 +158,12 @@ public:
 			const btVector3 &linear, const btVector3 &angular);
 
 	void NotifyAttachedToShadowController(IPhysicsShadowController *shadow);
+	void NotifyAttachedToPlayerController(IPhysicsPlayerController *player);
 	void StepUp(btScalar height); // May be called outside PSIs.
 	btScalar ComputeBulletShadowControl(struct ShadowControlBulletParameters_t &params,
 			btScalar secondsToArrival, btScalar timeStep);
 	void SimulateShadowAndPlayer(btScalar timeStep);
+	void RemovePlayerController();
 
 	FORCEINLINE CPhysicsObject *GetNextCollideObject() const {
 		return m_CollideObjectNext;

@@ -34,6 +34,8 @@ public:
 
 	virtual IPhysicsShadowController *CreateShadowController(IPhysicsObject *pObject,
 			bool allowTranslation, bool allowRotation);
+	virtual IPhysicsPlayerController *CreatePlayerController(IPhysicsObject *pObject);
+	virtual void DestroyPlayerController(IPhysicsPlayerController *pController);
 	virtual void DestroyShadowController(IPhysicsShadowController *pController);
 	virtual IPhysicsMotionController *CreateMotionController(IMotionEvent *pHandler);
 	virtual void DestroyMotionController(IPhysicsMotionController *pController);

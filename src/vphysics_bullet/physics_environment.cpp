@@ -249,10 +249,19 @@ float CPhysicsEnvironment::GetAirDensity() const {
 IPhysicsShadowController *CPhysicsEnvironment::CreateShadowController(IPhysicsObject *pObject,
 		bool allowTranslation, bool allowRotation) {
 	pObject->RemoveShadowController();
-	return new CPhysicsShadowController(allowTranslation, allowRotation);
+	return new CPhysicsShadowController(pObject, allowTranslation, allowRotation);
 }
 
 void CPhysicsEnvironment::DestroyShadowController(IPhysicsShadowController *pController) {
+	delete pController;
+}
+
+IPhysicsPlayerController *CPhysicsEnvironment::CreatePlayerController(IPhysicsObject *pObject) {
+	static_cast<CPhysicsObject *>(pObject)->RemovePlayerController();
+	return new CPhysicsPlayerController(pObject);
+}
+
+void CPhysicsEnvironment::DestroyPlayerController(IPhysicsPlayerController *pController) {
 	delete pController;
 }
 
