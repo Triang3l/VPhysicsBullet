@@ -7,6 +7,7 @@
 #include "physics_internal.h"
 #include "vphysics/virtualmesh.h"
 #include <LinearMath/btConvexHull.h>
+#include "cmodel.h"
 #include "tier1/byteswap.h"
 #include "tier1/utlvector.h"
 
@@ -426,6 +427,7 @@ public:
 			const btVector3 &inertia, const btVector3 &origin, bool absolute = true);
 
 	FORCEINLINE btCollisionObject *GetTraceCollisionObject() { return &m_TraceCollisionObject; }
+	FORCEINLINE bool IsInContactTest() const { return m_InContactTest; } // To suppress callbacks.
 
 	CPhysCollide_Sphere *CreateCachedSphereCollide(btScalar radius);
 
@@ -435,10 +437,22 @@ public:
 	void CleanupCompoundConvexDeleteQueue();
 
 private:
+	/***************
+	 * Convex hulls
+	 ***************/
+
 	HullLibrary m_HullLibrary;
+
+	/*****************
+	 * Bounding boxes
+	 *****************/
 
 	CPhysCollide_Compound *CreateBBox(const Vector &mins, const Vector &maxs);
 	CUtlVector<CPhysCollide_Compound *> m_BBoxCache;
+
+	/******************
+	 * Compound shapes
+	 ******************/
 
 	CPhysCollide *UnserializeIVPCompactSurface(
 			const struct VCollide_IVP_Compact_Surface *surface, CByteswap &byteswap,
@@ -446,55 +460,150 @@ private:
 
 	CUtlVector<CPhysConvex *> m_CompoundConvexDeleteQueue;
 
-	static void ClearTrace(trace_t *trace);
-	btCollisionObject m_TraceCollisionObject;
-	btBoxShape m_TraceBoxShape;
-
-	struct TraceRayResultCallback : public btCollisionWorld::RayResultCallback {
-		unsigned int m_ContentsMask;
-		IConvexInfo *m_ConvexInfo;
-		const btCompoundShape *m_CompoundShape; // nullptr if not compound, thus has no contents.
-		btMatrix3x3 m_NormalBasis;
-
-		btVector3 m_ClosestHitNormal;
-		unsigned int m_ClosestHitContents;
-
-		TraceRayResultCallback(
-				unsigned int contentsMask, IConvexInfo *convexInfo, const CPhysCollide *collide,
-				const btMatrix3x3 &normalBasis);
-		virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult &rayResult, bool normalInWorldSpace);
-	};
-
-	struct TraceConvexResultCallback : public btCollisionWorld::ConvexResultCallback {
-		unsigned int m_ContentsMask;
-		IConvexInfo *m_ConvexInfo;
-		const btCompoundShape *m_CompoundShape; // nullptr if not compound, thus has no contents.
-		btMatrix3x3 m_NormalBasis;
-
-		const btCollisionObject *m_HitCollisionObject;
-		btVector3 m_ClosestHitNormal;
-		btVector3 m_ClosestHitPoint;
-		unsigned int m_ClosestHitContents;
-
-		TraceConvexResultCallback(
-				unsigned int contentsMask, IConvexInfo *convexInfo, const CPhysCollide *collide,
-				const btMatrix3x3 &normalBasis);
-		virtual btScalar addSingleResult(btCollisionWorld::LocalConvexResult &convexResult, bool normalInWorldSpace);
-	};
-
-	struct TraceConvexSolidResultCallback : public btCollisionWorld::ConvexResultCallback {
-		btMatrix3x3 m_NormalBasis;
-
-		const btCollisionObject *m_HitCollisionObject;
-		btVector3 m_ClosestHitNormal;
-		btVector3 m_ClosestHitPoint;
-
-		TraceConvexSolidResultCallback(const btMatrix3x3 &normalBasis);
-		virtual btScalar addSingleResult(btCollisionWorld::LocalConvexResult &convexResult, bool normalInWorldSpace);
-		void ResetTraceConvexSolidResult();
-	};
+	/**********
+	 * Spheres
+	 **********/
 
 	CUtlVector<CPhysCollide_Sphere *> m_SphereCache;
+
+	/*********
+	 * Traces
+	 *********/
+
+	// Common.
+
+	static void ClearTrace(trace_t *trace);
+
+	btCollisionObject m_TraceCollisionObject;
+
+	struct TraceContentsFilter {
+		IConvexInfo *m_ConvexInfo;
+		unsigned int m_ContentsMask;
+		const btCompoundShape *m_CompoundShape;
+
+		TraceContentsFilter(IConvexInfo *convexInfo, unsigned int contentsMask, const btCollisionShape *shape) :
+				m_ConvexInfo(convexInfo), m_ContentsMask(contentsMask) {
+			if (shape->isCompound()) {
+				m_CompoundShape = static_cast<const btCompoundShape *>(shape);
+			} else {
+				m_CompoundShape = nullptr;
+			}
+		}
+
+		unsigned int Hit(int childIndex) const {
+			if (m_ConvexInfo == nullptr || m_CompoundShape == nullptr || childIndex < 0) {
+				return CONTENTS_SOLID;
+			}
+			unsigned int contents = m_ConvexInfo->GetContents(
+					m_CompoundShape->getChildShape(childIndex)->getUserIndex());
+			if (!(m_ContentsMask & contents)) {
+				return 0;
+			}
+			return contents;
+		}
+
+		bool Hit(const btCollisionWorld::LocalShapeInfo *localShapeInfo) const {
+			if (localShapeInfo == nullptr) {
+				return CONTENTS_SOLID;
+			}
+			return Hit(localShapeInfo->m_triangleIndex);
+		}
+	};
+
+	// Contact tests (in place - for startsolid and non-swept Ray_t).
+
+	btCollisionConfiguration *m_ContactTestCollisionConfiguration;
+	btCollisionDispatcher *m_ContactTestDispatcher;
+	btSimpleBroadphase *m_ContactTestBroadphase;
+	btCollisionWorld *m_ContactTestCollisionWorld;
+	btCollisionObject m_ContactTestCollisionObject;
+
+	bool ContactTest(const btCollisionShape *testShape, const btTransform &testTransform,
+			const btCollisionShape *collisionShape, const btTransform &collisionTransform,
+			const TraceContentsFilter *contentsFilter, trace_t *trace);
+	bool m_InContactTest;
+
+	// Ray tests.
+
+	struct RayTestResultCallback : public btCollisionWorld::RayResultCallback {
+		const TraceContentsFilter *m_ContentsFilter;
+		btMatrix3x3 m_NormalBasis;
+
+		btVector3 m_ClosestHitNormal;
+		unsigned int m_ClosestHitContents;
+
+		RayTestResultCallback(const TraceContentsFilter *contentsFilter, const btMatrix3x3 &normalBasis) :
+				m_ContentsFilter(contentsFilter), m_NormalBasis(normalBasis) {}
+
+		virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult &rayResult, bool normalInWorldSpace) {
+			Assert(rayResult.m_collisionObject != nullptr);
+			unsigned int contents = CONTENTS_SOLID;
+			if (m_ContentsFilter != nullptr) {
+				contents = m_ContentsFilter->Hit(rayResult.m_localShapeInfo);
+				if (contents == 0) {
+					return m_closestHitFraction;
+				}
+			}
+			m_collisionObject = rayResult.m_collisionObject;
+			if (normalInWorldSpace) {
+				m_ClosestHitNormal = rayResult.m_hitNormalLocal;
+			} else {
+				m_ClosestHitNormal = m_NormalBasis * rayResult.m_hitNormalLocal;
+			}
+			m_ClosestHitContents = contents;
+			return m_closestHitFraction;
+		}
+
+		void Reset() {
+			m_closestHitFraction = 1.0f;
+			m_collisionObject = nullptr;
+		}
+	};
+
+	btSphereShape m_RayTestStartSphereShape; // For contact test if only testing a single point.
+
+	// Convex tests.
+
+	struct ConvexTestResultCallback : public btCollisionWorld::ConvexResultCallback {
+		const TraceContentsFilter *m_ContentsFilter;
+		btMatrix3x3 m_NormalBasis;
+
+		const btCollisionObject *m_HitCollisionObject;
+		btVector3 m_ClosestHitNormal;
+		btVector3 m_ClosestHitPoint;
+		unsigned int m_ClosestHitContents;
+
+		ConvexTestResultCallback(const TraceContentsFilter *contentsFilter, const btMatrix3x3 &normalBasis) :
+				m_ContentsFilter(contentsFilter), m_NormalBasis(normalBasis),
+				m_HitCollisionObject(nullptr) {}
+
+		virtual btScalar addSingleResult(btCollisionWorld::LocalConvexResult &convexResult, bool normalInWorldSpace) {
+			Assert(convexResult.m_hitCollisionObject != nullptr);
+			unsigned int contents = CONTENTS_SOLID;
+			if (m_ContentsFilter != nullptr) {
+				contents = m_ContentsFilter->Hit(convexResult.m_localShapeInfo);
+				if (contents == 0) {
+					return m_closestHitFraction;
+				}
+			}
+			m_HitCollisionObject = convexResult.m_hitCollisionObject;
+			if (normalInWorldSpace) {
+				m_ClosestHitNormal = convexResult.m_hitNormalLocal;
+			} else {
+				m_ClosestHitNormal = m_NormalBasis * convexResult.m_hitNormalLocal;
+			}
+			m_ClosestHitPoint = convexResult.m_hitPointLocal; // In world space actually.
+			m_ClosestHitContents = contents;
+			return m_closestHitFraction;
+		}
+
+		void Reset() {
+			m_closestHitFraction = 1.0f;
+			m_HitCollisionObject = nullptr;
+		}
+	};
+
+	btBoxShape m_ConvexTestBoxShape;
 };
 
 class CCollisionQuery : public ICollisionQuery {

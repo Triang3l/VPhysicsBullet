@@ -5,7 +5,6 @@
 #include "physics_parse.h"
 #include "physics_object.h"
 #include <LinearMath/btGeometryUtil.h>
-#include "cmodel.h"
 #include "mathlib/polyhedron.h"
 #include "mathlib/vplane.h"
 #include "tier0/dbg.h"
@@ -18,9 +17,27 @@
 static CPhysicsCollision s_PhysCollision;
 CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
 
-CPhysicsCollision::CPhysicsCollision() : m_TraceBoxShape(btVector3(1.0f, 1.0f, 1.0f)) {
-	m_TraceBoxShape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
+CPhysicsCollision::CPhysicsCollision() :
+		m_InContactTest(false),
+		m_RayTestStartSphereShape(VPHYSICS_CONVEX_DISTANCE_MARGIN),
+		m_ConvexTestBoxShape(btVector3(1.0f, 1.0f, 1.0f)) {
+	m_ConvexTestBoxShape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
+
+	m_ContactTestCollisionConfiguration = new btDefaultCollisionConfiguration();
+	m_ContactTestDispatcher = new btCollisionDispatcher(m_ContactTestCollisionConfiguration);
+	m_ContactTestBroadphase = new btSimpleBroadphase(2); // 0 is dangerous as it's array size.
+	m_ContactTestCollisionWorld = new btCollisionWorld(
+			m_ContactTestDispatcher, m_ContactTestBroadphase, m_ContactTestCollisionConfiguration);
 }
+
+IPhysicsCollision *CPhysicsCollision::ThreadContextCreate() {
+	// IVP VPhysics v29 used to create a new CPhysicsCollision, but v31 returns this.
+	// Due to g_pPhysCollision references, and because object reference lists are thread-unsafe,
+	// this VPhysics implementation has to be single-threaded.
+	return this;
+}
+
+void CPhysicsCollision::ThreadContextDestroy(IPhysicsCollision *pThreadContext) {}
 
 /***************************
  * Serialization structures
@@ -171,19 +188,6 @@ BEGIN_BYTESWAP_DATADESC(VCollide_IVP_Compact_Surface)
 	DEFINE_FIELD(offset_ledgetree_root, FIELD_INTEGER),
 	DEFINE_ARRAY(dummy, FIELD_INTEGER, 3),
 END_BYTESWAP_DATADESC()
-
-/************
- * Subsystem
- ************/
-
-IPhysicsCollision *CPhysicsCollision::ThreadContextCreate() {
-	// IVP VPhysics v29 used to create a new CPhysicsCollision, but v31 returns this.
-	// Due to g_pPhysCollision references, and because object reference lists are thread-unsafe,
-	// this VPhysics implementation has to be single-threaded.
-	return this;
-}
-
-void CPhysicsCollision::ThreadContextDestroy(IPhysicsCollision *pThreadContext) {}
 
 /****************************************
  * Utility for convexes and collideables
@@ -1074,81 +1078,7 @@ void CPhysicsCollision::ClearTrace(trace_t *trace) {
 	trace->surface.name = "**empty**";
 }
 
-CPhysicsCollision::TraceRayResultCallback::TraceRayResultCallback(
-		unsigned int contentsMask, IConvexInfo *convexInfo, const CPhysCollide *collide,
-		const btMatrix3x3 &normalBasis) :
-		m_ContentsMask(contentsMask), m_ConvexInfo(convexInfo),
-		m_NormalBasis(normalBasis),
-		m_ClosestHitContents(CONTENTS_SOLID) {
-	if (CPhysCollide_Compound::IsCompound(collide)) {
-		m_CompoundShape = static_cast<const CPhysCollide_Compound *>(collide)->GetCompoundShape();
-	} else {
-		m_CompoundShape = nullptr;
-	}
-}
-
-btScalar CPhysicsCollision::TraceRayResultCallback::addSingleResult(
-		btCollisionWorld::LocalRayResult &rayResult, bool normalInWorldSpace) {
-	unsigned int contents = CONTENTS_SOLID;
-	if (m_ConvexInfo != nullptr && m_CompoundShape != nullptr && rayResult.m_localShapeInfo != nullptr) {
-		int childIndex = rayResult.m_localShapeInfo->m_triangleIndex;
-		if (childIndex >= 0) {
-			contents = m_ConvexInfo->GetContents(m_CompoundShape->getChildShape(childIndex)->getUserIndex());
-		}
-	}
-	if (!(m_ContentsMask & contents)) {
-		return m_closestHitFraction;
-	}
-	m_closestHitFraction = rayResult.m_hitFraction;
-	Assert(rayResult.m_collisionObject != nullptr);
-	m_collisionObject = rayResult.m_collisionObject;
-	if (normalInWorldSpace) {
-		m_ClosestHitNormal = rayResult.m_hitNormalLocal;
-	} else {
-		m_ClosestHitNormal = m_NormalBasis * rayResult.m_hitNormalLocal;
-	}
-	m_ClosestHitContents = contents;
-	return m_closestHitFraction;
-}
-
-CPhysicsCollision::TraceConvexResultCallback::TraceConvexResultCallback(
-		unsigned int contentsMask, IConvexInfo *convexInfo, const CPhysCollide *collide,
-		const btMatrix3x3 &normalBasis) :
-		m_ContentsMask(contentsMask), m_ConvexInfo(convexInfo),
-		m_NormalBasis(normalBasis),
-		m_HitCollisionObject(nullptr), m_ClosestHitContents(CONTENTS_SOLID) {
-	if (CPhysCollide_Compound::IsCompound(collide)) {
-		m_CompoundShape = static_cast<const CPhysCollide_Compound *>(collide)->GetCompoundShape();
-	} else {
-		m_CompoundShape = nullptr;
-	}
-}
-
-btScalar CPhysicsCollision::TraceConvexResultCallback::addSingleResult(
-		btCollisionWorld::LocalConvexResult &convexResult, bool normalInWorldSpace) {
-	unsigned int contents = CONTENTS_SOLID;
-	if (m_ConvexInfo != nullptr && m_CompoundShape != nullptr && convexResult.m_localShapeInfo != nullptr) {
-		int childIndex = convexResult.m_localShapeInfo->m_triangleIndex;
-		if (childIndex >= 0) {
-			contents = m_ConvexInfo->GetContents(m_CompoundShape->getChildShape(childIndex)->getUserIndex());
-		}
-	}
-	if (!(m_ContentsMask & contents)) {
-		return m_closestHitFraction;
-	}
-	m_closestHitFraction = convexResult.m_hitFraction;
-	Assert(rayResult.m_hitCollisionObject != nullptr);
-	m_HitCollisionObject = convexResult.m_hitCollisionObject;
-	if (normalInWorldSpace) {
-		m_ClosestHitNormal = convexResult.m_hitNormalLocal;
-	} else {
-		m_ClosestHitNormal = m_NormalBasis * convexResult.m_hitNormalLocal;
-	}
-	m_ClosestHitPoint = convexResult.m_hitPointLocal; // Actually it's in world coordinates.
-	m_ClosestHitContents = contents;
-	return m_closestHitFraction;
-}
-
+#if 0
 void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 		IConvexInfo *pConvexInfo, const CPhysCollide *pCollide,
 		const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr) {
@@ -1222,6 +1152,7 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 		ptr->startsolid = ptr->allsolid = true;
 	}
 }
+#endif
 
 void CPhysicsCollision::TraceBox(const Vector &start, const Vector &end,
 		const Vector &mins, const Vector &maxs, const CPhysCollide *pCollide,
@@ -1236,28 +1167,7 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, const CPhysCollide *pCollide,
 	TraceBox(ray, MASK_ALL, nullptr, pCollide, collideOrigin, collideAngles, ptr);
 }
 
-CPhysicsCollision::TraceConvexSolidResultCallback::TraceConvexSolidResultCallback(
-		const btMatrix3x3 &normalBasis) : m_NormalBasis(normalBasis), m_HitCollisionObject(nullptr) {}
-
-btScalar CPhysicsCollision::TraceConvexSolidResultCallback::addSingleResult(
-		btCollisionWorld::LocalConvexResult &convexResult, bool normalInWorldSpace) {
-	m_closestHitFraction = convexResult.m_hitFraction;
-	Assert(rayResult.m_hitCollisionObject != nullptr);
-	m_HitCollisionObject = convexResult.m_hitCollisionObject;
-	if (normalInWorldSpace) {
-		m_ClosestHitNormal = convexResult.m_hitNormalLocal;
-	} else {
-		m_ClosestHitNormal = m_NormalBasis * convexResult.m_hitNormalLocal;
-	}
-	m_ClosestHitPoint = convexResult.m_hitPointLocal; // Actually it's in world coordinates.
-	return m_closestHitFraction;
-}
-
-void CPhysicsCollision::TraceConvexSolidResultCallback::ResetTraceConvexSolidResult() {
-	m_closestHitFraction = 1.0f;
-	m_HitCollisionObject = nullptr;
-}
-
+#if 0
 void CPhysicsCollision::TraceCollide(const Vector &start, const Vector &end,
 		const CPhysCollide *pSweepCollide, const QAngle &sweepAngles, const CPhysCollide *pCollide,
 		const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr) {
@@ -1343,6 +1253,7 @@ void CPhysicsCollision::TraceCollide(const Vector &start, const Vector &end,
 		ptr->startsolid = ptr->allsolid = true;
 	}
 }
+#endif
 
 /******************
  * Compound shapes
