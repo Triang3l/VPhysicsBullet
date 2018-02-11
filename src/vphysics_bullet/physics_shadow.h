@@ -107,6 +107,7 @@ public:
 
 	// IPhysicsPlayerController methods.
 
+	virtual void SetEventHandler(IPhysicsPlayerControllerEvent *handler);
 	virtual void SetObject(IPhysicsObject *pObject);
 	virtual void StepUp(float height);
 	virtual void Jump();
@@ -118,10 +119,21 @@ public:
 
 	// Internal methods.
 
-	virtual void NotifyPotentialGroundRemoving(IPhysicsObject *object);
+	FORCEINLINE bool IsOnGround() const { return m_OnGround; }
+	FORCEINLINE void NotifyPotentialGroundRemoving(IPhysicsObject *object) {
+		if (m_Ground == object) {
+			m_Ground = nullptr;
+		}
+	}
 
 private:
 	IPhysicsObject *m_Object;
+
+	IPhysicsObject *m_Ground;
+	bool m_OnGround;
+
+	IPhysicsPlayerControllerEvent *m_Handler;
+
 	btScalar m_PushInvMassLimit, m_PushSpeedLimit;
 };
 

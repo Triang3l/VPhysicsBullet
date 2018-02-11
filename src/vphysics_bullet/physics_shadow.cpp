@@ -154,6 +154,8 @@ void CPhysicsShadowController::Simulate(btScalar timeStep) {
 
 CPhysicsPlayerController::CPhysicsPlayerController(IPhysicsObject *object) :
 		m_Object(object),
+		m_Ground(nullptr), m_OnGround(false),
+		m_Handler(nullptr),
 		m_PushInvMassLimit(1.0f / 50000.0f),
 		m_PushSpeedLimit(HL2BULLET(10000.0f)) {
 	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToPlayerController(this, true);
@@ -161,6 +163,10 @@ CPhysicsPlayerController::CPhysicsPlayerController(IPhysicsObject *object) :
 
 CPhysicsPlayerController::~CPhysicsPlayerController() {
 	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToPlayerController(nullptr, true);
+}
+
+void CPhysicsPlayerController::SetEventHandler(IPhysicsPlayerControllerEvent *handler) {
+	m_Handler = handler;
 }
 
 void CPhysicsPlayerController::SetObject(IPhysicsObject *pObject) {
