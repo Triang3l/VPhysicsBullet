@@ -1119,7 +1119,7 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 	}
 	m_ContactTestCollisionObject.setWorldTransform(btTransform::getIdentity());
 	m_TraceCollisionObject.setWorldTransform(colObjWorldTransform);
-	ContactTestResultCallback contactTestResult(&contentsFilter);
+	ContactTestResultCallback contactTestResult(&m_ContactTestCollisionObject, &contentsFilter);
 	m_InContactTest = true;
 	m_ContactTestCollisionWorld->contactPairTest(&m_ContactTestCollisionObject, &m_TraceCollisionObject, contactTestResult);
 	m_InContactTest = false;
@@ -1229,7 +1229,7 @@ void CPhysicsCollision::TraceCollide(const Vector &start, const Vector &end,
 	rayFromTransform.setOrigin(rayMassCenterOffset);
 	m_ContactTestCollisionObject.setWorldTransform(rayFromTransform);
 	m_TraceCollisionObject.setWorldTransform(colObjWorldTransform);
-	ContactTestResultCallback contactTestResult(nullptr);
+	ContactTestResultCallback contactTestResult(&m_ContactTestCollisionObject, nullptr);
 	m_InContactTest = true;
 	m_ContactTestCollisionWorld->contactPairTest(&m_ContactTestCollisionObject, &m_TraceCollisionObject, contactTestResult);
 	m_InContactTest = false;

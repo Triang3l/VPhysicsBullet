@@ -520,6 +520,7 @@ private:
 	bool m_InContactTest;
 
 	struct ContactTestResultCallback : public btCollisionWorld::ContactResultCallback {
+		const btCollisionObject *m_TestObject;
 		const TraceContentsFilter *m_ContentsFilter;
 
 		bool m_Hit;
@@ -528,8 +529,49 @@ private:
 		btVector3 m_ShallowestHitPoint;
 		unsigned int m_ShallowestHitContents;
 
-		ContactTestResultCallback(const TraceContentsFilter *contentsFilter) :
-				m_ContentsFilter(contentsFilter), m_Hit(false), m_ShallowestHitDistance(-BT_LARGE_FLOAT) {}
+		// testObject is the object that is going to be swept.
+		ContactTestResultCallback(const btCollisionObject *testObject, const TraceContentsFilter *contentsFilter) :
+				m_TestObject(testObject), m_ContentsFilter(contentsFilter),
+				m_Hit(false), m_ShallowestHitDistance(-BT_LARGE_FLOAT) {}
+
+		btScalar addSingleResult(btManifoldPoint &cp,
+				const btCollisionObjectWrapper *colObj0Wrap, int partId0, int index0,
+				const btCollisionObjectWrapper *colObj1Wrap, int partId1, int index1) {
+			btScalar distance = cp.getDistance();
+			// The contact closest to the surface has the most accurate hit point and normal.
+			if (distance <= m_ShallowestHitDistance) {
+				return distance;
+			}
+
+			btVector3 hitNormal, hitPoint;
+			int hitChildIndex;
+			if (colObj0Wrap->getCollisionObject() != m_TestObject) {
+				// Hit object A.
+				hitNormal = -cp.m_normalWorldOnB;
+				hitPoint = cp.getPositionWorldOnA();
+				hitChildIndex = index0;
+			} else {
+				// Hit object B.
+				hitNormal = cp.m_normalWorldOnB;
+				hitPoint = cp.getPositionWorldOnB();
+				hitChildIndex = index1;
+			}
+
+			unsigned int contents = CONTENTS_SOLID;
+			if (m_ContentsFilter != nullptr) {
+				contents = m_ContentsFilter->Hit(hitChildIndex);
+				if (contents == 0) {
+					return distance;
+				}
+			}
+
+			m_Hit = true;
+			m_ShallowestHitDistance = distance;
+			m_ShallowestHitNormal = hitNormal;
+			m_ShallowestHitPoint = hitPoint;
+			m_ShallowestHitContents = hitChildIndex;
+			return distance;
+		}
 
 		void Reset() {
 			m_Hit = false;
