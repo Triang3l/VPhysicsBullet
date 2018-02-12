@@ -517,6 +517,7 @@ private:
 	btSimpleBroadphase *m_ContactTestBroadphase;
 	btCollisionWorld *m_ContactTestCollisionWorld;
 	btCollisionObject m_ContactTestCollisionObject;
+	bool m_InContactTest;
 
 	struct ContactTestResultCallback : public btCollisionWorld::ContactResultCallback {
 		const TraceContentsFilter *m_ContentsFilter;
