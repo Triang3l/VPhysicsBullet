@@ -1078,6 +1078,61 @@ void CPhysicsCollision::ClearTrace(trace_t *trace) {
 	trace->surface.name = "**empty**";
 }
 
+void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
+		IConvexInfo *pConvexInfo, const CPhysCollide *pCollide,
+		const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr) {
+	ClearTrace(ptr);
+
+	// Test shape.
+	if (!ray.m_IsRay) {
+		btVector3 halfExtents;
+		ConvertPositionToBullet(ray.m_Extents, halfExtents);
+		m_ConvexTestBoxShape.setImplicitShapeDimensions(halfExtents.absolute());
+		// TODO: Check if the size needs to be exact (inner margin rather than outer).
+		// Probably not because of allowed penetration (which has the same value as the margin).
+	}
+
+	// Target shape.
+	const btCollisionShape *colObjShape = pCollide->GetShape();
+	m_TraceCollisionObject.setCollisionShape(const_cast<btCollisionShape *>(colObjShape));
+	btTransform colObjWorldTransform;
+	ConvertRotationToBullet(collideAngles, colObjWorldTransform.getBasis());
+	ConvertPositionToBullet(collideOrigin - ray.m_Start, colObjWorldTransform.getOrigin());
+	colObjWorldTransform.getOrigin() += colObjWorldTransform.getBasis() * pCollide->GetMassCenter();
+	TraceContentsFilter contentsFilter(pConvexInfo, contentsMask, colObjShape);
+
+	// Ray.
+	btTransform rayToTransform;
+	ConvertPositionToBullet(ray.m_Delta, rayToTransform.getOrigin()); // Basis not needed yet.
+	btScalar rayLength2 = rayToTransform.getOrigin().length2();
+	bool isSwept = (rayLength2 > 1e-6f);
+
+	// Some defaults, unknown hit normal will be handled later.
+	btVector3 hitNormal(0.0f, 0.0f, 0.0f);
+	btVector3 hitPoint = rayToTransform.getOrigin();
+	unsigned int hitContents = CONTENTS_SOLID;
+
+	// First, try contact test because ray and convex tests don't report starting in a solid.
+	if (ray.m_IsRay) {
+		m_ContactTestCollisionObject.setCollisionShape(&m_RayTestStartSphereShape);
+	} else {
+		m_ContactTestCollisionObject.setCollisionShape(&m_ConvexTestBoxShape);
+	}
+	m_ContactTestCollisionObject.setWorldTransform(btTransform::getIdentity());
+	m_TraceCollisionObject.setWorldTransform(colObjWorldTransform);
+	ContactTestResultCallback contactTestResult(&contentsFilter);
+	m_ContactTestCollisionWorld->contactPairTest(&m_ContactTestCollisionObject, &m_TraceCollisionObject, contactTestResult);
+
+	// If nothing was hit or a ray trace started in a solid, fake the normal.
+	if (hitNormal.isZero()) {
+		if (isSwept) {
+			hitNormal = rayToTransform.getOrigin() / -btSqrt(rayLength2);
+		} else {
+			hitNormal.setValue(-1.0f, 0.0f, 0.0f);
+		}
+	}
+}
+
 #if 0
 void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 		IConvexInfo *pConvexInfo, const CPhysCollide *pCollide,

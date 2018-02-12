@@ -518,10 +518,23 @@ private:
 	btCollisionWorld *m_ContactTestCollisionWorld;
 	btCollisionObject m_ContactTestCollisionObject;
 
-	bool ContactTest(const btCollisionShape *testShape, const btTransform &testTransform,
-			const btCollisionShape *collisionShape, const btTransform &collisionTransform,
-			const TraceContentsFilter *contentsFilter, trace_t *trace);
-	bool m_InContactTest;
+	struct ContactTestResultCallback : public btCollisionWorld::ContactResultCallback {
+		const TraceContentsFilter *m_ContentsFilter;
+
+		bool m_Hit;
+		btScalar m_ShallowestHitDistance;
+		btVector3 m_ShallowestHitNormal;
+		btVector3 m_ShallowestHitPoint;
+		unsigned int m_ShallowestHitContents;
+
+		ContactTestResultCallback(const TraceContentsFilter *contentsFilter) :
+				m_ContentsFilter(contentsFilter), m_Hit(false), m_ShallowestHitDistance(-BT_LARGE_FLOAT) {}
+
+		void Reset() {
+			m_Hit = false;
+			m_ShallowestHitDistance = -BT_LARGE_FLOAT;
+		}
+	};
 
 	// Ray tests.
 
