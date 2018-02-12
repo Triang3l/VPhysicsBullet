@@ -1101,7 +1101,7 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 	colObjWorldTransform.getOrigin() += colObjWorldTransform.getBasis() * pCollide->GetMassCenter();
 	TraceContentsFilter contentsFilter(pConvexInfo, contentsMask, colObjShape);
 
-	// Ray.
+	// Ray (for simplicity and precision, starting at zero).
 	btTransform rayToTransform;
 	ConvertPositionToBullet(ray.m_Delta, rayToTransform.getOrigin()); // Basis not needed yet.
 	btScalar rayLength2 = rayToTransform.getOrigin().length2();
@@ -1193,93 +1193,110 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, const CPhysCollide *pCollide,
 	TraceBox(ray, MASK_ALL, nullptr, pCollide, collideOrigin, collideAngles, ptr);
 }
 
-#if 0
 void CPhysicsCollision::TraceCollide(const Vector &start, const Vector &end,
 		const CPhysCollide *pSweepCollide, const QAngle &sweepAngles, const CPhysCollide *pCollide,
 		const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr) {
 	ClearTrace(ptr);
-
-	const btCollisionShape *sweepShape = pSweepCollide->GetShape();
-	if (!sweepShape->isCompound() && !sweepShape->isConvex()) {
+	const btCollisionShape *testShape = pSweepCollide->GetShape();
+	Assert(testShape->isCompound() || testShape->isConvex());
+	if (!testShape->isCompound() && !testShape->isConvex()) {
 		return;
 	}
 
-	btVector3 rayDelta;
-	ConvertPositionToBullet(end - start, rayDelta);
-	btTransform rayFromTrans, rayToTrans;
-	ConvertRotationToBullet(sweepAngles, rayFromTrans.getBasis());
-	rayToTrans.getBasis() = rayFromTrans.getBasis();
-	btVector3 sweepWorldMassCenter = rayFromTrans.getBasis() * pSweepCollide->GetMassCenter();
-	// Origins will be set later.
-
+	// Target shape.
 	const btCollisionShape *colObjShape = pCollide->GetShape();
 	m_TraceCollisionObject.setCollisionShape(const_cast<btCollisionShape *>(colObjShape));
 	btTransform colObjWorldTransform;
-	ConvertPositionToBullet(collideOrigin - start, colObjWorldTransform.getOrigin());
 	ConvertRotationToBullet(collideAngles, colObjWorldTransform.getBasis());
+	ConvertPositionToBullet(collideOrigin - start, colObjWorldTransform.getOrigin());
 	colObjWorldTransform.getOrigin() += colObjWorldTransform.getBasis() * pCollide->GetMassCenter();
 
-	TraceConvexSolidResultCallback resultCallback(colObjWorldTransform.getBasis());
-	bool hasHit = false;
-	btVector3 hitNormal, hitPoint = rayDelta;
-	if (sweepShape->isCompound()) {
-		const btCompoundShape *sweepCompound = static_cast<const btCompoundShape *>(sweepShape);
-		int childCount = sweepCompound->getNumChildShapes();
-		for (int childIndex = 0; childIndex < childCount; ++childIndex) {
-			rayFromTrans.getOrigin() = sweepWorldMassCenter + (rayFromTrans.getBasis() *
-					sweepCompound->getChildTransform(childIndex).getOrigin());
-			rayToTrans.getOrigin() = rayFromTrans.getOrigin() + rayDelta;
-			resultCallback.ResetTraceConvexSolidResult();
+	// Ray (for simplicity and precision, starting at zero).
+	btTransform rayFromTransform;
+	ConvertRotationToBullet(sweepAngles, rayFromTransform.getBasis()); // Origin not needed yet.
+	btVector3 rayMassCenterOffset = rayFromTransform.getBasis() * pSweepCollide->GetMassCenter();
+	btVector3 rayDelta;
+	ConvertPositionToBullet(end - start, rayDelta);
+	btScalar rayLength2 = rayDelta.length2();
+	bool isSwept = (rayLength2 > 1e-6f);
+
+	// Some defaults.
+	btVector3 hitNormal(0.0f, 0.0f, 0.0f);
+	btVector3 hitPoint = rayMassCenterOffset + rayDelta;
+
+	// Contact test.
+	m_ContactTestCollisionObject.setCollisionShape(const_cast<btCollisionShape *>(testShape));
+	rayFromTransform.setOrigin(rayMassCenterOffset);
+	m_ContactTestCollisionObject.setWorldTransform(rayFromTransform);
+	m_TraceCollisionObject.setWorldTransform(colObjWorldTransform);
+	ContactTestResultCallback contactTestResult(nullptr);
+	m_InContactTest = true;
+	m_ContactTestCollisionWorld->contactPairTest(&m_ContactTestCollisionObject, &m_TraceCollisionObject, contactTestResult);
+	m_InContactTest = false;
+
+	if (contactTestResult.m_Hit) {
+		ptr->fraction = 0.0f;
+		ptr->startsolid = ptr->allsolid = true;
+		hitNormal = contactTestResult.m_ShallowestHitNormal;
+		hitPoint = contactTestResult.m_ShallowestHitPoint;
+	} else if (isSwept) {
+		// Not starting in a solid, need to sweep.
+		ConvexTestResultCallback convexTestResult(nullptr, colObjWorldTransform.getBasis());
+		btTransform rayToTransform;
+		rayToTransform.setBasis(rayFromTransform.getBasis());
+		if (testShape->isCompound()) {
+			btVector3 childRayDelta = rayDelta;
+			const btCompoundShape *testCompoundShape = static_cast<const btCompoundShape *>(testShape);
+			int childCount = testCompoundShape->getNumChildShapes();
+			for (int childIndex = 0; childIndex < childCount; ++childIndex) {
+				rayFromTransform.setOrigin(rayMassCenterOffset + (rayFromTransform.getBasis() *
+						testCompoundShape->getChildTransform(childIndex).getOrigin()));
+				rayToTransform.setOrigin(rayFromTransform.getOrigin() + childRayDelta);
+				convexTestResult.Reset();
+				btCollisionWorld::objectQuerySingle(
+						static_cast<const btConvexShape *>(testCompoundShape->getChildShape(childIndex)),
+						rayFromTransform, rayToTransform,
+						&m_TraceCollisionObject, colObjShape, colObjWorldTransform,
+						convexTestResult, VPHYSICS_CONVEX_DISTANCE_MARGIN);
+				if (convexTestResult.m_HitCollisionObject != nullptr) {
+					ptr->fraction *= convexTestResult.m_closestHitFraction;
+					childRayDelta *= convexTestResult.m_closestHitFraction;
+					hitNormal = convexTestResult.m_ClosestHitNormal;
+					hitPoint = convexTestResult.m_ClosestHitPoint;
+				}
+			}
+		} else {
+			// rayFromTransform configured by contact test already.
+			rayToTransform.setOrigin(rayFromTransform.getOrigin() + rayDelta);
 			btCollisionWorld::objectQuerySingle(
-					static_cast<const btConvexShape *>(sweepCompound->getChildShape(childIndex)),
-					rayFromTrans, rayToTrans, &m_TraceCollisionObject, colObjShape, colObjWorldTransform,
-					resultCallback, VPHYSICS_CONVEX_DISTANCE_MARGIN);
-			if (resultCallback.m_HitCollisionObject == nullptr) {
-				continue;
+					static_cast<const btConvexShape *>(testShape), rayFromTransform, rayToTransform,
+					&m_TraceCollisionObject, colObjShape, colObjWorldTransform,
+					convexTestResult, VPHYSICS_CONVEX_DISTANCE_MARGIN);
+			if (convexTestResult.m_HitCollisionObject != nullptr) {
+				ptr->fraction = convexTestResult.m_closestHitFraction;
+				hitNormal = convexTestResult.m_ClosestHitNormal;
+				hitPoint = convexTestResult.m_ClosestHitPoint;
 			}
-			hasHit = true;
-			hitNormal = resultCallback.m_ClosestHitNormal;
-			hitPoint = resultCallback.m_ClosestHitPoint;
-			ptr->fraction *= resultCallback.m_closestHitFraction;
-			rayDelta *= resultCallback.m_closestHitFraction;
-			if (ptr->fraction <= 0.0f) {
-				break;
-			}
-		}
-	} else {
-		rayFromTrans.getOrigin() = sweepWorldMassCenter;
-		rayToTrans.getOrigin() = rayFromTrans.getOrigin() + rayDelta;
-		btCollisionWorld::objectQuerySingle(static_cast<const btConvexShape *>(sweepShape),
-				rayFromTrans, rayToTrans, &m_TraceCollisionObject, colObjShape, colObjWorldTransform,
-				resultCallback, VPHYSICS_CONVEX_DISTANCE_MARGIN);
-		if (resultCallback.m_HitCollisionObject != nullptr) {
-			hasHit = true;
-			hitNormal = resultCallback.m_ClosestHitNormal;
-			hitPoint = resultCallback.m_ClosestHitPoint;
-			ptr->fraction = resultCallback.m_closestHitFraction;
 		}
 	}
 
-	ptr->startpos = start;
-	VectorMA(ptr->startpos, ptr->fraction, end - start, ptr->endpos);
-	if (!hasHit) {
-		btScalar rayLength2 = rayDelta.length2();
-		if (rayLength2 > 1e-6) {
+	// If nothing was hit or a ray trace started in a solid, fake the normal.
+	if (hitNormal.isZero()) {
+		if (isSwept) {
 			hitNormal = rayDelta / -btSqrt(rayLength2);
 		} else {
 			hitNormal.setValue(-1.0f, 0.0f, 0.0f);
 		}
 	}
+
+	// Write the data.
+	ptr->startpos = start;
+	VectorMA(ptr->startpos, ptr->fraction, end - start, ptr->endpos);
 	ConvertDirectionToHL(hitNormal, ptr->plane.normal);
 	Vector hitPointHL;
 	ConvertPositionToHL(hitPoint, hitPointHL);
 	ptr->plane.dist = DotProduct(hitPointHL + start, ptr->plane.normal);
-	// TODO: Ensure the fraction check is enough for startsolid check for fully submerged sweeps.
-	if (ptr->fraction <= 0.0f) {
-		ptr->startsolid = ptr->allsolid = true;
-	}
 }
-#endif
 
 /******************
  * Compound shapes
