@@ -58,8 +58,12 @@ struct ShadowControlBulletParameters_t {
 	}
 };
 
-void ComputeVPhysicsController(btVector3 &currentSpeed, const btVector3 &delta,
+void ComputeControllerWithMaxSpeed(btVector3 &currentSpeed, const btVector3 &delta,
 		btScalar maxSpeed, btScalar maxDampSpeed, btScalar scaleDelta, btScalar damping,
+		btVector3 *outImpulse);
+
+void ComputeControllerWithMaxVelocity(btVector3 &currentSpeed, const btVector3 &delta,
+		const btVector3 &maxSpeed, const btVector3 &maxDampSpeed, btScalar scaleDelta, btScalar damping,
 		btVector3 *outImpulse);
 
 class CPhysicsShadowController : public IPhysicsShadowController {

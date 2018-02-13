@@ -1138,7 +1138,7 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 	}
 
 	btVector3 linearVelocity = m_RigidBody->getLinearVelocity();
-	ComputeVPhysicsController(linearVelocity, deltaPosition,
+	ComputeControllerWithMaxSpeed(linearVelocity, deltaPosition,
 			params.m_MaxSpeed, params.m_MaxDampSpeed, fraction, params.m_DampFactor, &params.m_LastImpulse);
 	m_RigidBody->setLinearVelocity(linearVelocity);
 
@@ -1151,7 +1151,7 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 		// Take the shortest path.
 		angle -= SIMD_2_PI;
 	}
-	ComputeVPhysicsController(localAngularVelocity, axis * angle,
+	ComputeControllerWithMaxSpeed(localAngularVelocity, axis * angle,
 			params.m_MaxAngular, params.m_MaxDampAngular, fraction, params.m_DampFactor, nullptr);
 	m_RigidBody->setAngularVelocity(m_RigidBody->getWorldTransform().getBasis() * localAngularVelocity);
 
