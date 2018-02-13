@@ -718,13 +718,11 @@ void CPhysicsObject::InterpolateWorldTransform() {
 
 void CPhysicsObject::ApplyForcesAndSpeedLimit(btScalar timeStep) {
 	Assert(!IsStatic());
-	bool motionEnabled = IsMotionEnabled();
+	// Forces are applied even when motion is disabled because it shouldn't affect shadows.
+	// The speed change is not touched by anything except for controllers when motion is disabled anyway.
 	if (!IsAsleep()) {
 		const CPhysicsEnvironment *environment = static_cast<const CPhysicsEnvironment *>(m_Environment);
-		btVector3 linearVelocity = m_RigidBody->getLinearVelocity();
-		if (motionEnabled) {
-			linearVelocity += m_LinearVelocityChange;
-		}
+		btVector3 linearVelocity = m_RigidBody->getLinearVelocity() + m_LinearVelocityChange;
 		btScalar maxSpeed = environment->GetMaxSpeed();
 		btClamp(linearVelocity[0], -maxSpeed, maxSpeed);
 		btClamp(linearVelocity[1], -maxSpeed, maxSpeed);
@@ -732,10 +730,8 @@ void CPhysicsObject::ApplyForcesAndSpeedLimit(btScalar timeStep) {
 		m_RigidBody->setLinearVelocity(linearVelocity);
 
 		const btMatrix3x3 &worldTransform = m_RigidBody->getWorldTransform().getBasis();
-		btVector3 localAngularVelocity = m_RigidBody->getAngularVelocity() * worldTransform;
-		if (motionEnabled) {
-			localAngularVelocity += m_LocalAngularVelocityChange;
-		}
+		btVector3 localAngularVelocity = (m_RigidBody->getAngularVelocity() * worldTransform) +
+				m_LocalAngularVelocityChange;
 		btScalar maxAngularSpeed = environment->GetMaxAngularSpeed();
 		btClamp(localAngularVelocity[0], -maxAngularSpeed, maxAngularSpeed);
 		btClamp(localAngularVelocity[1], -maxAngularSpeed, maxAngularSpeed);
