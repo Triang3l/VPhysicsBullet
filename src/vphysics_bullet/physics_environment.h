@@ -105,7 +105,7 @@ public:
 private:
 	btDefaultCollisionConfiguration *m_CollisionConfiguration;
 	btCollisionDispatcher *m_Dispatcher;
-	btBroadphaseInterface *m_Broadphase;
+	btDbvtBroadphase *m_Broadphase;
 	btSequentialImpulseConstraintSolver *m_Solver;
 	btDiscreteDynamicsWorld *m_DynamicsWorld;
 
