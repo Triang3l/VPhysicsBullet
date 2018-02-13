@@ -45,13 +45,19 @@ void ComputeControllerWithMaxVelocity(btVector3 &currentSpeed, const btVector3 &
 		currentSpeed.setZero();
 	}
 
+	btVector3 zero(0.0f, 0.0f, 0.0f);
+
 	btVector3 addVelocity = delta * scaleDelta;
-	addVelocity.setMax(-maxSpeed);
-	addVelocity.setMin(maxSpeed);
+	btVector3 maxAddVelocity = maxSpeed;
+	maxAddVelocity.setMax(zero);
+	addVelocity.setMax(-maxAddVelocity);
+	addVelocity.setMin(maxAddVelocity);
 
 	btVector3 dampVelocity = currentSpeed * -damping;
-	dampVelocity.setMax(-maxDampSpeed);
-	dampVelocity.setMin(maxDampSpeed);
+	btVector3 maxDampVelocity = maxDampSpeed;
+	maxDampVelocity.setMax(zero);
+	dampVelocity.setMax(-maxDampVelocity);
+	dampVelocity.setMin(maxDampVelocity);
 
 	currentSpeed += addVelocity + dampVelocity;
 
