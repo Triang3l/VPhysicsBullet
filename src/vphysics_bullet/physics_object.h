@@ -208,6 +208,7 @@ private:
 	float m_Mass;
 	Vector m_Inertia;
 	int m_HingeHLAxis;
+	bool m_MotionEnabled;
 	void UpdateMassProps();
 
 	bool m_GravityEnabled;
