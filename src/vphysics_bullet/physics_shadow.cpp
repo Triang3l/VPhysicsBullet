@@ -4,68 +4,6 @@
 #include "physics_shadow.h"
 #include "physics_object.h"
 
-void ComputeControllerWithMaxSpeed(btVector3 &currentSpeed, const btVector3 &delta,
-		btScalar maxSpeed, btScalar maxDampSpeed, btScalar scaleDelta, btScalar damping,
-		btVector3 *outImpulse) {
-	if (currentSpeed.length2() < 1e-6f) {
-		currentSpeed.setZero();
-	}
-
-	btVector3 addVelocity = delta * scaleDelta;
-	btScalar addSpeed2 = addVelocity.length2();
-	if (addSpeed2 > maxSpeed * maxSpeed) {
-		if (maxSpeed > 0.0f) {
-			addVelocity *= maxSpeed / btSqrt(addSpeed2);
-		} else {
-			addVelocity.setZero();
-		}
-	}
-
-	btVector3 dampVelocity = currentSpeed * -damping;
-	btScalar dampSpeed2 = dampVelocity.length2();
-	if (dampSpeed2 > maxDampSpeed * maxDampSpeed) {
-		if (maxDampSpeed > 0.0f) {
-			dampVelocity *= maxDampSpeed / btSqrt(dampSpeed2);
-		} else {
-			dampVelocity.setZero();
-		}
-	}
-
-	currentSpeed += addVelocity + dampVelocity;
-
-	if (outImpulse != nullptr) {
-		*outImpulse = addVelocity;
-	}
-}
-
-void ComputeControllerWithMaxVelocity(btVector3 &currentSpeed, const btVector3 &delta,
-		const btVector3 &maxSpeed, const btVector3 &maxDampSpeed, btScalar scaleDelta, btScalar damping,
-		btVector3 *outImpulse) {
-	if (currentSpeed.length2() < 1e-6f) {
-		currentSpeed.setZero();
-	}
-
-	btVector3 zero(0.0f, 0.0f, 0.0f);
-
-	btVector3 addVelocity = delta * scaleDelta;
-	btVector3 maxAddVelocity = maxSpeed;
-	maxAddVelocity.setMax(zero);
-	addVelocity.setMax(-maxAddVelocity);
-	addVelocity.setMin(maxAddVelocity);
-
-	btVector3 dampVelocity = currentSpeed * -damping;
-	btVector3 maxDampVelocity = maxDampSpeed;
-	maxDampVelocity.setMax(zero);
-	dampVelocity.setMax(-maxDampVelocity);
-	dampVelocity.setMin(maxDampVelocity);
-
-	currentSpeed += addVelocity + dampVelocity;
-
-	if (outImpulse != nullptr) {
-		*outImpulse = addVelocity;
-	}
-}
-
 CPhysicsShadowController::CPhysicsShadowController(IPhysicsObject *object,
 			bool allowTranslation, bool allowRotation) :
 		m_Object(object),
@@ -168,6 +106,40 @@ void CPhysicsShadowController::ObjectMaterialChanged(int materialIndex) {
 	// No need to do anything as the object handles the shadow material.
 }
 
+void CPhysicsShadowController::ComputeSpeed(btVector3 &currentSpeed,
+		const btVector3 &delta, btScalar maxSpeed, btScalar maxDampSpeed,
+		btScalar scaleDelta, btScalar damping, btVector3 *outImpulse) {
+	if (currentSpeed.length2() < 1e-6f) {
+		currentSpeed.setZero();
+	}
+
+	btVector3 addVelocity = delta * scaleDelta;
+	btScalar addSpeed2 = addVelocity.length2();
+	if (addSpeed2 > maxSpeed * maxSpeed) {
+		if (maxSpeed > 0.0f) {
+			addVelocity *= maxSpeed / btSqrt(addSpeed2);
+		} else {
+			addVelocity.setZero();
+		}
+	}
+
+	btVector3 dampVelocity = currentSpeed * -damping;
+	btScalar dampSpeed2 = dampVelocity.length2();
+	if (dampSpeed2 > maxDampSpeed * maxDampSpeed) {
+		if (maxDampSpeed > 0.0f) {
+			dampVelocity *= maxDampSpeed / btSqrt(dampSpeed2);
+		} else {
+			dampVelocity.setZero();
+		}
+	}
+
+	currentSpeed += addVelocity + dampVelocity;
+
+	if (outImpulse != nullptr) {
+		*outImpulse = addVelocity;
+	}
+}
+
 void CPhysicsShadowController::Simulate(btScalar timeStep) {
 	if (!m_Enable) {
 		m_Shadow.m_LastObjectPosition.setZero();
@@ -243,4 +215,24 @@ float CPhysicsPlayerController::GetPushMassLimit() {
 
 float CPhysicsPlayerController::GetPushSpeedLimit() {
 	return BULLET2HL(m_PushSpeedLimit);
+}
+
+void CPhysicsPlayerController::ComputeSpeed(btVector3 &currentSpeed,
+		const btVector3 &delta, const btVector3 &maxSpeed,
+		btScalar scaleDelta, btScalar damping, btVector3 *outImpulse) {
+	if (currentSpeed.length2() < 1e-6f) {
+		currentSpeed.setZero();
+	}
+
+	btVector3 acceleration = (delta * scaleDelta) + (currentSpeed * -damping);
+	btVector3 maxAcceleration = maxSpeed;
+	maxAcceleration.setMax(btVector3(0.0f, 0.0f, 0.0f));
+	acceleration.setMax(-maxAcceleration);
+	acceleration.setMin(maxAcceleration);
+
+	currentSpeed += acceleration;
+
+	if (outImpulse != nullptr) {
+		*outImpulse = acceleration;
+	}
 }

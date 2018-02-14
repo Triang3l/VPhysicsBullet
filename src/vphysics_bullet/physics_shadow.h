@@ -58,14 +58,6 @@ struct ShadowControlBulletParameters_t {
 	}
 };
 
-void ComputeControllerWithMaxSpeed(btVector3 &currentSpeed, const btVector3 &delta,
-		btScalar maxSpeed, btScalar maxDampSpeed, btScalar scaleDelta, btScalar damping,
-		btVector3 *outImpulse);
-
-void ComputeControllerWithMaxVelocity(btVector3 &currentSpeed, const btVector3 &delta,
-		const btVector3 &maxSpeed, const btVector3 &maxDampSpeed, btScalar scaleDelta, btScalar damping,
-		btVector3 *outImpulse);
-
 class CPhysicsShadowController : public IPhysicsShadowController {
 public:
 	CPhysicsShadowController(IPhysicsObject *object,
@@ -91,7 +83,12 @@ public:
 
 	// Internal methods.
 
+	static void ComputeSpeed(btVector3 &currentSpeed,
+			const btVector3 &delta, btScalar maxSpeed, btScalar maxDampSpeed,
+			btScalar scaleDelta, btScalar damping, btVector3 *outImpulse);
+
 	void Simulate(btScalar timeStep);
+
 	FORCEINLINE bool IsUsingShadowMaterial() const { return m_UseShadowMaterial; }
 
 private:
@@ -122,6 +119,10 @@ public:
 	virtual float GetPushSpeedLimit();
 
 	// Internal methods.
+
+	static void ComputeSpeed(btVector3 &currentSpeed,
+			const btVector3 &delta, const btVector3 &maxSpeed,
+			btScalar scaleDelta, btScalar damping, btVector3 *outImpulse);
 
 	FORCEINLINE void NotifyPotentialGroundRemoving(IPhysicsObject *object) {
 		if (m_Ground == object) {
