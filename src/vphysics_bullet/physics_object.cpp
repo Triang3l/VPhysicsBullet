@@ -383,9 +383,6 @@ void CPhysicsObject::ApplyGravity(btScalar timeStep) {
 	if (!IsMoveable() || IsAsleep() || !IsGravityEnabled()) {
 		return;
 	}
-	if (m_Player != nullptr && static_cast<CPhysicsPlayerController *>(m_Player)->IsOnGround()) {
-		return;
-	}
 	m_RigidBody->setLinearVelocity(m_RigidBody->getLinearVelocity() +
 			static_cast<const CPhysicsEnvironment *>(m_Environment)->GetBulletGravity() * timeStep);
 }

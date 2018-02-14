@@ -123,7 +123,6 @@ public:
 
 	// Internal methods.
 
-	FORCEINLINE bool IsOnGround() const { return m_OnGround; }
 	FORCEINLINE void NotifyPotentialGroundRemoving(IPhysicsObject *object) {
 		if (m_Ground == object) {
 			m_Ground = nullptr;
@@ -134,7 +133,6 @@ private:
 	IPhysicsObject *m_Object;
 
 	IPhysicsObject *m_Ground;
-	bool m_OnGround;
 
 	IPhysicsPlayerControllerEvent *m_Handler;
 

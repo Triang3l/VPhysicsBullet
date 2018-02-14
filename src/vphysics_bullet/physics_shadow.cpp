@@ -182,7 +182,7 @@ void CPhysicsShadowController::Simulate(btScalar timeStep) {
 
 CPhysicsPlayerController::CPhysicsPlayerController(IPhysicsObject *object) :
 		m_Object(object),
-		m_Ground(nullptr), m_OnGround(false),
+		m_Ground(nullptr),
 		m_Handler(nullptr),
 		m_PushInvMassLimit(1.0f / 50000.0f),
 		m_PushSpeedLimit(HL2BULLET(10000.0f)) {
