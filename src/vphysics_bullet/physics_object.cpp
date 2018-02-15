@@ -2,7 +2,7 @@
 // Bullet integration by Triang3l, derivative work, in public domain if detached from Valve's work.
 
 #include "physics_object.h"
-#include "physics_collision.h"
+#include "physics_collide.h"
 #include "physics_environment.h"
 #include "physics_material.h"
 #include "physics_motioncontroller.h"
