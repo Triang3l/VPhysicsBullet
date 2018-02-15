@@ -111,8 +111,10 @@ public:
 	virtual void SetEventHandler(IPhysicsPlayerControllerEvent *handler);
 	virtual void MaxSpeed(const Vector &maxVelocity);
 	virtual void SetObject(IPhysicsObject *pObject);
+	virtual int GetShadowPosition(Vector *position, QAngle *angles);
 	virtual void StepUp(float height);
 	virtual void Jump();
+	virtual void GetShadowVelocity(Vector *velocity);
 	virtual IPhysicsObject *GetObject();
 	virtual void GetLastImpulse(Vector *pOut);
 	virtual void SetPushMassLimit(float maxPushMass);

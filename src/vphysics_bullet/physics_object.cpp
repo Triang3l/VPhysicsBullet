@@ -715,6 +715,7 @@ void CPhysicsObject::InterpolateWorldTransform() {
 
 void CPhysicsObject::ApplyForcesAndSpeedLimit(btScalar timeStep) {
 	Assert(!IsStatic());
+	// Still need to clamp things like shadow impulses even if motion is disabled, so it doesn't affect this.
 	if (!IsAsleep()) {
 		const CPhysicsEnvironment *environment = static_cast<const CPhysicsEnvironment *>(m_Environment);
 		btVector3 linearVelocity = m_RigidBody->getLinearVelocity() + m_LinearVelocityChange;

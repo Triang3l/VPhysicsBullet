@@ -144,6 +144,20 @@ public:
 
 	void UpdateMaterial();
 
+	FORCEINLINE const btVector3 &GetLinearVelocityChange() const {
+		return m_LinearVelocityChange;
+	}
+	FORCEINLINE const btVector3 &GetLocalAngularVelocityChange() const {
+		return m_LocalAngularVelocityChange;
+	}
+	// Moveability not checked - async impulses (not forces) are still okay for internal use.
+	FORCEINLINE void SetLinearVelocityChange(const btVector3 &linearVelocityChange) {
+		m_LinearVelocityChange = linearVelocityChange;
+	}
+	FORCEINLINE void SetLocalAngularVelocityChange(const btVector3 &localAngularVelocityChange) {
+		m_LocalAngularVelocityChange = localAngularVelocityChange;
+	}
+
 	// Bullet integrates forces and torques over time, in IVP async pushes are applied fully.
 	void ApplyForcesAndSpeedLimit(btScalar timeStep);
 

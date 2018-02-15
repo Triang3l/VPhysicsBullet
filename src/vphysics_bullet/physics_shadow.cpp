@@ -199,12 +199,47 @@ void CPhysicsPlayerController::SetObject(IPhysicsObject *pObject) {
 	newObject->NotifyAttachedToPlayerController(this, newEnvironment);
 }
 
+int CPhysicsPlayerController::GetShadowPosition(Vector *position, QAngle *angles) {
+	const CPhysicsObject *object = static_cast<const CPhysicsObject *>(m_Object);
+	const btRigidBody *rigidBody = object->GetRigidBody();
+	btTransform transform;
+	btTransformUtil::integrateTransform(rigidBody->getWorldTransform(),
+			rigidBody->getLinearVelocity(), rigidBody->getAngularVelocity(),
+			object->GetEnvironment()->GetSimulationTimestep(), transform);
+	if (position != nullptr) {
+		ConvertPositionToHL(transform.getOrigin() -
+				(transform.getBasis() * object->GetBulletMassCenter()), *position);
+	}
+	if (angles != nullptr) {
+		ConvertRotationToHL(transform.getBasis(), *angles);
+	}
+	return 1; // Used to return the PSI count last simulation (whether a tick happened), but always 1 in v31.
+}
+
 void CPhysicsPlayerController::StepUp(float height) {
 	static_cast<CPhysicsObject *>(m_Object)->StepUp(HL2BULLET(height));
 }
 
 void CPhysicsPlayerController::Jump() {
 	// Not implemented in IVP VPhysics.
+}
+
+void CPhysicsPlayerController::GetShadowVelocity(Vector *velocity) {
+	if (velocity == nullptr) {
+		return;
+	}
+	const CPhysicsObject *object = static_cast<CPhysicsObject *>(m_Object);
+	btVector3 bulletVelocity = object->GetRigidBody()->getLinearVelocity() + object->GetLinearVelocityChange();
+	if (m_Ground != nullptr) {
+		const btRigidBody *groundRigidBody =
+				static_cast<const CPhysicsObject *>(m_Ground)->GetRigidBody();
+		const btTransform &groundWorldTransform = groundRigidBody->getWorldTransform();
+		btVector3 groundLocalAngularVelocity =
+				groundRigidBody->getAngularVelocity() * groundWorldTransform.getBasis();
+		bulletVelocity -= groundRigidBody->getLinearVelocity() + (groundWorldTransform.getBasis() *
+				groundLocalAngularVelocity.cross(m_TargetGroundLocalPosition));
+	}
+	ConvertPositionToHL(bulletVelocity, *velocity);
 }
 
 IPhysicsObject *CPhysicsPlayerController::GetObject() {
