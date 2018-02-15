@@ -715,8 +715,6 @@ void CPhysicsObject::InterpolateWorldTransform() {
 
 void CPhysicsObject::ApplyForcesAndSpeedLimit(btScalar timeStep) {
 	Assert(!IsStatic());
-	// Forces are applied even when motion is disabled because it shouldn't affect shadows.
-	// The speed change is not touched by anything except for controllers when motion is disabled anyway.
 	if (!IsAsleep()) {
 		const CPhysicsEnvironment *environment = static_cast<const CPhysicsEnvironment *>(m_Environment);
 		btVector3 linearVelocity = m_RigidBody->getLinearVelocity() + m_LinearVelocityChange;
@@ -956,6 +954,9 @@ void CPhysicsObject::SimulateMotionControllers(
 
 void CPhysicsObject::ApplyEventMotion(bool isWorld, bool isForce,
 		const btVector3 &linear, const btVector3 &angular) {
+	if (isForce && !IsMoveable()) {
+		return;
+	}
 	const btMatrix3x3 &worldTransform = m_RigidBody->getWorldTransform().getBasis();
 	bool wake = false;
 	if (!linear.isZero()) {
