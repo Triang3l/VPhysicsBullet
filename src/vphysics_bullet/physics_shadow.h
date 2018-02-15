@@ -83,7 +83,7 @@ public:
 
 	// Internal methods.
 
-	static void ComputeSpeed(btVector3 &currentSpeed,
+	static void ComputeVelocity(btVector3 &currentVelocity,
 			const btVector3 &delta, btScalar maxSpeed, btScalar maxDampSpeed,
 			btScalar scaleDelta, btScalar damping, btVector3 *outImpulse);
 
@@ -111,6 +111,8 @@ public:
 
 	// IPhysicsPlayerController methods.
 
+	virtual void Update(const Vector &position, const Vector &velocity,
+			float secondsToArrival, bool onground, IPhysicsObject *ground);
 	virtual void SetEventHandler(IPhysicsPlayerControllerEvent *handler);
 	virtual void MaxSpeed(const Vector &maxVelocity);
 	virtual void SetObject(IPhysicsObject *pObject);
@@ -142,8 +144,8 @@ private:
 	bool m_Updated;
 
 	btVector3 m_TargetObjectPosition;
-	btVector3 m_CurrentSpeed;
-	btVector3 m_MaxSpeed;
+	btVector3 m_CurrentVelocity;
+	btVector3 m_MaxVelocity;
 	btScalar m_SecondsToArrival;
 
 	IPhysicsObject *m_Ground;

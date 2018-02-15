@@ -31,7 +31,7 @@ void CPhysicsShadowController::Update(const Vector &position, const QAngle &angl
 	m_SecondsToArrival = btMax(btScalar(timeOffset), btScalar(0.0f));
 	m_Enable = true;
 	// Don't wake up if calling with exactly the same data repeatedly.
-	if ((origin - oldTransform.getOrigin()).length2() < 1e-6f) {
+	if (origin.distance2(oldTransform.getOrigin()) < 1e-6f) {
 		btVector3 basisDelta = (basis[0] - oldTransform.getBasis()[0]).absolute() +
 				(basis[1] - oldTransform.getBasis()[1]).absolute() +
 				(basis[2] - oldTransform.getBasis()[2]).absolute();
@@ -106,11 +106,11 @@ void CPhysicsShadowController::ObjectMaterialChanged(int materialIndex) {
 	// No need to do anything as the object handles the shadow material.
 }
 
-void CPhysicsShadowController::ComputeSpeed(btVector3 &currentSpeed,
+void CPhysicsShadowController::ComputeVelocity(btVector3 &currentVelocity,
 		const btVector3 &delta, btScalar maxSpeed, btScalar maxDampSpeed,
 		btScalar scaleDelta, btScalar damping, btVector3 *outImpulse) {
-	if (currentSpeed.length2() < 1e-6f) {
-		currentSpeed.setZero();
+	if (currentVelocity.length2() < 1e-6f) {
+		currentVelocity.setZero();
 	}
 
 	btVector3 addVelocity = delta * scaleDelta;
@@ -123,7 +123,7 @@ void CPhysicsShadowController::ComputeSpeed(btVector3 &currentSpeed,
 		}
 	}
 
-	btVector3 dampVelocity = currentSpeed * -damping;
+	btVector3 dampVelocity = currentVelocity * -damping;
 	btScalar dampSpeed2 = dampVelocity.length2();
 	if (dampSpeed2 > maxDampSpeed * maxDampSpeed) {
 		if (maxDampSpeed > 0.0f) {
@@ -133,7 +133,7 @@ void CPhysicsShadowController::ComputeSpeed(btVector3 &currentSpeed,
 		}
 	}
 
-	currentSpeed += addVelocity + dampVelocity;
+	currentVelocity += addVelocity + dampVelocity;
 
 	if (outImpulse != nullptr) {
 		*outImpulse = addVelocity;
@@ -157,8 +157,8 @@ CPhysicsPlayerController::CPhysicsPlayerController(IPhysicsObject *object) :
 		m_Object(object),
 		m_Enable(false), m_Updated(false),
 		m_TargetObjectPosition(0.0f, 0.0f, 0.0f),
-		m_CurrentSpeed(0.0f, 0.0f, 0.0f),
-		m_MaxSpeed(0.0f, 0.0f, 0.0f),
+		m_CurrentVelocity(0.0f, 0.0f, 0.0f),
+		m_MaxVelocity(0.0f, 0.0f, 0.0f),
 		m_SecondsToArrival(0.0f),
 		m_Ground(nullptr), m_TargetGroundLocalPosition(0.0f, 0.0f, 0.0f),
 		m_Handler(nullptr),
@@ -169,6 +169,41 @@ CPhysicsPlayerController::CPhysicsPlayerController(IPhysicsObject *object) :
 
 CPhysicsPlayerController::~CPhysicsPlayerController() {
 	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToPlayerController(nullptr, true);
+}
+
+void CPhysicsPlayerController::Update(const Vector &position, const Vector &velocity,
+		float secondsToArrival, bool onground, IPhysicsObject *ground) {
+	m_Updated = true;
+
+	btVector3 targetObjectPosition, targetVelocity;
+	ConvertPositionToBullet(position, targetObjectPosition);
+	ConvertPositionToBullet(velocity, targetVelocity);
+	if (targetVelocity.distance2(m_CurrentVelocity) < 1e-6f &&
+			targetObjectPosition.distance2(m_TargetObjectPosition) < 1e-6f) {
+		return;
+	}
+	m_TargetObjectPosition = targetObjectPosition;
+	m_CurrentVelocity = targetVelocity;
+
+	m_SecondsToArrival = btMax(btScalar(secondsToArrival), btScalar(0.0f));
+
+	m_Object->Wake();
+
+	if (velocity.LengthSqr() <= 0.1f) {
+		// No input velocity, just go where physics takes you.
+		m_Enable = false;
+		m_Ground = nullptr;
+		return;
+	}
+
+	m_Enable = true;
+	MaxSpeed(velocity);
+	m_Ground = ground;
+	if (ground != nullptr) {
+		m_TargetGroundLocalPosition = static_cast<const CPhysicsObject *>(
+				ground)->GetRigidBody()->getWorldTransform().invXform(targetObjectPosition);
+	}
+	// onground is not used, StepUp serves its purpose.
 }
 
 void CPhysicsPlayerController::SetEventHandler(IPhysicsPlayerControllerEvent *handler) {
@@ -183,7 +218,7 @@ void CPhysicsPlayerController::MaxSpeed(const Vector &maxVelocity) {
 	if (dot > 0.0f) {
 		bulletMaxVelocity -= bulletMaxVelocity * (dot * bulletMaxVelocity.length()); 
 	}
-	m_MaxSpeed = bulletMaxVelocity.absolute();
+	m_MaxVelocity = bulletMaxVelocity.absolute();
 }
 
 void CPhysicsPlayerController::SetObject(IPhysicsObject *pObject) {
@@ -333,18 +368,18 @@ void CPhysicsPlayerController::Simulate(btScalar timeStep) {
 	if (linearVelocity.length2() < 1e-6f) {
 		linearVelocity.setZero();
 	}
-	// Fully damping the current velocity, but acceleration and damping limited by max speed.
+	// Fully damping the current velocity, but acceleration and damping limited by maximum velocity.
 	btVector3 acceleration = (deltaPosition * (fraction / timeStep)) - linearVelocity;
 	if (m_Updated) {
-		acceleration.setMax(-m_MaxSpeed);
-		acceleration.setMin(m_MaxSpeed);
+		acceleration.setMax(-m_MaxVelocity);
+		acceleration.setMin(m_MaxVelocity);
 		m_LastImpulse = acceleration;
 		m_Updated = false;
 	} else {
 		btScalar lastImpulseLength = m_LastImpulse.length();
-		btVector3 maxSpeed(lastImpulseLength, lastImpulseLength, lastImpulseLength);
-		acceleration.setMax(-maxSpeed);
-		acceleration.setMin(maxSpeed);
+		btVector3 maxVelocity(lastImpulseLength, lastImpulseLength, lastImpulseLength);
+		acceleration.setMax(-maxVelocity);
+		acceleration.setMin(maxVelocity);
 	}
 	linearVelocity += acceleration;
 

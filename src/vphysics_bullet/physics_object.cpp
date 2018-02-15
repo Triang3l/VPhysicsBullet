@@ -443,8 +443,7 @@ void CPhysicsObject::SetDragCoefficient(float *pDrag, float *pAngularDrag) {
 }
 
 btScalar CPhysicsObject::CalculateLinearDrag(const btVector3 &velocity) const {
-	btVector3 drag = ((velocity * m_RigidBody->getWorldTransform().getBasis()) *
-			m_DragBasis).absolute();
+	btVector3 drag = ((velocity * m_RigidBody->getWorldTransform().getBasis()) * m_DragBasis).absolute();
 	return m_DragCoefficient * m_RigidBody->getInvMass() * (drag.getX() + drag.getY() + drag.getZ());
 }
 
@@ -725,14 +724,14 @@ void CPhysicsObject::ApplyForcesAndSpeedLimit(btScalar timeStep) {
 		btClamp(linearVelocity[2], -maxSpeed, maxSpeed);
 		m_RigidBody->setLinearVelocity(linearVelocity);
 
-		const btMatrix3x3 &worldTransform = m_RigidBody->getWorldTransform().getBasis();
-		btVector3 localAngularVelocity = (m_RigidBody->getAngularVelocity() * worldTransform) +
+		const btMatrix3x3 &worldTransformBasis = m_RigidBody->getWorldTransform().getBasis();
+		btVector3 localAngularVelocity = (m_RigidBody->getAngularVelocity() * worldTransformBasis) +
 				m_LocalAngularVelocityChange;
 		btScalar maxAngularSpeed = environment->GetMaxAngularSpeed();
 		btClamp(localAngularVelocity[0], -maxAngularSpeed, maxAngularSpeed);
 		btClamp(localAngularVelocity[1], -maxAngularSpeed, maxAngularSpeed);
 		btClamp(localAngularVelocity[2], -maxAngularSpeed, maxAngularSpeed);
-		m_RigidBody->setAngularVelocity(worldTransform * localAngularVelocity);
+		m_RigidBody->setAngularVelocity(worldTransformBasis * localAngularVelocity);
 	}
 	m_LinearVelocityChange.setZero();
 	m_LocalAngularVelocityChange.setZero();
@@ -819,9 +818,9 @@ void CPhysicsObject::GetVelocityAtPoint(const Vector &worldPosition, Vector *pVe
 	// Position is relative to the center of mass (the rigid body's position).
 	btVector3 bulletWorldPosition;
 	ConvertPositionToBullet(worldPosition, bulletWorldPosition);
-	btVector3 speed = m_RigidBody->getLinearVelocity() + angularVelocity.cross(
+	btVector3 linearVelocity = m_RigidBody->getLinearVelocity() + angularVelocity.cross(
 			bulletWorldPosition - worldTransform.getOrigin()) + m_LinearVelocityChange;
-	ConvertPositionToHL(speed, *pVelocity);
+	ConvertPositionToHL(linearVelocity, *pVelocity);
 }
 
 void CPhysicsObject::AddVelocity(const Vector *velocity, const AngularImpulse *angularVelocity) {
@@ -958,12 +957,12 @@ void CPhysicsObject::ApplyEventMotion(bool isWorld, bool isForce,
 	if (isForce && !IsMoveable()) {
 		return;
 	}
-	const btMatrix3x3 &worldTransform = m_RigidBody->getWorldTransform().getBasis();
+	const btMatrix3x3 &worldTransformBasis = m_RigidBody->getWorldTransform().getBasis();
 	bool wake = false;
 	if (!linear.isZero()) {
 		btVector3 worldLinearAcceleration = linear;
 		if (!isWorld) {
-			worldLinearAcceleration = worldTransform * worldLinearAcceleration;
+			worldLinearAcceleration = worldTransformBasis * worldLinearAcceleration;
 		}
 		if (isForce) {
 			worldLinearAcceleration *= m_RigidBody->getInvMass();
@@ -975,13 +974,13 @@ void CPhysicsObject::ApplyEventMotion(bool isWorld, bool isForce,
 	if (!angular.isZero()) {
 		btVector3 localAngularAcceleration = angular;
 		if (isWorld) {
-			localAngularAcceleration = localAngularAcceleration * worldTransform;
+			localAngularAcceleration = localAngularAcceleration * worldTransformBasis;
 		}
 		if (isForce) {
 			localAngularAcceleration *= m_RigidBody->getInvInertiaDiagLocal();
 		}
 		m_RigidBody->setAngularVelocity(m_RigidBody->getAngularVelocity() +
-				(worldTransform * localAngularAcceleration));
+				(worldTransformBasis * localAngularAcceleration));
 		wake = true;
 	}
 	if (wake) {
@@ -1122,7 +1121,7 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 	if (params.m_TeleportDistance > 0.0f) {
 		btScalar dist2;
 		if (!params.m_LastObjectPosition.isZero()) {
-			dist2 = (objectPosition - params.m_LastObjectPosition).length2();
+			dist2 = objectPosition.distance2(params.m_LastObjectPosition);
 		} else {
 			// UNDONE: This is totally bogus!
 			// Measure error using last known estimate, not current position!
@@ -1137,7 +1136,7 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 	}
 
 	btVector3 linearVelocity = m_RigidBody->getLinearVelocity();
-	CPhysicsShadowController::ComputeSpeed(linearVelocity, deltaPosition,
+	CPhysicsShadowController::ComputeVelocity(linearVelocity, deltaPosition,
 			params.m_MaxSpeed, params.m_MaxDampSpeed, fraction, params.m_DampFactor, &params.m_LastImpulse);
 	m_RigidBody->setLinearVelocity(linearVelocity);
 
@@ -1150,7 +1149,7 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 		// Take the shortest path.
 		angle -= SIMD_2_PI;
 	}
-	CPhysicsShadowController::ComputeSpeed(localAngularVelocity, axis * angle,
+	CPhysicsShadowController::ComputeVelocity(localAngularVelocity, axis * angle,
 			params.m_MaxAngular, params.m_MaxDampAngular, fraction, params.m_DampFactor, nullptr);
 	m_RigidBody->setAngularVelocity(m_RigidBody->getWorldTransform().getBasis() * localAngularVelocity);
 
