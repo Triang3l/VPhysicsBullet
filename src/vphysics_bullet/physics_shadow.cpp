@@ -226,26 +226,6 @@ float CPhysicsPlayerController::GetPushSpeedLimit() {
 	return BULLET2HL(m_PushSpeedLimit);
 }
 
-void CPhysicsPlayerController::ComputeSpeed(btVector3 &currentSpeed,
-		const btVector3 &delta, const btVector3 &maxSpeed,
-		btScalar scaleDelta, btScalar damping, btVector3 *outImpulse) {
-	if (currentSpeed.length2() < 1e-6f) {
-		currentSpeed.setZero();
-	}
-
-	btVector3 acceleration = (delta * scaleDelta) + (currentSpeed * -damping);
-	btVector3 maxAcceleration = maxSpeed;
-	maxAcceleration.setMax(btVector3(0.0f, 0.0f, 0.0f));
-	acceleration.setMax(-maxAcceleration);
-	acceleration.setMin(maxAcceleration);
-
-	currentSpeed += acceleration;
-
-	if (outImpulse != nullptr) {
-		*outImpulse = acceleration;
-	}
-}
-
 void CPhysicsPlayerController::Simulate(btScalar timeStep) {
 	if (!m_Enable) {
 		return;
@@ -310,11 +290,29 @@ void CPhysicsPlayerController::Simulate(btScalar timeStep) {
 		lastImpulse = nullptr;
 	}
 
+	// Compute the controller independently from the ground.
 	linearVelocity -= groundVelocity;
-	ComputeSpeed(linearVelocity, deltaPosition, maxSpeed, fraction / timeStep, 1.0f, lastImpulse);
-	linearVelocity += groundVelocity;
 
-	m_Updated = false;
+	if (linearVelocity.length2() < 1e-6f) {
+		linearVelocity.setZero();
+	}
+	// Fully damping the current velocity, but acceleration and damping limited by max speed.
+	btVector3 acceleration = (deltaPosition * (fraction / timeStep)) - linearVelocity;
+	if (m_Updated) {
+		acceleration.setMax(-m_MaxSpeed);
+		acceleration.setMin(m_MaxSpeed);
+		m_LastImpulse = acceleration;
+		m_Updated = false;
+	} else {
+		btScalar lastImpulseLength = m_LastImpulse.length();
+		btVector3 maxSpeed(lastImpulseLength, lastImpulseLength, lastImpulseLength);
+		acceleration.setMax(-maxSpeed);
+		acceleration.setMin(maxSpeed);
+	}
+	linearVelocity += acceleration;
+
+	// Attach back to the ground.
+	linearVelocity += groundVelocity;
 
 	rigidBody->setLinearVelocity(linearVelocity);
 }
