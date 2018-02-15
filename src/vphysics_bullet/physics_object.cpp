@@ -1019,7 +1019,7 @@ int CPhysicsObject::GetShadowPosition(Vector *position, QAngle *angles) const {
 	if (angles != nullptr) {
 		ConvertRotationToHL(transform.getBasis(), *angles);
 	}
-	return static_cast<CPhysicsEnvironment *>(m_Environment)->GetSimulatedPSIs();
+	return 1; // Used to return the PSI count last simulation (whether a tick happened), but always 1 in v31.
 }
 
 IPhysicsShadowController *CPhysicsObject::GetShadowController() const {

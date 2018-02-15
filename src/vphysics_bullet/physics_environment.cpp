@@ -20,7 +20,6 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_SimulationInvTimeStep(1.0f / btScalar(DEFAULT_TICK_INTERVAL)),
 		m_InSimulation(false),
 		m_LastPSITime(0.0f), m_TimeSinceLastPSI(0.0f),
-		m_SimulatedPSIs(0), m_RemainingPSIs(0), m_InvPSIScale(0.0f),
 		m_CollisionSolver(nullptr), m_OverlapFilterCallback(this),
 		m_CollisionEvents(nullptr) {
 	m_PerformanceSettings.Defaults();
@@ -295,19 +294,18 @@ void CPhysicsEnvironment::Simulate(float deltaTime) {
 	if (deltaTime > 0.0f && deltaTime < 1.0f) { // Trap interrupts and clock changes.
 		deltaTime = MIN(deltaTime, 0.1f);
 		m_TimeSinceLastPSI += deltaTime;
-		m_SimulatedPSIs = (int) (m_TimeSinceLastPSI * m_SimulationInvTimeStep);
-		if (m_SimulatedPSIs > 0) {
-			m_RemainingPSIs = m_SimulatedPSIs;
+		int psiCount = (int) (m_TimeSinceLastPSI * m_SimulationInvTimeStep);
+		if (psiCount > 0) {
 			btScalar oldTimeSinceLastPSI = m_TimeSinceLastPSI;
 			// We're in a PSI, so in case something tries to interpolate transforms with
 			// m_InSimulation being false, the PSI values will be used.
 			m_TimeSinceLastPSI = 0.0f;
-			for (int psi = 0; psi < m_SimulatedPSIs; ++psi) {
+			for (int psi = 0; psi < psiCount; ++psi) {
 				// Using fake variable timestep with fixed timestep and interpolating manually.
 				m_DynamicsWorld->stepSimulation(m_SimulationTimeStep, 0, m_SimulationTimeStep);
 				m_LastPSITime += m_SimulationTimeStep;
 			}
-			m_TimeSinceLastPSI = oldTimeSinceLastPSI - m_SimulatedPSIs * m_SimulationTimeStep;
+			m_TimeSinceLastPSI = oldTimeSinceLastPSI - psiCount * m_SimulationTimeStep;
 		}
 		int objectCount = m_ActiveNonStaticObjects.Count();
 		for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
@@ -340,7 +338,6 @@ float CPhysicsEnvironment::GetSimulationTime() const {
 void CPhysicsEnvironment::ResetSimulationClock() {
 	m_LastPSITime = 0.0f;
 	m_TimeSinceLastPSI = 0.0f;
-	m_SimulatedPSIs = 0;
 	m_Solver->reset();
 	// Move interpolated transforms to the last PSI.
 	int objectCount = m_NonStaticObjects.Count();
@@ -358,12 +355,6 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 
 	if (!environment->m_QueueDeleteObject) {
 		environment->CleanupDeleteList();
-	}
-
-	if (environment->m_RemainingPSIs > 0) {
-		environment->m_InvPSIScale = 1.0f / btScalar(environment->m_RemainingPSIs--);
-	} else {
-		environment->m_InvPSIScale = 0.0f;
 	}
 
 	environment->m_InSimulation = true;

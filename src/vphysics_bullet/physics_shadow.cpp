@@ -149,8 +149,9 @@ void CPhysicsShadowController::Simulate(btScalar timeStep) {
 	object->ComputeBulletShadowControl(m_Shadow, m_SecondsToArrival, timeStep);
 	// If we have time left, subtract it off.
 	m_SecondsToArrival = btMax(m_SecondsToArrival - timeStep, btScalar(0.0f));
-	// TODO: For objects with physics movement allowed, do something with friction snapshots.
 }
+
+// TODO: For shadows with physics movement allowed, handle ground contacts in nearCallback.
 
 CPhysicsPlayerController::CPhysicsPlayerController(IPhysicsObject *object) :
 		m_Object(object),
@@ -290,20 +291,10 @@ void CPhysicsPlayerController::Simulate(btScalar timeStep) {
 		fraction = btMin(timeStep / m_SecondsToArrival, btScalar(1.0f));
 	}
 
-	btVector3 maxSpeed;
-	btVector3 *lastImpulse;
-	if (m_Updated) {
-		maxSpeed = m_MaxSpeed;
-		lastImpulse = &m_LastImpulse;
-	} else {
-		btScalar lastImpulseLength = m_LastImpulse.length();
-		maxSpeed.setValue(lastImpulseLength, lastImpulseLength, lastImpulseLength);
-		lastImpulse = nullptr;
-	}
-
 	// Compute the controller independently from the ground.
 	linearVelocity -= groundVelocity;
 
+	// Computing the controller.
 	if (linearVelocity.length2() < 1e-6f) {
 		linearVelocity.setZero();
 	}
@@ -327,3 +318,5 @@ void CPhysicsPlayerController::Simulate(btScalar timeStep) {
 
 	rigidBody->setLinearVelocity(linearVelocity);
 }
+
+// TODO: Handle gravity and push limits in nearCallback.
