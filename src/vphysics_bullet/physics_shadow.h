@@ -93,9 +93,12 @@ public:
 
 private:
 	IPhysicsObject *m_Object;
+
 	ShadowControlBulletParameters_t m_Shadow;
-	btScalar m_SecondsToArrival;
+
 	bool m_Enable;
+	btScalar m_SecondsToArrival;
+
 	bool m_AllowPhysicsMovement, m_AllowPhysicsRotation;
 	bool m_PhysicallyControlled;
 	bool m_UseShadowMaterial;

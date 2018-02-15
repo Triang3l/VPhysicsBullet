@@ -7,8 +7,8 @@
 CPhysicsShadowController::CPhysicsShadowController(IPhysicsObject *object,
 			bool allowTranslation, bool allowRotation) :
 		m_Object(object),
-		m_SecondsToArrival(0.0f),
 		m_Enable(false),
+		m_SecondsToArrival(0.0f),
 		m_AllowPhysicsMovement(allowTranslation),
 		m_AllowPhysicsRotation(allowRotation),
 		m_PhysicallyControlled(false),
