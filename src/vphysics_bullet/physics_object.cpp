@@ -1111,7 +1111,7 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 
 	// Not a reference because it may be modified by proceedToTransform.
 	btTransform worldTransform = m_RigidBody->getWorldTransform();
-	btVector3 massCenter = GetBulletMassCenter();
+	const btVector3 &massCenter = GetBulletMassCenter();
 	btVector3 objectPosition = worldTransform.getOrigin() - (worldTransform.getBasis() * massCenter);
 	btVector3 localAngularVelocity = m_RigidBody->getAngularVelocity() * worldTransform.getBasis();
 
@@ -1156,10 +1156,12 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 }
 
 void CPhysicsObject::SimulateShadowAndPlayer(btScalar timeStep) {
+	if (m_Player != nullptr) {
+		static_cast<CPhysicsPlayerController *>(m_Player)->Simulate(timeStep);
+	}
 	if (m_Shadow != nullptr) {
 		static_cast<CPhysicsShadowController *>(m_Shadow)->Simulate(timeStep);
 	}
-	// TODO: Simulate player controller.
 }
 
 /************

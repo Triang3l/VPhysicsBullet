@@ -113,6 +113,7 @@ public:
 	virtual void StepUp(float height);
 	virtual void Jump();
 	virtual IPhysicsObject *GetObject();
+	virtual void GetLastImpulse(Vector *pOut);
 	virtual void SetPushMassLimit(float maxPushMass);
 	virtual void SetPushSpeedLimit(float maxPushSpeed);
 	virtual float GetPushMassLimit();
@@ -124,6 +125,8 @@ public:
 			const btVector3 &delta, const btVector3 &maxSpeed,
 			btScalar scaleDelta, btScalar damping, btVector3 *outImpulse);
 
+	void Simulate(btScalar timeStep);
+
 	FORCEINLINE void NotifyPotentialGroundRemoving(IPhysicsObject *object) {
 		if (m_Ground == object) {
 			m_Ground = nullptr;
@@ -133,11 +136,22 @@ public:
 private:
 	IPhysicsObject *m_Object;
 
+	bool m_Enable;
+	bool m_Updated;
+
+	btVector3 m_TargetObjectPosition;
+	btVector3 m_CurrentSpeed;
+	btVector3 m_MaxSpeed;
+	btScalar m_SecondsToArrival;
+
 	IPhysicsObject *m_Ground;
+	btVector3 m_TargetGroundLocalPosition;
 
 	IPhysicsPlayerControllerEvent *m_Handler;
 
 	btScalar m_PushInvMassLimit, m_PushSpeedLimit;
+
+	btVector3 m_LastImpulse;
 };
 
 #endif

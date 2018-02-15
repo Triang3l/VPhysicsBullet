@@ -154,10 +154,15 @@ void CPhysicsShadowController::Simulate(btScalar timeStep) {
 
 CPhysicsPlayerController::CPhysicsPlayerController(IPhysicsObject *object) :
 		m_Object(object),
-		m_Ground(nullptr),
+		m_Enable(false), m_Updated(false),
+		m_TargetObjectPosition(0.0f, 0.0f, 0.0f),
+		m_CurrentSpeed(0.0f, 0.0f, 0.0f),
+		m_MaxSpeed(0.0f, 0.0f, 0.0f),
+		m_SecondsToArrival(0.0f),
+		m_Ground(nullptr), m_TargetGroundLocalPosition(0.0f, 0.0f, 0.0f),
 		m_Handler(nullptr),
-		m_PushInvMassLimit(1.0f / 50000.0f),
-		m_PushSpeedLimit(HL2BULLET(10000.0f)) {
+		m_PushInvMassLimit(1.0f / 50000.0f), m_PushSpeedLimit(HL2BULLET(10000.0f)),
+		m_LastImpulse(0.0, 0.0f, 0.0f) {
 	static_cast<CPhysicsObject *>(m_Object)->NotifyAttachedToPlayerController(this, true);
 }
 
@@ -192,6 +197,10 @@ void CPhysicsPlayerController::Jump() {
 
 IPhysicsObject *CPhysicsPlayerController::GetObject() {
 	return m_Object;
+}
+
+void CPhysicsPlayerController::GetLastImpulse(Vector *pOut) {
+	ConvertPositionToHL(m_LastImpulse, *pOut);
 }
 
 void CPhysicsPlayerController::SetPushMassLimit(float maxPushMass) {
@@ -235,4 +244,78 @@ void CPhysicsPlayerController::ComputeSpeed(btVector3 &currentSpeed,
 	if (outImpulse != nullptr) {
 		*outImpulse = acceleration;
 	}
+}
+
+void CPhysicsPlayerController::Simulate(btScalar timeStep) {
+	if (!m_Enable) {
+		return;
+	}
+
+	CPhysicsObject *object = static_cast<CPhysicsObject *>(m_Object);
+	btRigidBody *rigidBody = object->GetRigidBody();
+	btVector3 linearVelocity = rigidBody->getLinearVelocity();
+
+	btVector3 groundVelocity;
+	if (m_Ground != nullptr) {
+		const btRigidBody *groundRigidBody =
+				static_cast<const CPhysicsObject *>(m_Ground)->GetRigidBody();
+		const btTransform &groundWorldTransform = groundRigidBody->getWorldTransform();
+		m_TargetObjectPosition = groundWorldTransform * m_TargetGroundLocalPosition;
+		btVector3 groundLocalAngularVelocity =
+				groundRigidBody->getAngularVelocity() * groundWorldTransform.getBasis();
+		groundVelocity = groundRigidBody->getLinearVelocity() + (groundWorldTransform.getBasis() *
+				groundLocalAngularVelocity.cross(m_TargetGroundLocalPosition));
+	} else {
+		groundVelocity.setZero();
+	}
+
+	const btTransform &worldTransform = rigidBody->getWorldTransform();
+	btVector3 massCenterOffset = worldTransform.getBasis() * object->GetBulletMassCenter();
+	btVector3 objectPosition = worldTransform.getOrigin() - massCenterOffset;
+	btVector3 deltaPosition = m_TargetObjectPosition - objectPosition;
+
+	const btScalar teleportDistance = HL2BULLET(24.0f);
+	// UNDONE: This is totally bogus!
+	// Measure error using last known estimate, not current position!
+	if (deltaPosition.length2() > teleportDistance * teleportDistance) {
+		bool teleport = true;
+		if (m_Handler != nullptr) {
+			Vector targetHLPosition;
+			ConvertPositionToHL(m_TargetObjectPosition, targetHLPosition);
+			if (!m_Handler->ShouldMoveTo(m_Object, targetHLPosition)) {
+				teleport = false;
+			}
+		}
+		if (teleport) {
+			rigidBody->proceedToTransform(btTransform(worldTransform.getBasis(),
+					m_TargetObjectPosition + massCenterOffset));
+			return;
+		}
+	}
+
+	// Resample fraction.
+	// This allows us to arrive at the target at the requested time.
+	btScalar fraction = 1.0f;
+	if (m_SecondsToArrival > 0.0f) {
+		fraction = btMin(timeStep / m_SecondsToArrival, btScalar(1.0f));
+	}
+
+	btVector3 maxSpeed;
+	btVector3 *lastImpulse;
+	if (m_Updated) {
+		maxSpeed = m_MaxSpeed;
+		lastImpulse = &m_LastImpulse;
+	} else {
+		btScalar lastImpulseLength = m_LastImpulse.length();
+		maxSpeed.setValue(lastImpulseLength, lastImpulseLength, lastImpulseLength);
+		lastImpulse = nullptr;
+	}
+
+	linearVelocity -= groundVelocity;
+	ComputeSpeed(linearVelocity, deltaPosition, maxSpeed, fraction / timeStep, 1.0f, lastImpulse);
+	linearVelocity += groundVelocity;
+
+	m_Updated = false;
+
+	rigidBody->setLinearVelocity(linearVelocity);
 }

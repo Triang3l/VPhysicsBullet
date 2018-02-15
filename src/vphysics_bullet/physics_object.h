@@ -121,6 +121,7 @@ public:
 	// Internal methods.
 
 	FORCEINLINE btRigidBody *GetRigidBody() const { return m_RigidBody; }
+	const btVector3 &GetBulletMassCenter() const;
 
 	FORCEINLINE IPhysicsEnvironment *GetEnvironment() const { return m_Environment; }
 
@@ -203,7 +204,6 @@ private:
 	void RemoveReferenceFromCollide();
 
 	btVector3 m_MassCenterOverride;
-	const btVector3 &GetBulletMassCenter() const;
 
 	float m_Mass;
 	Vector m_Inertia;
