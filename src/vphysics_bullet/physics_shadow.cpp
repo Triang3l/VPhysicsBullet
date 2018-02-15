@@ -271,8 +271,7 @@ void CPhysicsPlayerController::Simulate(btScalar timeStep) {
 
 	const btTransform &worldTransform = rigidBody->getWorldTransform();
 	btVector3 massCenterOffset = worldTransform.getBasis() * object->GetBulletMassCenter();
-	btVector3 objectPosition = worldTransform.getOrigin() - massCenterOffset;
-	btVector3 deltaPosition = m_TargetObjectPosition - objectPosition;
+	btVector3 deltaPosition = m_TargetObjectPosition - (worldTransform.getOrigin() - massCenterOffset);
 
 	const btScalar teleportDistance = HL2BULLET(24.0f);
 	// UNDONE: This is totally bogus!
