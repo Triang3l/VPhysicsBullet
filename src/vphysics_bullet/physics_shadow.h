@@ -109,6 +109,7 @@ public:
 	// IPhysicsPlayerController methods.
 
 	virtual void SetEventHandler(IPhysicsPlayerControllerEvent *handler);
+	virtual void MaxSpeed(const Vector &maxVelocity);
 	virtual void SetObject(IPhysicsObject *pObject);
 	virtual void StepUp(float height);
 	virtual void Jump();

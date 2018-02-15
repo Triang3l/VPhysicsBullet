@@ -174,6 +174,17 @@ void CPhysicsPlayerController::SetEventHandler(IPhysicsPlayerControllerEvent *ha
 	m_Handler = handler;
 }
 
+void CPhysicsPlayerController::MaxSpeed(const Vector &maxVelocity) {
+	btVector3 bulletMaxVelocity;
+	ConvertPositionToBullet(maxVelocity, bulletMaxVelocity);
+	btScalar dot = bulletMaxVelocity.dot(static_cast<CPhysicsObject *>(
+			m_Object)->GetRigidBody()->getLinearVelocity());
+	if (dot > 0.0f) {
+		bulletMaxVelocity -= bulletMaxVelocity * (dot * bulletMaxVelocity.length()); 
+	}
+	m_MaxSpeed = bulletMaxVelocity.absolute();
+}
+
 void CPhysicsPlayerController::SetObject(IPhysicsObject *pObject) {
 	Assert(pObject != nullptr);
 	if (m_Object == pObject) {
