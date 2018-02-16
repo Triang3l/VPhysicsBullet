@@ -98,6 +98,8 @@ public:
 	virtual float CalculateLinearDrag(const Vector &unitDirection) const;
 	virtual float CalculateAngularDrag(const Vector &objectSpaceRotationAxis) const;
 
+	virtual bool GetContactPoint(Vector *contactPoint, IPhysicsObject **contactObject) const;
+
 	virtual void SetShadow(float maxSpeed, float maxAngularSpeed,
 			bool allowPhysicsMovement, bool allowPhysicsRotation);
 	virtual void UpdateShadow(const Vector &targetPosition, const QAngle &targetAngles,

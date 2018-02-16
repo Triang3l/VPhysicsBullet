@@ -1194,6 +1194,47 @@ void CPhysicsObject::RecheckContactPoints() {
 	// There also were plans to make it recheck contact points in IVP VPhysics.
 }
 
+bool CPhysicsObject::GetContactPoint(Vector *contactPoint, IPhysicsObject **contactObject) const {
+	const btCollisionDispatcher *dispatcher =
+			static_cast<CPhysicsEnvironment *>(m_Environment)->GetCollisionDispatcher();
+	int manifoldCount = 0;
+	int manifoldCount = dispatcher->getNumManifolds();
+	for (int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex) {
+		const btPersistentManifold *manifold = dispatcher->getManifoldByIndexInternal(manifoldIndex);
+		if (manifold->getNumContacts() == 0) {
+			continue;
+		}
+		// Contact point 0 is considered the best by Bullet.
+		const btManifoldPoint &manifoldPoint = manifold->getContactPoint(0);
+		const btCollisionObject *body0 = manifold->getBody0(), *body1 = manifold->getBody1();
+		if (body0 == m_RigidBody) {
+			if (!body1->hasContactResponse()) {
+				continue;
+			}
+			if (contactPoint != nullptr) {
+				ConvertPositionToHL(manifoldPoint.getPositionWorldOnA(), *contactPoint);
+			}
+			if (contactObject != nullptr) {
+				*contactObject = reinterpret_cast<IPhysicsObject *>(body1->getUserPointer());
+			}
+			return true;
+		}
+		if (body1 == m_RigidBody) {
+			if (!body0->hasContactResponse()) {
+				continue;
+			}
+			if (contactPoint != nullptr) {
+				ConvertPositionToHL(manifoldPoint.getPositionWorldOnB(), *contactPoint);
+			}
+			if (contactObject != nullptr) {
+				*contactObject = reinterpret_cast<IPhysicsObject *>(body0->getUserPointer());
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
 /***********
  * Triggers
  ***********/
