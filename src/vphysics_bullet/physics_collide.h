@@ -358,6 +358,7 @@ private:
 class CPhysicsCollision : public IPhysicsCollision {
 public:
 	CPhysicsCollision();
+	virtual ~CPhysicsCollision();
 
 	// IPhysicsCollision methods.
 

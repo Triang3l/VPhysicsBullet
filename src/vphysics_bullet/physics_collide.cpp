@@ -30,6 +30,39 @@ CPhysicsCollision::CPhysicsCollision() :
 			m_ContactTestDispatcher, m_ContactTestBroadphase, m_ContactTestCollisionConfiguration);
 }
 
+CPhysicsCollision::~CPhysicsCollision() {
+	delete m_ContactTestCollisionWorld;
+	delete m_ContactTestBroadphase;
+	delete m_ContactTestDispatcher;
+	delete m_ContactTestCollisionConfiguration;
+
+	int sphereCount = m_SphereCache.Count();
+	for (int sphereIndex = 0; sphereIndex < sphereCount; ++sphereIndex) {
+		CPhysCollide_Sphere *sphere = m_SphereCache[sphereIndex];
+		Assert(sphere->GetObjectReferenceList() == nullptr);
+		if (sphere->GetObjectReferenceList() != nullptr) {
+			DevMsg("Freed sphere collision model while in use!!!\n");
+			continue;
+		}
+		delete sphere;
+	}
+
+	int bboxCount = m_BBoxCache.Count();
+	for (int bboxIndex = 0; bboxIndex < bboxCount; ++bboxIndex) {
+		CPhysCollide_Compound *bboxCompound = m_BBoxCache[bboxIndex];
+		Assert(bboxCompound->GetObjectReferenceList() == nullptr);
+		if (bboxCompound->GetObjectReferenceList() != nullptr) {
+			DevMsg("Freed bounding box collision model while in use!!!\n");
+			continue;
+		}
+		// A bbox may be a part of other compounds, but there's no way to check that.
+		CPhysConvex *bboxConvex = reinterpret_cast<CPhysConvex *>(
+				bboxCompound->GetCompoundShape()->getChildShape(0)->getUserPointer());
+		delete bboxCompound;
+		delete bboxConvex;
+	}
+}
+
 IPhysicsCollision *CPhysicsCollision::ThreadContextCreate() {
 	// IVP VPhysics v29 used to create a new CPhysicsCollision, but v31 returns this.
 	// Due to g_pPhysCollision references, and because object reference lists are thread-unsafe,

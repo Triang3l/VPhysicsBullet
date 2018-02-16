@@ -45,14 +45,11 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 }
 
 CPhysicsEnvironment::~CPhysicsEnvironment() {
+	CleanupDeleteList();
 	int objectCount = m_Objects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
 		delete m_Objects[objectIndex];
 	}
-	m_Objects.RemoveAll();
-	CleanupDeleteList();
-	m_ActiveNonStaticObjects.RemoveAll();
-	m_NonStaticObjects.RemoveAll();
 
 	delete m_DynamicsWorld;
 	delete m_Solver;
