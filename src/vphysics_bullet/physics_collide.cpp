@@ -1107,7 +1107,6 @@ void CPhysicsCollision::DestroyCollide(CPhysCollide *pCollide) {
 void CPhysicsCollision::ClearTrace(trace_t *trace) {
 	memset(trace, 0, sizeof(*trace));
 	trace->fraction = 1.0f;
-	trace->contents = CONTENTS_SOLID;
 	trace->surface.name = "**empty**";
 }
 
@@ -1272,6 +1271,7 @@ void CPhysicsCollision::TraceCollide(const Vector &start, const Vector &end,
 		ptr->startsolid = ptr->allsolid = true;
 		hitNormal = contactTestResult.m_ShallowestHitNormal;
 		hitPoint = contactTestResult.m_ShallowestHitPoint;
+		ptr->contents = CONTENTS_SOLID;
 	} else if (isSwept) {
 		// Not starting in a solid, need to sweep.
 		ConvexTestResultCallback convexTestResult(nullptr, colObjWorldTransform.getBasis());
@@ -1296,6 +1296,7 @@ void CPhysicsCollision::TraceCollide(const Vector &start, const Vector &end,
 					childRayDelta *= convexTestResult.m_closestHitFraction;
 					hitNormal = convexTestResult.m_ClosestHitNormal;
 					hitPoint = convexTestResult.m_ClosestHitPoint;
+					ptr->contents = CONTENTS_SOLID;
 				}
 			}
 		} else {
@@ -1309,6 +1310,7 @@ void CPhysicsCollision::TraceCollide(const Vector &start, const Vector &end,
 				ptr->fraction = convexTestResult.m_closestHitFraction;
 				hitNormal = convexTestResult.m_ClosestHitNormal;
 				hitPoint = convexTestResult.m_ClosestHitPoint;
+				ptr->contents = CONTENTS_SOLID;
 			}
 		}
 	}
