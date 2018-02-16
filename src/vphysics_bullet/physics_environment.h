@@ -70,11 +70,8 @@ public:
 
 	// Internal methods.
 
-	FORCEINLINE btDiscreteDynamicsWorld *GetDynamicsWorld() {
-		return m_DynamicsWorld;
-	}
-	FORCEINLINE const btDiscreteDynamicsWorld *GetDynamicsWorld() const {
-		return m_DynamicsWorld;
+	FORCEINLINE btCollisionDispatcher *GetCollisionDispatcher() const {
+		return m_Dispatcher;
 	}
 
 	FORCEINLINE const btVector3 &GetBulletGravity() const {

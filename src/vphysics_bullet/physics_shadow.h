@@ -114,6 +114,7 @@ public:
 	virtual void Update(const Vector &position, const Vector &velocity,
 			float secondsToArrival, bool onground, IPhysicsObject *ground);
 	virtual void SetEventHandler(IPhysicsPlayerControllerEvent *handler);
+	virtual bool IsInContact();
 	virtual void MaxSpeed(const Vector &maxVelocity);
 	virtual void SetObject(IPhysicsObject *pObject);
 	virtual int GetShadowPosition(Vector *position, QAngle *angles);
@@ -126,6 +127,7 @@ public:
 	virtual void SetPushSpeedLimit(float maxPushSpeed);
 	virtual float GetPushMassLimit();
 	virtual float GetPushSpeedLimit();
+	virtual bool WasFrozen();
 
 	// Internal methods.
 

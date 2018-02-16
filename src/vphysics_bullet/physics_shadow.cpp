@@ -2,6 +2,7 @@
 // Bullet integration by Triang3l, derivative work, in public domain if detached from Valve's work.
 
 #include "physics_shadow.h"
+#include "physics_environment.h"
 #include "physics_object.h"
 
 CPhysicsShadowController::CPhysicsShadowController(IPhysicsObject *object,
@@ -210,6 +211,38 @@ void CPhysicsPlayerController::SetEventHandler(IPhysicsPlayerControllerEvent *ha
 	m_Handler = handler;
 }
 
+bool CPhysicsPlayerController::IsInContact() {
+	const CPhysicsObject *object = static_cast<const CPhysicsObject *>(m_Object);
+	const btCollisionObject *collisionObject = object->GetRigidBody();
+	const btCollisionDispatcher *dispatcher = static_cast<const CPhysicsEnvironment *>(
+			object->GetEnvironment())->GetCollisionDispatcher();
+	int manifoldCount = dispatcher->getNumManifolds();
+	for (int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex) {
+		const btPersistentManifold *manifold = dispatcher->getManifoldByIndexInternal(manifoldIndex);
+		if (manifold->getNumContacts() == 0) {
+			continue;
+		}
+		const btCollisionObject *otherCollisionObject;
+		if (manifold->getBody0() == collisionObject) {
+			otherCollisionObject = manifold->getBody1();
+		} else if (manifold->getBody1() == collisionObject) {
+			otherCollisionObject = manifold->getBody0();
+		} else {
+			continue;
+		}
+		if (!otherCollisionObject->hasContactResponse()) {
+			continue;
+		}
+		const IPhysicsObject *otherObject = reinterpret_cast<const IPhysicsObject *>(
+				otherCollisionObject->getUserPointer());
+		if (otherObject != nullptr && otherObject->IsMoveable() &&
+				!(static_cast<const CPhysicsObject *>(otherObject)->IsControlledByGame())) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void CPhysicsPlayerController::MaxSpeed(const Vector &maxVelocity) {
 	btVector3 bulletMaxVelocity;
 	ConvertPositionToBullet(maxVelocity, bulletMaxVelocity);
@@ -306,6 +339,12 @@ float CPhysicsPlayerController::GetPushMassLimit() {
 
 float CPhysicsPlayerController::GetPushSpeedLimit() {
 	return BULLET2HL(m_PushSpeedLimit);
+}
+
+bool CPhysicsPlayerController::WasFrozen() {
+	// Not freezing anything.
+	// TODO: If freezing is ever added somehow, make this do the correct check.
+	return false;
 }
 
 void CPhysicsPlayerController::Simulate(btScalar timeStep) {
