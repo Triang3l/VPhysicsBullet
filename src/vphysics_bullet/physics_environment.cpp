@@ -17,6 +17,11 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+#ifdef WIN32
+#pragma warning(push)
+#pragma warning(disable : 4355) // 'this' : used in base member initializer list
+#endif
+
 CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_Gravity(0.0f, 0.0f, 0.0f),
 		m_AirDensity(2.0f),
@@ -49,6 +54,10 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 	m_DynamicsWorld->setInternalTickCallback(TickCallback, this, false);
 	m_DynamicsWorld->addAction(&m_TickAction);
 }
+
+#ifdef WIN32
+#pragma warning(pop)
+#endif
 
 CPhysicsEnvironment::~CPhysicsEnvironment() {
 	CleanupDeleteList();
