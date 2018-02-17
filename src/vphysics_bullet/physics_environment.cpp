@@ -3,9 +3,14 @@
 
 #include "physics_environment.h"
 #include "physics_collide.h"
+#include "physics_constraint.h"
+#include "physics_fluid.h"
 #include "physics_motioncontroller.h"
 #include "physics_object.h"
 #include "physics_shadow.h"
+#include "physics_spring.h"
+#include "physics_vehicle.h"
+#include "vphysics/stats.h"
 #include "const.h"
 #include "tier1/convar.h"
 
@@ -139,7 +144,7 @@ IPhysicsObject *CPhysicsEnvironment::CreatePolyObject(
 		const CPhysCollide *pCollisionModel, int materialIndex,
 		const Vector &position, const QAngle &angles, objectparams_t *pParams) {
 	IPhysicsObject *object = new CPhysicsObject(this, pCollisionModel, materialIndex,
-			position, angles, pParams);
+			position, angles, pParams, false);
 	AddObject(object);
 	return object;
 }
@@ -306,8 +311,70 @@ float CPhysicsEnvironment::GetAirDensity() const {
 }
 
 /**************
+ * Constraints
+ **************/
+
+/* DUMMY */ IPhysicsSpring *CPhysicsEnvironment::CreateSpring(IPhysicsObject *pObjectStart, IPhysicsObject *pObjectEnd,
+		springparams_t *pParams) {
+	return new CPhysicsSpring(pObjectStart, pObjectEnd, pParams);
+}
+
+/* DUMMY */ void CPhysicsEnvironment::DestroySpring(IPhysicsSpring *pSpring) {
+	delete pSpring;
+}
+
+/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateRagdollConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_ragdollparams_t &ragdoll) {
+	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+}
+
+/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateHingeConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_hingeparams_t &hinge) {
+	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+}
+
+/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateFixedConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_fixedparams_t &fixed) {
+	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+}
+
+/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateSlidingConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_slidingparams_t &sliding) {
+	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+}
+
+/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateBallsocketConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_ballsocketparams_t &ballsocket) {
+	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+}
+
+/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreatePulleyConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_pulleyparams_t &pulley) {
+	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+}
+
+/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateLengthConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_lengthparams_t &length) {
+	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+}
+
+/* DUMMY */ void CPhysicsEnvironment::DestroyConstraint(IPhysicsConstraint *pConstraint) {
+	delete pConstraint;
+}
+
+/* DUMMY */ IPhysicsConstraintGroup *CPhysicsEnvironment::CreateConstraintGroup(const constraint_groupparams_t &groupParams) {
+	return new CPhysicsConstraintGroup;
+}
+
+/* DUMMY */ void CPhysicsEnvironment::DestroyConstraintGroup(IPhysicsConstraintGroup *pGroup) {
+	delete pGroup;
+}
+
+/**************
  * Controllers
  **************/
+
+/* DUMMY */ IPhysicsFluidController *CPhysicsEnvironment::CreateFluidController(IPhysicsObject *pFluidObject,
+		fluidparams_t *pParams) {
+	return new CPhysicsFluidController(pFluidObject, pParams);
+}
+
+/* DUMMY */ void CPhysicsEnvironment::DestroyFluidController(IPhysicsFluidController *pFluid) {
+	delete pFluid;
+}
 
 IPhysicsShadowController *CPhysicsEnvironment::CreateShadowController(IPhysicsObject *pObject,
 		bool allowTranslation, bool allowRotation) {
@@ -328,6 +395,14 @@ void CPhysicsEnvironment::DestroyPlayerController(IPhysicsPlayerController *pCon
 	delete pController;
 }
 
+void CPhysicsEnvironment::NotifyPlayerControllerAttached(IPhysicsPlayerController *controller) {
+	m_PlayerControllers.AddToTail(controller);
+}
+
+void CPhysicsEnvironment::NotifyPlayerControllerDetached(IPhysicsPlayerController *controller) {
+	m_PlayerControllers.FindAndFastRemove(controller);
+}
+
 IPhysicsMotionController *CPhysicsEnvironment::CreateMotionController(IMotionEvent *pHandler) {
 	return new CPhysicsMotionController(pHandler);
 }
@@ -336,12 +411,13 @@ void CPhysicsEnvironment::DestroyMotionController(IPhysicsMotionController *pCon
 	delete pController;
 }
 
-void CPhysicsEnvironment::NotifyPlayerControllerAttached(IPhysicsPlayerController *controller) {
-	m_PlayerControllers.AddToTail(controller);
+/* DUMMY */ IPhysicsVehicleController *CPhysicsEnvironment::CreateVehicleController(IPhysicsObject *pVehicleBodyObject,
+		const vehicleparams_t &params, unsigned int nVehicleType, IPhysicsGameTrace *pGameTrace) {
+	return new CPhysicsVehicleController(params);
 }
 
-void CPhysicsEnvironment::NotifyPlayerControllerDetached(IPhysicsPlayerController *controller) {
-	m_PlayerControllers.FindAndFastRemove(controller);
+/* DUMMY */ void CPhysicsEnvironment::DestroyVehicleController(IPhysicsVehicleController *pController) {
+	delete pController;
 }
 
 /*******************
@@ -665,9 +741,9 @@ void CPhysicsEnvironment::SweepCollideable(const CPhysCollide *pCollide, const V
 	// For compound objects, possibly the closest hit of every child can be returned.
 }
 
-/***********************
- * Performance settings
- ***********************/
+/**************
+ * Performance
+ **************/
 
 void CPhysicsEnvironment::GetPerformanceSettings(physics_performanceparams_t *pOutput) const {
 	*pOutput = m_PerformanceSettings;
@@ -675,4 +751,10 @@ void CPhysicsEnvironment::GetPerformanceSettings(physics_performanceparams_t *pO
 
 void CPhysicsEnvironment::SetPerformanceSettings(const physics_performanceparams_t *pSettings) {
 	m_PerformanceSettings = *pSettings;
+}
+
+/* DUMMY */ void CPhysicsEnvironment::ReadStats(physics_stats_t *pOutput) {
+	if (pOutput != nullptr) {
+		memset(pOutput, 0, sizeof(*pOutput));
+	}
 }

@@ -10,9 +10,9 @@
 class CPhysicsObject : public IPhysicsObject {
 public:
 	CPhysicsObject(IPhysicsEnvironment *environment,
-			CPhysCollide *collide, int materialIndex,
+			const CPhysCollide *collide, int materialIndex,
 			const Vector &position, const QAngle &angles,
-			objectparams_t *params, bool isStatic);
+			const objectparams_t *params, bool isStatic);
 	virtual ~CPhysicsObject();
 
 	// IPhysicsObject methods.
@@ -20,12 +20,14 @@ public:
 	virtual bool IsStatic() const;
 	virtual bool IsAsleep() const;
 	virtual bool IsTrigger() const;
+	/* DUMMY */ virtual bool IsFluid() const { return false; }
 	virtual bool IsHinged() const;
 	virtual bool IsCollisionEnabled() const;
 	virtual bool IsGravityEnabled() const;
 	virtual bool IsDragEnabled() const;
 	virtual bool IsMotionEnabled() const;
 	virtual bool IsMoveable() const;
+	/* DUMMY */ virtual bool IsAttachedToConstraint(bool bExternalOnly) const { return false; }
 
 	virtual void EnableCollisions(bool enable);
 	virtual void EnableGravity(bool enable);
@@ -60,6 +62,8 @@ public:
 
 	virtual void SetDragCoefficient(float *pDrag, float *pAngularDrag);
 
+	/* DUMMY */ virtual void SetBuoyancyRatio(float ratio) {}
+
 	virtual int GetMaterialIndex() const;
 	virtual void SetMaterialIndex(int materialIndex);
 
@@ -80,6 +84,14 @@ public:
 	virtual void GetVelocity(Vector *velocity, AngularImpulse *angularVelocity) const;
 	virtual void AddVelocity(const Vector *velocity, const AngularImpulse *angularVelocity);
 	virtual void GetVelocityAtPoint(const Vector &worldPosition, Vector *pVelocity) const;
+	/* DUMMY */ virtual void GetImplicitVelocity(Vector *velocity, AngularImpulse *angularVelocity) const {
+		if (velocity != nullptr) {
+			velocity->Zero();
+		}
+		if (angularVelocity != nullptr) {
+			angularVelocity->Zero();
+		}
+	}
 
 	virtual void LocalToWorld(Vector *worldPosition, const Vector &localPosition) const;
 	virtual void WorldToLocal(Vector *localPosition, const Vector &worldPosition) const;
@@ -119,6 +131,11 @@ public:
 
 	virtual void BecomeHinged(int localAxis);
 	virtual void RemoveHinged();
+
+	/* DUMMY */ virtual IPhysicsFrictionSnapshot *CreateFrictionSnapshot();
+	/* DUMMY */ virtual void DestroyFrictionSnapshot(IPhysicsFrictionSnapshot *pSnapshot);
+
+	/* DUMMY */ virtual void OutputDebugInfo() const {}
 
 	// Internal methods.
 

@@ -370,6 +370,10 @@ public:
 	virtual void ConvexFree(CPhysConvex *pConvex);
 	virtual CPhysConvex *BBoxToConvex(const Vector &mins, const Vector &maxs);
 	virtual CPhysConvex *ConvexFromConvexPolyhedron(const CPolyhedron &ConvexPolyhedron);
+	/* DUMMY */ virtual void ConvexesFromConvexPolygon(
+			const Vector &vPolyNormal, const Vector *pPoints, int iPointCount, CPhysConvex **pOutput) {
+		*pOutput = nullptr;
+	}
 	virtual CPhysPolysoup *PolysoupCreate();
 	virtual void PolysoupDestroy(CPhysPolysoup *pSoup);
 	virtual void PolysoupAddTriangle(CPhysPolysoup *pSoup,
@@ -379,6 +383,8 @@ public:
 	virtual CPhysCollide *ConvertConvexToCollideParams(CPhysConvex **pConvex, int convexCount,
 			const convertconvexparams_t &convertParams);
 	virtual void DestroyCollide(CPhysCollide *pCollide);
+	/* DUMMY */ virtual int CollideSize(CPhysCollide *pCollide) { return 0; }
+	/* DUMMY */ virtual int CollideWrite(char *pDest, CPhysCollide *pCollide, bool bSwap) { return 0; }
 	virtual CPhysCollide *UnserializeCollide(char *pBuffer, int size, int index);
 	virtual float CollideVolume(CPhysCollide *pCollide);
 	virtual float CollideSurfaceArea(CPhysCollide *pCollide);
@@ -412,12 +418,24 @@ public:
 	virtual void VCollideUnload(vcollide_t *pVCollide);
 	virtual IVPhysicsKeyParser *VPhysicsKeyParserCreate(const char *pKeyData);
 	virtual void VPhysicsKeyParserDestroy(IVPhysicsKeyParser *pParser);
+	/* DUMMY */ virtual int CreateDebugMesh(CPhysCollide const *pCollisionModel, Vector **outVerts) {
+		*outVerts = nullptr;
+		return 0;
+	}
+	/* DUMMY */ virtual void DestroyDebugMesh(int vertCount, Vector *outVerts) {}
 	virtual ICollisionQuery *CreateQueryModel(CPhysCollide *pCollide);
 	virtual void DestroyQueryModel(ICollisionQuery *pQuery);
 	virtual IPhysicsCollision *ThreadContextCreate();
 	virtual void ThreadContextDestroy(IPhysicsCollision *pThreadContext);
 	virtual CPhysCollide *CreateVirtualMesh(const virtualmeshparams_t &params);
 	virtual bool SupportsVirtualMesh();
+	/* DUMMY */ virtual bool GetBBoxCacheSize(int *pCachedSize, int *pCachedCount) {
+		*pCachedSize = 0;
+		*pCachedCount = m_BBoxCache.Count();
+		return true;
+	}
+	/* DUMMY */ virtual CPolyhedron *PolyhedronFromConvex(CPhysConvex * const pConvex, bool bUseTempPolyhedron) { return nullptr; }
+	/* DUMMY */ virtual void OutputDebugInfo(const CPhysCollide *pCollide) {}
 	virtual unsigned int ReadStat(int statID);
 
 	// Internal methods.

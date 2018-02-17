@@ -35,13 +35,36 @@ public:
 			const Vector &position, const QAngle &angles, objectparams_t *pParams, bool isStatic);
 	virtual void DestroyObject(IPhysicsObject *pObject);
 
+	/* DUMMY */ virtual IPhysicsFluidController *CreateFluidController(IPhysicsObject *pFluidObject,
+			fluidparams_t *pParams);
+	/* DUMMY */ virtual void DestroyFluidController(IPhysicsFluidController *pFluid);
+
+	/* DUMMY */ virtual IPhysicsSpring *CreateSpring(IPhysicsObject *pObjectStart, IPhysicsObject *pObjectEnd,
+			springparams_t *pParams);
+	/* DUMMY */ virtual void DestroySpring(IPhysicsSpring *pSpring);
+
+	/* DUMMY */ virtual IPhysicsConstraint *CreateRagdollConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_ragdollparams_t &ragdoll);
+	/* DUMMY */ virtual IPhysicsConstraint *CreateHingeConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_hingeparams_t &hinge);
+	/* DUMMY */ virtual IPhysicsConstraint *CreateFixedConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_fixedparams_t &fixed);
+	/* DUMMY */ virtual IPhysicsConstraint *CreateSlidingConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_slidingparams_t &sliding);
+	/* DUMMY */ virtual IPhysicsConstraint *CreateBallsocketConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_ballsocketparams_t &ballsocket);
+	/* DUMMY */ virtual IPhysicsConstraint *CreatePulleyConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_pulleyparams_t &pulley);
+	/* DUMMY */ virtual IPhysicsConstraint *CreateLengthConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_lengthparams_t &length);
+	/* DUMMY */ virtual void DestroyConstraint(IPhysicsConstraint *pConstraint);
+
+	/* DUMMY */ virtual IPhysicsConstraintGroup *CreateConstraintGroup(const constraint_groupparams_t &groupParams);
+	/* DUMMY */ virtual void DestroyConstraintGroup(IPhysicsConstraintGroup *pGroup);
+
 	virtual IPhysicsShadowController *CreateShadowController(IPhysicsObject *pObject,
 			bool allowTranslation, bool allowRotation);
+	virtual void DestroyShadowController(IPhysicsShadowController *pController);
 	virtual IPhysicsPlayerController *CreatePlayerController(IPhysicsObject *pObject);
 	virtual void DestroyPlayerController(IPhysicsPlayerController *pController);
-	virtual void DestroyShadowController(IPhysicsShadowController *pController);
 	virtual IPhysicsMotionController *CreateMotionController(IMotionEvent *pHandler);
 	virtual void DestroyMotionController(IPhysicsMotionController *pController);
+	/* DUMMY */ virtual IPhysicsVehicleController *CreateVehicleController(IPhysicsObject *pVehicleBodyObject,
+			const vehicleparams_t &params, unsigned int nVehicleType, IPhysicsGameTrace *pGameTrace);
+	/* DUMMY */ virtual void DestroyVehicleController(IPhysicsVehicleController *pController);
 
 	virtual void SetCollisionSolver(IPhysicsCollisionSolver *pSolver);
 
@@ -55,12 +78,19 @@ public:
 
 	virtual void SetCollisionEventHandler(IPhysicsCollisionEvent *pCollisionEvents);
 	virtual void SetObjectEventHandler(IPhysicsObjectEvent *pObjectEvents);
+	/* DUMMY */ virtual void SetConstraintEventHandler(IPhysicsConstraintEvent *pConstraintEvents) {}
 
 	virtual int GetActiveObjectCount() const;
 	virtual void GetActiveObjects(IPhysicsObject **pOutputObjectList) const;
 	virtual const IPhysicsObject **GetObjectList(int *pOutputObjectCount) const;
+	/* DUMMY */ virtual bool TransferObject(IPhysicsObject *pObject, IPhysicsEnvironment *pDestinationEnvironment) {}
 	virtual void CleanupDeleteList();
 	virtual void EnableDeleteQueue(bool enable);
+
+	/* DUMMY */ virtual bool Save(const physsaveparams_t &params) { return false; }
+	/* DUMMY */ virtual void PreRestore(const physprerestoreparams_t &params) {}
+	/* DUMMY */ virtual bool Restore(const physrestoreparams_t &params) { return false; }
+	/* DUMMY */ virtual void PostRestore() {}
 
 	virtual bool IsCollisionModelUsed(CPhysCollide *pCollide) const;
 
@@ -70,6 +100,18 @@ public:
 
 	virtual void GetPerformanceSettings(physics_performanceparams_t *pOutput) const;
 	virtual void SetPerformanceSettings(const physics_performanceparams_t *pSettings);
+
+	/* DUMMY */ virtual void ReadStats(physics_stats_t *pOutput);
+	/* DUMMY */ virtual void ClearStats() {}
+
+	/* DUMMY */ virtual unsigned int GetObjectSerializeSize(IPhysicsObject *pObject) const { return 0; }
+	/* DUMMY */ virtual void SerializeObjectToBuffer(IPhysicsObject *pObject, unsigned char *pBuffer, unsigned int bufferSize) {}
+	/* DUMMY */ virtual IPhysicsObject *UnserializeObjectFromBuffer(
+			void *pGameData, unsigned char *pBuffer, unsigned int bufferSize, bool enableCollisions) { return nullptr; }
+
+	/* DUMMY */ virtual void EnableConstraintNotify(bool bEnable) {}
+
+	/* DUMMY */ virtual void DebugCheckContacts() {}
 
 	// Internal methods.
 

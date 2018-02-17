@@ -4,6 +4,7 @@
 #include "physics_object.h"
 #include "physics_collide.h"
 #include "physics_environment.h"
+#include "physics_friction.h"
 #include "physics_material.h"
 #include "physics_motioncontroller.h"
 #include "physics_shadow.h"
@@ -14,9 +15,9 @@
 #include "tier0/memdbgon.h"
 
 CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
-		CPhysCollide *collide, int materialIndex,
+		const CPhysCollide *collide, int materialIndex,
 		const Vector &position, const QAngle &angles,
-		objectparams_t *params, bool isStatic) :
+		const objectparams_t *params, bool isStatic) :
 		m_Environment(environment),
 		m_CollideObjectNext(this), m_CollideObjectPrevious(this),
 		m_MassCenterOverride(0.0f, 0.0f, 0.0f),
@@ -45,8 +46,9 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_Name[0] = '\0';
 	}
 
-	btRigidBody::btRigidBodyConstructionInfo constructionInfo(
-			m_Mass, nullptr, collide->GetShape(),
+	btCollisionShape *shape = const_cast<CPhysCollide *>(collide)->GetShape();
+
+	btRigidBody::btRigidBodyConstructionInfo constructionInfo(m_Mass, nullptr, shape,
 			(m_Mass > 0.0f) ? collide->GetInertia() : btVector3(0.0f, 0.0f, 0.0f));
 
 	btVector3 massCenter = collide->GetMassCenter();
@@ -56,7 +58,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		btCompoundShape *massCenterOverrideShape = new btCompoundShape(false, 1);
 		btVector3 massCenterOffset = m_MassCenterOverride - massCenter;
 		massCenterOverrideShape->addChildShape(btTransform(btMatrix3x3::getIdentity(),
-				-massCenterOffset), collide->GetShape());
+				-massCenterOffset), shape);
 		constructionInfo.m_collisionShape = massCenterOverrideShape;
 		massCenter = m_MassCenterOverride;
 		if (m_Mass > 0.0f) {
@@ -1233,6 +1235,14 @@ bool CPhysicsObject::GetContactPoint(Vector *contactPoint, IPhysicsObject **cont
 		}
 	}
 	return false;
+}
+
+/* DUMMY */ IPhysicsFrictionSnapshot *CPhysicsObject::CreateFrictionSnapshot() {
+	return new CPhysicsFrictionSnapshot(this);
+}
+
+/* DUMMY */ void CPhysicsObject::DestroyFrictionSnapshot(IPhysicsFrictionSnapshot *pSnapshot) {
+	delete pSnapshot;
 }
 
 /***********
