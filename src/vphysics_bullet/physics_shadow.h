@@ -8,6 +8,8 @@
 #include "vphysics/player_controller.h"
 
 struct ShadowControlBulletParameters_t {
+	BT_DECLARE_ALIGNED_ALLOCATOR();
+
 	// Positions are in object coordinates, not mass center coordinates.
 
 	btTransform m_TargetObjectTransform;
@@ -60,6 +62,8 @@ struct ShadowControlBulletParameters_t {
 
 class CPhysicsShadowController : public IPhysicsShadowController {
 public:
+	BT_DECLARE_ALIGNED_ALLOCATOR();
+
 	CPhysicsShadowController(IPhysicsObject *object,
 			bool allowTranslation, bool allowRotation);
 	virtual ~CPhysicsShadowController();
@@ -106,6 +110,8 @@ private:
 
 class CPhysicsPlayerController : public IPhysicsPlayerController {
 public:
+	BT_DECLARE_ALIGNED_ALLOCATOR();
+
 	CPhysicsPlayerController(IPhysicsObject *object);
 	virtual ~CPhysicsPlayerController();
 

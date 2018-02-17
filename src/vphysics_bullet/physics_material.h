@@ -16,7 +16,6 @@ enum {
 
 class CPhysicsSurfaceProps : public IPhysicsSurfaceProps {
 public:
-
 	CPhysicsSurfaceProps();
 
 	// IPhysicsSurfaceProps methods.

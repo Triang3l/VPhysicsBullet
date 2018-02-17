@@ -8,6 +8,8 @@
 
 class CPhysicsSpring : public IPhysicsSpring {
 public:
+	BT_DECLARE_ALIGNED_ALLOCATOR();
+
 	CPhysicsSpring(IPhysicsObject *objectStart, IPhysicsObject *objectEnd,
 			const springparams_t *params) :
 			m_ObjectStart(objectStart), m_ObjectEnd(objectEnd) {}

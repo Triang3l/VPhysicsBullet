@@ -9,6 +9,8 @@
 
 class CPhysicsVehicleController : public IPhysicsVehicleController {
 public:
+	BT_DECLARE_ALIGNED_ALLOCATOR();
+
 	CPhysicsVehicleController(const vehicleparams_t &params);
 
 	/* DUMMY */ virtual void Update(float dt, vehicle_controlparams_t &controls) {}

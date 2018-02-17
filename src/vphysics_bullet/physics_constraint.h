@@ -9,6 +9,8 @@
 
 class CPhysicsConstraint : public IPhysicsConstraint {
 public:
+	BT_DECLARE_ALIGNED_ALLOCATOR();
+
 	CPhysicsConstraint(IPhysicsObject *referenceObject, IPhysicsObject *attachedObject) :
 			m_ObjectReference(referenceObject), m_ObjectAttached(attachedObject),
 			m_GameData(nullptr) {}
