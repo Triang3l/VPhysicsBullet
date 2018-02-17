@@ -19,9 +19,11 @@ CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
 
 CPhysicsCollision::CPhysicsCollision() :
 		m_InContactTest(false),
-		m_RayTestStartSphereShape(VPHYSICS_CONVEX_DISTANCE_MARGIN),
-		m_ConvexTestBoxShape(btVector3(1.0f, 1.0f, 1.0f)) {
-	m_ConvexTestBoxShape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
+		m_TraceBoxShape(btVector3(1.0f, 1.0f, 1.0f)),
+		m_TracePointShape(VPHYSICS_CONVEX_DISTANCE_MARGIN),
+		m_TraceConeShape(1.0f, 1.0f) {
+	m_TraceBoxShape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
+	m_TraceConeShape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
 
 	m_ContactTestCollisionConfiguration = new btDefaultCollisionConfiguration();
 	m_ContactTestDispatcher = new btCollisionDispatcher(m_ContactTestCollisionConfiguration);
@@ -1119,7 +1121,7 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 	if (!ray.m_IsRay) {
 		btVector3 halfExtents;
 		ConvertPositionToBullet(ray.m_Extents, halfExtents);
-		m_ConvexTestBoxShape.setImplicitShapeDimensions(halfExtents.absolute());
+		m_TraceBoxShape.setImplicitShapeDimensions(halfExtents.absolute());
 		// TODO: Check if the size needs to be exact (inner margin rather than outer).
 		// Probably not because of allowed penetration (which has the same value as the margin).
 	}
@@ -1145,9 +1147,9 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 
 	// First, try contact test because ray and convex tests don't report starting in a solid.
 	if (ray.m_IsRay) {
-		m_ContactTestCollisionObject.setCollisionShape(&m_RayTestStartSphereShape);
+		m_ContactTestCollisionObject.setCollisionShape(&m_TracePointShape);
 	} else {
-		m_ContactTestCollisionObject.setCollisionShape(&m_ConvexTestBoxShape);
+		m_ContactTestCollisionObject.setCollisionShape(&m_TraceBoxShape);
 	}
 	m_ContactTestCollisionObject.setWorldTransform(btTransform::getIdentity());
 	m_TraceCollisionObject.setWorldTransform(colObjWorldTransform);
@@ -1182,7 +1184,7 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 		} else {
 			ConvexTestResultCallback convexTestResult(&contentsFilter, colObjWorldTransform.getBasis());
 			btCollisionWorld::objectQuerySingle(
-					&m_ConvexTestBoxShape, btTransform::getIdentity(), rayToTransform,
+					&m_TraceBoxShape, btTransform::getIdentity(), rayToTransform,
 					&m_TraceCollisionObject, colObjShape, colObjWorldTransform, convexTestResult,
 					VPHYSICS_CONVEX_DISTANCE_MARGIN);
 			if (convexTestResult.m_HitCollisionObject != nullptr) {
@@ -1331,6 +1333,45 @@ void CPhysicsCollision::TraceCollide(const Vector &start, const Vector &end,
 	Vector hitPointHL;
 	ConvertPositionToHL(hitPoint, hitPointHL);
 	ptr->plane.dist = DotProduct(hitPointHL + start, ptr->plane.normal);
+}
+
+bool CPhysicsCollision::IsBoxIntersectingCone(
+		const Vector &boxAbsMins, const Vector &boxAbsMaxs, const truncatedcone_t &cone) {
+	btVector3 boxHalfExtents;
+	ConvertPositionToBullet((boxAbsMaxs - boxAbsMins) * 0.5f, boxHalfExtents);
+	m_TraceBoxShape.setImplicitShapeDimensions(boxHalfExtents.absolute());
+	m_ContactTestCollisionObject.setCollisionShape(&m_TraceBoxShape);
+	m_ContactTestCollisionObject.setWorldTransform(btTransform::getIdentity());
+
+	// TODO: Verify the origin and the direction of the cone.
+	// Assuming the origin is the apex and the normal is pointing to the base.
+	// In Bullet, the origin of a cone is its center (at mid-height) and the apex is positive.
+	matrix3x4_t coneMatrix;
+	VectorMatrix(-cone.normal, coneMatrix);
+	MatrixSetColumn(cone.origin - ((boxAbsMins + boxAbsMaxs) * 0.5f) + (cone.normal * (cone.h * 0.5f)), 3, coneMatrix);
+	btTransform coneTransform;
+	ConvertMatrixToBullet(coneMatrix, coneTransform);
+	btScalar coneHeight = HL2BULLET(cone.h);
+	m_TraceConeShape.setHeight(coneHeight);
+	m_TraceConeShape.setRadius(coneHeight * btTan(DEG2RAD(cone.theta)));
+	m_TraceCollisionObject.setCollisionShape(&m_TraceConeShape);
+	m_TraceCollisionObject.setWorldTransform(coneTransform);
+
+	struct ConeContactTestResultCallback : public btCollisionWorld::ContactResultCallback {
+		bool m_Hit;
+		ConeContactTestResultCallback() : m_Hit(false) {}
+		btScalar addSingleResult(btManifoldPoint &cp,
+				const btCollisionObjectWrapper *colObj0Wrap, int partId0, int index0,
+				const btCollisionObjectWrapper *colObj1Wrap, int partId1, int index1) {
+			m_Hit = true;
+			return 0.0f;
+		}
+	};
+	ConeContactTestResultCallback contactTestResult;
+	m_InContactTest = true;
+	m_ContactTestCollisionWorld->contactPairTest(&m_ContactTestCollisionObject, &m_TraceCollisionObject, contactTestResult);
+	m_InContactTest = false;
+	return contactTestResult.m_Hit;
 }
 
 /******************

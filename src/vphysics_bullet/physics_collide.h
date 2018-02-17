@@ -405,6 +405,8 @@ public:
 	virtual void TraceCollide(const Vector &start, const Vector &end,
 			const CPhysCollide *pSweepCollide, const QAngle &sweepAngles, const CPhysCollide *pCollide,
 			const Vector &collideOrigin, const QAngle &collideAngles, trace_t *ptr);
+	virtual bool IsBoxIntersectingCone(
+			const Vector &boxAbsMins, const Vector &boxAbsMaxs, const truncatedcone_t &cone);
 	virtual void VCollideLoad(vcollide_t *pOutput,
 			int solidCount, const char *pBuffer, int size, bool swap);
 	virtual void VCollideUnload(vcollide_t *pVCollide);
@@ -510,6 +512,10 @@ private:
 			return Hit(localShapeInfo->m_triangleIndex);
 		}
 	};
+
+	btBoxShape m_TraceBoxShape;
+	btSphereShape m_TracePointShape; // For contact test if only testing a single point.
+	btConeShapeX m_TraceConeShape;
 
 	// Contact tests (in place - for startsolid and non-swept Ray_t).
 
@@ -617,8 +623,6 @@ private:
 		}
 	};
 
-	btSphereShape m_RayTestStartSphereShape; // For contact test if only testing a single point.
-
 	// Convex tests.
 
 	struct ConvexTestResultCallback : public btCollisionWorld::ConvexResultCallback {
@@ -659,8 +663,6 @@ private:
 			m_HitCollisionObject = nullptr;
 		}
 	};
-
-	btBoxShape m_ConvexTestBoxShape;
 };
 
 class CCollisionQuery : public ICollisionQuery {
