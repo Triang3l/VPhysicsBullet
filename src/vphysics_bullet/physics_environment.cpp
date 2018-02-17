@@ -502,6 +502,10 @@ void CPhysicsEnvironment::CheckTriggerTouches() {
 	int numManifolds = m_Dispatcher->getNumManifolds();
 	for (int manifoldIndex = 0; manifoldIndex < numManifolds; ++manifoldIndex) {
 		const btPersistentManifold *manifold = m_Dispatcher->getManifoldByIndexInternal(manifoldIndex);
+		int contactCount = manifold->getNumContacts();
+		if (contactCount == 0) {
+			continue;
+		}
 
 		IPhysicsObject *object0 = reinterpret_cast<IPhysicsObject *>(manifold->getBody0()->getUserPointer());
 		IPhysicsObject *object1 = reinterpret_cast<IPhysicsObject *>(manifold->getBody1()->getUserPointer());
@@ -538,8 +542,7 @@ void CPhysicsEnvironment::CheckTriggerTouches() {
 			maxDistance = 0.1f;
 		}
 
-		int numContacts = manifold->getNumContacts();
-		for (int contactIndex = 0; contactIndex < numContacts; ++contactIndex) {
+		for (int contactIndex = 0; contactIndex < contactCount; ++contactIndex) {
 			if (manifold->getContactPoint(contactIndex).getDistance() < maxDistance) {
 				if (foundIndex != m_TriggerTouches.InvalidIndex()) {
 					m_TriggerTouches[foundIndex].m_TouchingThisTick = true;
