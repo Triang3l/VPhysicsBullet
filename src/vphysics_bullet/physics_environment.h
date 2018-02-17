@@ -80,6 +80,8 @@ public:
 	virtual void SetObjectEventHandler(IPhysicsObjectEvent *pObjectEvents);
 	/* DUMMY */ virtual void SetConstraintEventHandler(IPhysicsConstraintEvent *pConstraintEvents) {}
 
+	/* DUMMY */ virtual void SetQuickDelete(bool bQuick) {}
+
 	virtual int GetActiveObjectCount() const;
 	virtual void GetActiveObjects(IPhysicsObject **pOutputObjectList) const;
 	virtual const IPhysicsObject **GetObjectList(int *pOutputObjectCount) const;

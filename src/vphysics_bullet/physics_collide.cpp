@@ -16,6 +16,8 @@
 
 static CPhysicsCollision s_PhysCollision;
 CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
+EXPOSE_SINGLE_INTERFACE_GLOBALVAR(CPhysicsCollision, IPhysicsCollision,
+		VPHYSICS_COLLISION_INTERFACE_VERSION, s_PhysCollision);
 
 CPhysicsCollision::CPhysicsCollision() :
 		m_InContactTest(false),
