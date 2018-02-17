@@ -1199,7 +1199,6 @@ void CPhysicsObject::RecheckContactPoints() {
 bool CPhysicsObject::GetContactPoint(Vector *contactPoint, IPhysicsObject **contactObject) const {
 	const btCollisionDispatcher *dispatcher =
 			static_cast<CPhysicsEnvironment *>(m_Environment)->GetCollisionDispatcher();
-	int manifoldCount = 0;
 	int manifoldCount = dispatcher->getNumManifolds();
 	for (int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex) {
 		const btPersistentManifold *manifold = dispatcher->getManifoldByIndexInternal(manifoldIndex);

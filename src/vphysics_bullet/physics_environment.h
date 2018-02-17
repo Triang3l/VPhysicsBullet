@@ -213,6 +213,7 @@ private:
 		// Touches with this flag being false after checking all contacts are removed.
 		bool m_TouchingThisTick;
 
+		TriggerTouch_t() {} // Required by CUtlRBTree.
 		TriggerTouch_t(IPhysicsObject *trigger, IPhysicsObject *object) :
 				m_Trigger(trigger), m_Object(object), m_TouchingThisTick(true) {}
 	};

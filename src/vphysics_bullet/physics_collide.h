@@ -523,7 +523,7 @@ private:
 			return contents;
 		}
 
-		bool Hit(const btCollisionWorld::LocalShapeInfo *localShapeInfo) const {
+		unsigned int Hit(const btCollisionWorld::LocalShapeInfo *localShapeInfo) const {
 			if (localShapeInfo == nullptr) {
 				return CONTENTS_SOLID;
 			}

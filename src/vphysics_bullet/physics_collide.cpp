@@ -408,7 +408,7 @@ void CPhysConvex_Hull::CalculateVolumeProperties() {
 		return;
 	}
 	// Based on btConvexTriangleMeshShape::calculatePrincipalAxisTransform, but without rotation.
-	const btVector3 *points = &m_Shape.getPoints[0][0];
+	const btVector3 *points = &m_Shape.getPoints()[0];
 	const unsigned int *indices = &m_TriangleIndices[0];
 	const btVector3 &ref = points[indices[0]];
 	int indexCount = m_TriangleIndices.size();
@@ -703,7 +703,7 @@ void CPhysConvex_Hull::CalculateTrianglePlanes() {
 	int triangleCount = m_TriangleIndices.size() / 3;
 	m_TrianglePlanes.resizeNoInitialize(triangleCount);
 	btVector4 *planes = &m_TrianglePlanes[0];
-	const btVector3 *points = &m_Shape.getPoints[0][0];
+	const btVector3 *points = &m_Shape.getPoints()[0];
 	const unsigned int *indices = &m_TriangleIndices[0];
 	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
 		int indexIndex = triangleIndex * 3;
