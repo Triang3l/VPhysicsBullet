@@ -7,6 +7,7 @@
 #include "physics_object.h"
 #include "physics_shadow.h"
 #include "const.h"
+#include "tier1/convar.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -56,6 +57,66 @@ CPhysicsEnvironment::~CPhysicsEnvironment() {
 	delete m_Broadphase;
 	delete m_Dispatcher;
 	delete m_CollisionConfiguration;
+}
+
+/****************
+ * Debug overlay
+ ****************/
+
+// A ConVar can't support more than 25 flags because it uses a float! As of February 2018, Bullet has 16.
+static ConVar physics_bullet_debugdrawmode("physics_bullet_debugdrawmode", "0", FCVAR_CHEAT,
+		"Bullet Physics debug drawer mode flags. Refer to LinearMath/btIDebugDraw::DebugDrawModes for bit meanings.",
+		true, 0.0f, true, (float) (((btIDebugDraw::DBG_MAX_DEBUG_DRAW_MODE - 1) << 1) - 1));
+
+void CPhysicsEnvironment::DebugDrawer::drawLine(const btVector3 &from, const btVector3 &to, const btVector3 &color) {
+	if (m_DebugOverlay == nullptr) {
+		return;
+	}
+	Vector hlFrom, hlTo;
+	ConvertPositionToHL(from, hlFrom);
+	ConvertPositionToHL(to, hlTo);
+	m_DebugOverlay->AddLineOverlay(hlFrom, hlTo,
+			(int) (color.getX() * 255.0f), (int) (color.getY() * 255.0f), (int) (color.getZ() * 255.0f),
+			false, 0.0f);
+}
+
+void CPhysicsEnvironment::DebugDrawer::drawContactPoint(const btVector3 &PointOnB, const btVector3 &normalOnB,
+		btScalar distance, int lifeTime, const btVector3 &color) {
+	// TODO: Check if the distance is too short to be useful.
+	drawLine(PointOnB, PointOnB + normalOnB * distance, color);
+}
+
+void CPhysicsEnvironment::DebugDrawer::reportErrorWarning(const char *warningString) {
+	DevMsg("Bullet: %s\n", warningString);
+}
+
+void CPhysicsEnvironment::DebugDrawer::setDebugMode(int debugMode) {
+	// physics_bullet_debugdrawmode is a cheat ConVar and must not be changed without sv_cheats.
+	// This is never called by Bullet anyway.
+}
+
+int CPhysicsEnvironment::DebugDrawer::getDebugMode() const {
+	return physics_bullet_debugdrawmode.GetInt();
+}
+
+void CPhysicsEnvironment::DebugDrawer::draw3dText(const btVector3 &location, const char *textString) {
+	if (m_DebugOverlay == nullptr) {
+		return;
+	}
+	Vector hlLocation;
+	ConvertPositionToHL(location, hlLocation);
+	m_DebugOverlay->AddTextOverlay(hlLocation, 0.0f, "%s", textString);
+}
+
+void CPhysicsEnvironment::SetDebugOverlay(CreateInterfaceFn debugOverlayFactory) {
+	IVPhysicsDebugOverlay *debugOverlay = reinterpret_cast<IVPhysicsDebugOverlay *>(
+			debugOverlayFactory(VPHYSICS_DEBUG_OVERLAY_INTERFACE_VERSION, nullptr));
+	m_DebugDrawer.SetDebugOverlay(debugOverlay);
+	m_DynamicsWorld->setDebugDrawer(debugOverlay != nullptr ? &m_DebugDrawer : nullptr);
+}
+
+IVPhysicsDebugOverlay *CPhysicsEnvironment::GetDebugOverlay() {
+	return m_DebugDrawer.GetDebugOverlay();
 }
 
 /********************

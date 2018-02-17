@@ -16,6 +16,9 @@ public:
 
 	// IPhysicsEnvironment methods.
 
+	virtual void SetDebugOverlay(CreateInterfaceFn debugOverlayFactory);
+	virtual IVPhysicsDebugOverlay *GetDebugOverlay();
+
 	virtual void SetGravity(const Vector &gravityVector);
 	virtual void GetGravity(Vector *pGravityVector) const;
 
@@ -103,6 +106,23 @@ private:
 	btDbvtBroadphase *m_Broadphase;
 	btSequentialImpulseConstraintSolver *m_Solver;
 	btDiscreteDynamicsWorld *m_DynamicsWorld;
+
+	class DebugDrawer : public btIDebugDraw {
+	public:
+		DebugDrawer() : m_DebugOverlay(nullptr) {}
+		virtual void drawLine(const btVector3 &from, const btVector3 &to, const btVector3 &color);
+		virtual void drawContactPoint(const btVector3 &PointOnB, const btVector3 &normalOnB,
+				btScalar distance, int lifeTime, const btVector3 &color);
+		virtual void reportErrorWarning(const char *warningString);
+		virtual void draw3dText(const btVector3 &location, const char *textString);
+		virtual void setDebugMode(int debugMode);
+		virtual int getDebugMode() const;
+		FORCEINLINE IVPhysicsDebugOverlay *GetDebugOverlay() const { return m_DebugOverlay; }
+		FORCEINLINE void SetDebugOverlay(IVPhysicsDebugOverlay *debugOverlay) { m_DebugOverlay = debugOverlay; }
+	private:
+		IVPhysicsDebugOverlay *m_DebugOverlay;
+	};
+	DebugDrawer m_DebugDrawer;
 
 	btVector3 m_Gravity;
 
