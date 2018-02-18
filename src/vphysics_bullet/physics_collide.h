@@ -66,8 +66,6 @@ private:
 
 class CPhysConvex_Hull : public CPhysConvex {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR();
-
 	CPhysConvex_Hull(const btVector3 *points, int pointCount,
 			const unsigned int *indices, int triangleCount);
 	CPhysConvex_Hull(const btVector3 *points, int pointCount, const CPolyhedron &polyhedron);
@@ -128,8 +126,6 @@ private:
 
 class CPhysConvex_Box : public CPhysConvex {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR();
-
 	CPhysConvex_Box(const btVector3 &halfExtents, const btVector3 &origin);
 
 	btCollisionShape *GetShape() { return &m_Shape; }
@@ -234,8 +230,6 @@ private:
 
 class CPhysCollide_Compound : public CPhysCollide {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR();
-
 	CPhysCollide_Compound(CPhysConvex **pConvex, int convexCount);
 	CPhysCollide_Compound(
 			const struct VCollide_IVP_Compact_Ledgetree_Node *root, CByteswap &byteswap,
@@ -290,8 +284,6 @@ private:
 
 class CPhysCollide_Sphere : public CPhysCollide {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR();
-
 	// The ortographic area fraction should be pi/4, but let's assume the engine assumes 1.
 	CPhysCollide_Sphere(btScalar radius) : m_Shape(radius + VPHYSICS_CONVEX_DISTANCE_MARGIN) {
 		Initialize();
@@ -328,8 +320,6 @@ private:
 
 class CPhysCollide_TriangleMesh : public CPhysCollide {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR();
-
 	CPhysCollide_TriangleMesh(const virtualmeshlist_t &virtualMesh);
 	btCollisionShape *GetShape() { return &m_Shape; }
 	const btCollisionShape *GetShape() const { return &m_Shape; }
@@ -559,7 +549,7 @@ private:
 
 	// Contact tests (in place - for startsolid and non-swept Ray_t).
 
-	btCollisionConfiguration *m_ContactTestCollisionConfiguration;
+	btDefaultCollisionConfiguration *m_ContactTestCollisionConfiguration;
 	btCollisionDispatcher *m_ContactTestDispatcher;
 	btSimpleBroadphase *m_ContactTestBroadphase;
 	btCollisionWorld *m_ContactTestCollisionWorld;

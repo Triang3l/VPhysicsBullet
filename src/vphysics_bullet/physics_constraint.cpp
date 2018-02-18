@@ -3,6 +3,9 @@
 
 #include "physics_constraint.h"
 
+// memdbgon must be the last include file in a .cpp file!!!
+// #include "tier0/memdbgon.h"
+
 void CPhysicsConstraint::SetGameData(void *gameData) {
 	m_GameData = gameData;
 }

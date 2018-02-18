@@ -12,7 +12,7 @@
 #include "tier0/dbg.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
-#include "tier0/memdbgon.h"
+// #include "tier0/memdbgon.h"
 
 CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		const CPhysCollide *collide, int materialIndex,
@@ -55,7 +55,8 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	const Vector *massCenterOverride = params->massCenterOverride;
 	if (massCenterOverride != nullptr && *massCenterOverride != vec3_origin) {
 		ConvertPositionToBullet(*massCenterOverride, m_MassCenterOverride);
-		btCompoundShape *massCenterOverrideShape = new btCompoundShape(false, 1);
+		btCompoundShape *massCenterOverrideShape = new(btAlignedAlloc(sizeof(btCompoundShape), 16))
+				btCompoundShape(false, 1);
 		btVector3 massCenterOffset = m_MassCenterOverride - massCenter;
 		massCenterOverrideShape->addChildShape(btTransform(btMatrix3x3::getIdentity(),
 				-massCenterOffset), shape);
@@ -82,7 +83,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	startWorldTransform.getOrigin() += startWorldTransform.getBasis() * massCenter;
 	m_InterpolationWorldTransform = startWorldTransform;
 
-	m_RigidBody = new btRigidBody(constructionInfo);
+	m_RigidBody = new(btAlignedAlloc(sizeof(btRigidBody), 16)) btRigidBody(constructionInfo);
 	m_RigidBody->setUserPointer(this);
 	m_RigidBody->setSleepingThresholds(0.1f, 0.2f);
 
@@ -122,11 +123,13 @@ CPhysicsObject::~CPhysicsObject() {
 	if (shape->getUserPointer() == nullptr) {
 		// Delete the mass override shape.
 		m_RigidBody->setCollisionShape(static_cast<btCompoundShape *>(shape)->getChildShape(0));
-		delete shape;
+		shape->~btCollisionShape();
+		btAlignedFree(shape);
 	}
 	RemoveReferenceFromCollide();
 
-	delete m_RigidBody;
+	m_RigidBody->~btRigidBody();
+	btAlignedFree(m_RigidBody);
 }
 
 CPhysCollide *CPhysicsObject::GetCollide() {

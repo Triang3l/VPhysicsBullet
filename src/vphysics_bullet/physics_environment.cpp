@@ -15,7 +15,7 @@
 #include "tier1/convar.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
-#include "tier0/memdbgon.h"
+// #include "tier0/memdbgon.h"
 
 #ifdef WIN32
 #pragma warning(push)
@@ -35,12 +35,17 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_CollisionEvents(nullptr) {
 	m_PerformanceSettings.Defaults();
 
-	m_CollisionConfiguration = new btDefaultCollisionConfiguration();
-	m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
-	m_Broadphase = new btDbvtBroadphase();
+	m_CollisionConfiguration = new(btAlignedAlloc(sizeof(btDefaultCollisionConfiguration), 16))
+			btDefaultCollisionConfiguration;
+	m_Dispatcher = new(btAlignedAlloc(sizeof(btCollisionDispatcher), 16))
+			btCollisionDispatcher(m_CollisionConfiguration);
+	m_Broadphase = new(btAlignedAlloc(sizeof(btDbvtBroadphase), 16))
+			btDbvtBroadphase;
 	m_Broadphase->getOverlappingPairCache()->setOverlapFilterCallback(&m_OverlapFilterCallback);
-	m_Solver = new btSequentialImpulseConstraintSolver();
-	m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_Broadphase, m_Solver, m_CollisionConfiguration);
+	m_Solver = new(btAlignedAlloc(sizeof(btSequentialImpulseConstraintSolver), 16))
+			btSequentialImpulseConstraintSolver;
+	m_DynamicsWorld = new(btAlignedAlloc(sizeof(btDiscreteDynamicsWorld), 16))
+			btDiscreteDynamicsWorld(m_Dispatcher, m_Broadphase, m_Solver, m_CollisionConfiguration);
 	m_DynamicsWorld->setWorldUserInfo(this);
 
 	m_DynamicsWorld->setDebugDrawer(&m_DebugDrawer);
@@ -68,11 +73,16 @@ CPhysicsEnvironment::~CPhysicsEnvironment() {
 		delete m_Objects[objectIndex];
 	}
 
-	delete m_DynamicsWorld;
-	delete m_Solver;
-	delete m_Broadphase;
-	delete m_Dispatcher;
-	delete m_CollisionConfiguration;
+	m_DynamicsWorld->~btDiscreteDynamicsWorld();
+	btAlignedFree(m_DynamicsWorld);
+	m_Solver->~btSequentialImpulseConstraintSolver();
+	btAlignedFree(m_Solver);
+	m_Broadphase->~btDbvtBroadphase();
+	btAlignedFree(m_Broadphase);
+	m_Dispatcher->~btCollisionDispatcher();
+	btAlignedFree(m_Dispatcher);
+	m_CollisionConfiguration->~btDefaultCollisionConfiguration();
+	btAlignedFree(m_CollisionConfiguration);
 }
 
 /****************
@@ -613,10 +623,9 @@ void CPhysicsEnvironment::SetCollisionEventHandler(IPhysicsCollisionEvent *pColl
 }
 
 void CPhysicsEnvironment::RecheckObjectCollisionFilter(btCollisionObject *object) {
-	class RecheckObjectCollisionFilterCallback : public btOverlapCallback {
+	struct RecheckObjectCollisionFilterCallback : public btOverlapCallback {
 		btCollisionObject *m_Object;
 		btOverlapFilterCallback *m_Filter;
-	public:
 		RecheckObjectCollisionFilterCallback(btCollisionObject *object, btOverlapFilterCallback *filter) :
 				m_Object(object), m_Filter(filter) {}
 		virtual bool processOverlap(btBroadphasePair &pair) {
@@ -634,9 +643,8 @@ void CPhysicsEnvironment::RecheckObjectCollisionFilter(btCollisionObject *object
 }
 
 void CPhysicsEnvironment::RemoveObjectCollisionPairs(btCollisionObject *object) {
-	class RemoveObjectCollisionPairsCallback : public btOverlapCallback {
+	struct RemoveObjectCollisionPairsCallback : public btOverlapCallback {
 		btCollisionObject *m_Object;
-	public:
 		RemoveObjectCollisionPairsCallback(btCollisionObject *object) : m_Object(object) {}
 		virtual bool processOverlap(btBroadphasePair &pair) {
 			return (reinterpret_cast<btCollisionObject *>(pair.m_pProxy0->m_clientObject) == m_Object ||

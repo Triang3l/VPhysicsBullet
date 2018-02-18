@@ -10,7 +10,7 @@
 #include "tier0/dbg.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
-#include "tier0/memdbgon.h"
+// #include "tier0/memdbgon.h"
 
 // TODO: Cleanup the bbox cache when shutting down.
 
@@ -27,18 +27,25 @@ CPhysicsCollision::CPhysicsCollision() :
 	m_TraceBoxShape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
 	m_TraceConeShape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
 
-	m_ContactTestCollisionConfiguration = new btDefaultCollisionConfiguration();
-	m_ContactTestDispatcher = new btCollisionDispatcher(m_ContactTestCollisionConfiguration);
-	m_ContactTestBroadphase = new btSimpleBroadphase(2); // 0 is dangerous as it's array size.
-	m_ContactTestCollisionWorld = new btCollisionWorld(
-			m_ContactTestDispatcher, m_ContactTestBroadphase, m_ContactTestCollisionConfiguration);
+	m_ContactTestCollisionConfiguration = new(btAlignedAlloc(sizeof(btDefaultCollisionConfiguration), 16))
+			btDefaultCollisionConfiguration();
+	m_ContactTestDispatcher = new(btAlignedAlloc(sizeof(btCollisionDispatcher), 16))
+			btCollisionDispatcher(m_ContactTestCollisionConfiguration);
+	m_ContactTestBroadphase = new(btAlignedAlloc(sizeof(btSimpleBroadphase), 16))
+			btSimpleBroadphase(2); // 0 is dangerous as it's array size.
+	m_ContactTestCollisionWorld = new(btAlignedAlloc(sizeof(btCollisionWorld), 16))
+			btCollisionWorld(m_ContactTestDispatcher, m_ContactTestBroadphase, m_ContactTestCollisionConfiguration);
 }
 
 CPhysicsCollision::~CPhysicsCollision() {
-	delete m_ContactTestCollisionWorld;
-	delete m_ContactTestBroadphase;
-	delete m_ContactTestDispatcher;
-	delete m_ContactTestCollisionConfiguration;
+	m_ContactTestCollisionWorld->~btCollisionWorld();
+	btAlignedFree(m_ContactTestCollisionWorld);
+	m_ContactTestBroadphase->~btSimpleBroadphase();
+	btAlignedFree(m_ContactTestBroadphase);
+	m_ContactTestDispatcher->~btCollisionDispatcher();
+	btAlignedFree(m_ContactTestDispatcher);
+	m_ContactTestCollisionConfiguration->~btDefaultCollisionConfiguration();
+	btAlignedFree(m_ContactTestCollisionConfiguration);
 
 	int sphereCount = m_SphereCache.Count();
 	for (int sphereIndex = 0; sphereIndex < sphereCount; ++sphereIndex) {
@@ -1432,6 +1439,7 @@ CPhysCollide_Compound::CPhysCollide_Compound(
 		CPhysCollide(orthographicAreas),
 		m_Shape(root->offset_right_node != 0 /* Swap not required */),
 		m_Volume(-1.0f), m_MassCenter(massCenter), m_Inertia(inertia) {
+	Initialize();
 	AddIVPCompactLedgetreeNode(root, byteswap);
 }
 

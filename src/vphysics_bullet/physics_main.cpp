@@ -12,8 +12,20 @@
 #include <Windows.h>
 #endif
 
-static btScalar s_OldContactBreakingThreshold;
-static btScalar s_OldDeactivationTime;
+// memdbgon must be the last include file in a .cpp file!!!
+// #include "tier0/memdbgon.h"
+
+static void *VPhysicsBulletAlloc(size_t size) {
+	return MemAlloc_Alloc(size);
+}
+
+static void *VPhysicsBulletAlignedAlloc(size_t size, int alignment) {
+	return MemAlloc_AllocAligned(size, alignment);
+}
+
+static void VPhysicsBulletFree(void *memblock) {
+	MemAlloc_FreeAligned(memblock);
+}
 
 #ifdef POSIX
 __attribute__((constructor))
@@ -21,10 +33,11 @@ __attribute__((constructor))
 void VPhysicsInit() {
 	MathLib_Init(2.2f, 2.2f, 0.0f, 2, false, true, true, false);
 
-	s_OldContactBreakingThreshold = gContactBreakingThreshold;
+	btAlignedAllocSetCustom(VPhysicsBulletAlloc, VPhysicsBulletFree);
+	btAlignedAllocSetCustomAligned(VPhysicsBulletAlignedAlloc, VPhysicsBulletFree);
+
 	gContactBreakingThreshold = 0.5f * VPHYSICS_CONVEX_DISTANCE_MARGIN;
 
-	s_OldDeactivationTime = gDeactivationTime;
 	gDeactivationTime = 4.0f; // To match IVP more closely.
 }
 
