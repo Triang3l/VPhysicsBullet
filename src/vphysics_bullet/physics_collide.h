@@ -105,8 +105,9 @@ protected:
 	virtual void Initialize();
 
 private:
-	CPhysConvex_Hull(const struct VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap,
-			const btVector3 *ledgePoints, int ledgePointCount);
+	CPhysConvex_Hull(
+			const struct VCollide_IVP_Compact_Triangle *swappedAndRemappedTriangles, int triangleCount,
+			const btVector3 *ledgePoints, int ledgePointCount, int userIndex);
 
 	btConvexHullShape m_Shape;
 
@@ -259,9 +260,6 @@ public:
 
 private:
 	btCompoundShape m_Shape;
-
-	void AddIVPCompactLedgetreeNode(
-			const struct VCollide_IVP_Compact_Ledgetree_Node *node, CByteswap &byteswap);
 
 	void CalculateInertia();
 	btScalar m_Volume;
@@ -455,6 +453,19 @@ public:
 	CPhysCollide *UnserializeCollideFromBuffer(
 			const char *pBuffer, int size, int index, bool swap);
 
+	FORCEINLINE void PushIVPNode(const struct VCollide_IVP_Compact_Ledgetree_Node *node) {
+		m_IVPNodeStack.AddToTail(node);
+	}
+	inline const struct VCollide_IVP_Compact_Ledgetree_Node *PopIVPNode() {
+		int stackDepth = m_IVPNodeStack.Count();
+		if (stackDepth == 0) {
+			return nullptr;
+		}
+		const struct VCollide_IVP_Compact_Ledgetree_Node *node = m_IVPNodeStack[stackDepth - 1];
+		m_IVPNodeStack.Remove(stackDepth - 1);
+		return node;
+	}
+
 	static btVector3 BoxInertia(const btVector3 &extents);
 	static btVector3 OffsetInertia(
 			const btVector3 &inertia, const btVector3 &origin, bool absolute = true);
@@ -490,6 +501,7 @@ private:
 	CPhysCollide *UnserializeIVPCompactSurface(
 			const struct VCollide_IVP_Compact_Surface *surface, CByteswap &byteswap,
 			const btVector3 &orthographicAreas);
+	CUtlVector<const struct VCollide_IVP_Compact_Ledgetree_Node *> m_IVPNodeStack;
 
 	CUtlVector<CPhysConvex *> m_CompoundConvexDeleteQueue;
 

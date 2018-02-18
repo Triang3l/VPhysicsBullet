@@ -12,8 +12,6 @@
 // memdbgon must be the last include file in a .cpp file!!!
 // #include "tier0/memdbgon.h"
 
-// TODO: Cleanup the bbox cache when shutting down.
-
 static CPhysicsCollision s_PhysCollision;
 CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
 EXPOSE_SINGLE_INTERFACE_GLOBALVAR(CPhysicsCollision, IPhysicsCollision,
@@ -340,32 +338,26 @@ CPhysConvex_Hull::CPhysConvex_Hull(const btVector3 *points, int pointCount, cons
 	}
 }
 
-CPhysConvex_Hull::CPhysConvex_Hull(const VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap,
-		const btVector3 *ledgePoints, int ledgePointCount) :
+CPhysConvex_Hull::CPhysConvex_Hull(
+		const VCollide_IVP_Compact_Triangle *swappedAndRemappedTriangles, int triangleCount,
+		const btVector3 *ledgePoints, int ledgePointCount, int userIndex) :
 		m_Shape(&ledgePoints[0][0], ledgePointCount) {
 	Initialize();
-	VCollide_IVP_Compact_Ledge swappedLedge;
-	byteswap.SwapBufferToTargetEndian(&swappedLedge, const_cast<VCollide_IVP_Compact_Ledge *>(ledge));
-	m_Shape.setUserIndex(swappedLedge.client_data);
-	const VCollide_IVP_Compact_Triangle *triangles =
-			reinterpret_cast<const VCollide_IVP_Compact_Triangle *>(ledge + 1);
-	int triangleCount = swappedLedge.n_triangles;
+	m_Shape.setUserIndex(userIndex);
 	m_TriangleIndices.resizeNoInitialize(triangleCount * 3);
 	unsigned int *indices = &m_TriangleIndices[0];
 	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
-		VCollide_IVP_Compact_Triangle swappedTriangle;
-		byteswap.SwapBufferToTargetEndian(&swappedTriangle,
-				const_cast<VCollide_IVP_Compact_Triangle *>(&triangles[triangleIndex]));
+		const VCollide_IVP_Compact_Triangle &triangle = swappedAndRemappedTriangles[triangleIndex];
 		int indexIndex = triangleIndex * 3;
-		indices[indexIndex] = swappedTriangle.c_three_edges[0].start_point_index;
-		indices[indexIndex + 1] = swappedTriangle.c_three_edges[1].start_point_index;
-		indices[indexIndex + 2] = swappedTriangle.c_three_edges[2].start_point_index;
-		if (swappedTriangle.material_index > 0) {
+		indices[indexIndex] = triangle.c_three_edges[0].start_point_index;
+		indices[indexIndex + 1] = triangle.c_three_edges[1].start_point_index;
+		indices[indexIndex + 2] = triangle.c_three_edges[2].start_point_index;
+		if (triangle.material_index > 0) {
 			if (m_TriangleMaterials.size() == 0) {
 				m_TriangleMaterials.resizeNoInitialize(triangleCount);
 				memset(&m_TriangleMaterials[0], 0, triangleCount * sizeof(m_TriangleMaterials[0]));
 			}
-			m_TriangleMaterials[triangleIndex] = swappedTriangle.material_index;
+			m_TriangleMaterials[triangleIndex] = triangle.material_index;
 		}
 	}
 	if (m_TriangleMaterials.size() != 0) {
@@ -391,23 +383,62 @@ CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
 
 CPhysConvex_Hull *CPhysConvex_Hull::CreateFromIVPCompactLedge(
 		const VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap) {
+	// IVP surfaces have a common array of points for all ledges, need to include only points referenced by triangles.
+
+	// Byte swapping triangles.
 	VCollide_IVP_Compact_Ledge swappedLedge;
 	byteswap.SwapBufferToTargetEndian(&swappedLedge, const_cast<VCollide_IVP_Compact_Ledge *>(ledge));
-	const VCollide_IVP_U_Float_Point *ivpPoints = reinterpret_cast<const VCollide_IVP_U_Float_Point *>(
-			reinterpret_cast<const byte *>(ledge) + swappedLedge.c_point_offset);
-	btAlignedObjectArray<btVector3> pointArray;
-	int pointCount = swappedLedge.get_n_points();
-	if (pointCount < 3 || swappedLedge.n_triangles <= 0) {
+	int triangleCount = swappedLedge.n_triangles;
+	if (triangleCount <= 0) {
 		return nullptr;
 	}
-	pointArray.resizeNoInitialize(pointCount);
-	btVector3 *points = &pointArray[0];
-	for (int pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
-		VCollide_IVP_U_Float_Point swappedPoint;
-		byteswap.SwapBufferToTargetEndian(&swappedPoint, const_cast<VCollide_IVP_U_Float_Point *>(&ivpPoints[pointIndex]));
-		points[pointIndex].setValue(swappedPoint.k[0], -swappedPoint.k[1], -swappedPoint.k[2]);
+	const VCollide_IVP_Compact_Triangle *triangles =
+			reinterpret_cast<const VCollide_IVP_Compact_Triangle *>(ledge + 1);
+	CUtlVector<VCollide_IVP_Compact_Triangle> swappedAndRemappedTriangles;
+	swappedAndRemappedTriangles.EnsureCount(triangleCount);
+	byteswap.SwapBufferToTargetEndian(&swappedAndRemappedTriangles[0],
+			const_cast<VCollide_IVP_Compact_Triangle *>(triangles), triangleCount);
+
+	// Finding the first and the last points (for map size).
+	int pointFirst = INT_MAX, pointLast = 0;
+	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
+		const VCollide_IVP_Compact_Triangle &triangle = swappedAndRemappedTriangles[triangleIndex];
+		for (int vertexIndex = 0; vertexIndex < 3; ++vertexIndex) {
+			int pointIndex = (int) triangle.c_three_edges[vertexIndex].start_point_index;
+			pointFirst = MIN(pointIndex, pointFirst);
+			pointLast = MAX(pointIndex, pointLast);
+		}
 	}
-	return new CPhysConvex_Hull(ledge, byteswap, points, pointCount);
+	int pointMapSize = pointLast - pointFirst + 1;
+	CUtlVector<int> pointMap;
+	pointMap.EnsureCount(pointMapSize);
+	memset(&pointMap[0], 0xff, pointMapSize * sizeof(pointMap[0]));
+
+	// Remapping the points that are actually used.
+	const VCollide_IVP_U_Float_Point *ivpPoints = reinterpret_cast<const VCollide_IVP_U_Float_Point *>(
+			reinterpret_cast<const byte *>(ledge) + swappedLedge.c_point_offset);
+	btAlignedObjectArray<btVector3> points;
+	points.reserve(swappedLedge.get_n_points());
+	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
+		VCollide_IVP_Compact_Triangle &triangle = swappedAndRemappedTriangles[triangleIndex];
+		for (int vertexIndex = 0; vertexIndex < 3; ++vertexIndex) {
+			VCollide_IVP_Compact_Edge &edge = triangle.c_three_edges[vertexIndex];
+			int pointIndexInMap = edge.start_point_index - pointFirst;
+			int pointRemappedIndex = pointMap[pointIndexInMap];
+			if (pointRemappedIndex < 0) {
+				pointRemappedIndex = points.size();
+				points.resizeNoInitialize(pointRemappedIndex + 1);
+				VCollide_IVP_U_Float_Point swappedPoint;
+				byteswap.SwapBufferToTargetEndian(&swappedPoint, const_cast<VCollide_IVP_U_Float_Point *>(&ivpPoints[edge.start_point_index]));
+				points[pointRemappedIndex].setValue(swappedPoint.k[0], -swappedPoint.k[1], -swappedPoint.k[2]);
+				pointMap[pointIndexInMap] = pointRemappedIndex;
+			}
+			edge.start_point_index = pointRemappedIndex;
+		}
+	}
+
+	return new CPhysConvex_Hull(&swappedAndRemappedTriangles[0], triangleCount,
+			&points[0], points.size(), swappedLedge.client_data);
 }
 
 void CPhysConvex_Hull::CalculateVolumeProperties() {
@@ -723,10 +754,10 @@ void CPhysConvex_Hull::CalculateTrianglePlanes() {
 		// Maybe ensure the windings from all sources are correct:
 		// IVP surfaces, HullLibrary, polyhedra and convex polygons.
 		btScalar dist = (v1 - center).dot(normal);
-		if (dist < 0.0f) {
+		/* if (dist < 0.0f) {
 			normal = -normal;
 			dist = -dist;
-		}
+		} */
 		planes[triangleIndex].setValue(normal.getX(), normal.getY(), normal.getZ(), -dist);
 	}
 }
@@ -1388,7 +1419,7 @@ bool CPhysicsCollision::IsBoxIntersectingCone(
  ******************/
 
 CPhysCollide_Compound::CPhysCollide_Compound(CPhysConvex **pConvex, int convexCount) :
-		m_Shape(convexCount > 1, convexCount) {
+		m_Shape(false, convexCount) {
 	Assert(convexCount > 0);
 
 	Initialize();
@@ -1428,6 +1459,9 @@ CPhysCollide_Compound::CPhysCollide_Compound(CPhysConvex **pConvex, int convexCo
 		transform.setOrigin(convex->GetOriginInCompound() - m_MassCenter);
 		m_Shape.addChildShape(transform, convex->GetShape());
 	}
+	if (convexCount > 1) {
+		m_Shape.createAabbTreeFromChildren();
+	}
 
 	CalculateInertia();
 }
@@ -1437,27 +1471,29 @@ CPhysCollide_Compound::CPhysCollide_Compound(
 		const btVector3 &massCenter, const btVector3 &inertia,
 		const btVector3 &orthographicAreas) :
 		CPhysCollide(orthographicAreas),
-		m_Shape(root->offset_right_node != 0 /* Swap not required */),
+		m_Shape(false),
 		m_Volume(-1.0f), m_MassCenter(massCenter), m_Inertia(inertia) {
 	Initialize();
-	AddIVPCompactLedgetreeNode(root, byteswap);
-}
-
-void CPhysCollide_Compound::AddIVPCompactLedgetreeNode(
-		const VCollide_IVP_Compact_Ledgetree_Node *node, CByteswap &byteswap) {
-	VCollide_IVP_Compact_Ledgetree_Node swappedNode;
-	byteswap.SwapBufferToTargetEndian(&swappedNode, const_cast<VCollide_IVP_Compact_Ledgetree_Node *>(node));
-	if (swappedNode.offset_right_node == 0) {
-		CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromIVPCompactLedge(
-				reinterpret_cast<const VCollide_IVP_Compact_Ledge *>(
-						reinterpret_cast<const byte *>(node) + swappedNode.offset_compact_ledge), byteswap);
-		convex->SetOwner(CPhysConvex::OWNER_COMPOUND);
-		m_Shape.addChildShape(btTransform(btMatrix3x3::getIdentity(),
-				convex->GetOriginInCompound() - m_MassCenter), convex->GetShape());
-	} else {
-		AddIVPCompactLedgetreeNode(node + 1, byteswap);
-		AddIVPCompactLedgetreeNode(reinterpret_cast<const VCollide_IVP_Compact_Ledgetree_Node *>(
-				reinterpret_cast<const byte *>(node) + swappedNode.offset_right_node), byteswap);
+	g_pPhysCollision->PushIVPNode(root);
+	const VCollide_IVP_Compact_Ledgetree_Node *node;
+	while ((node = g_pPhysCollision->PopIVPNode()) != nullptr) {
+		VCollide_IVP_Compact_Ledgetree_Node swappedNode;
+		byteswap.SwapBufferToTargetEndian(&swappedNode, const_cast<VCollide_IVP_Compact_Ledgetree_Node *>(node));
+		if (swappedNode.offset_right_node == 0) {
+			CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromIVPCompactLedge(
+					reinterpret_cast<const VCollide_IVP_Compact_Ledge *>(
+							reinterpret_cast<const byte *>(node) + swappedNode.offset_compact_ledge), byteswap);
+			convex->SetOwner(CPhysConvex::OWNER_COMPOUND);
+			m_Shape.addChildShape(btTransform(btMatrix3x3::getIdentity(),
+					convex->GetOriginInCompound() - m_MassCenter), convex->GetShape());
+		} else {
+			g_pPhysCollision->PushIVPNode(node + 1);
+			g_pPhysCollision->PushIVPNode(reinterpret_cast<const VCollide_IVP_Compact_Ledgetree_Node *>(
+					reinterpret_cast<const byte *>(node) + swappedNode.offset_right_node));
+		}
+	}
+	if (m_Shape.getNumChildShapes() > 1) {
+		m_Shape.createAabbTreeFromChildren();
 	}
 }
 
