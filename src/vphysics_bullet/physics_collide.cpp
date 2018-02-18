@@ -337,9 +337,9 @@ CPhysConvex_Hull::CPhysConvex_Hull(const VCollide_IVP_Compact_Ledge *ledge, CByt
 		const btVector3 *ledgePoints, int ledgePointCount) :
 		m_Shape(&ledgePoints[0][0], ledgePointCount) {
 	Initialize();
-	m_Shape.setUserIndex(ledge->client_data);
 	VCollide_IVP_Compact_Ledge swappedLedge;
 	byteswap.SwapBufferToTargetEndian(&swappedLedge, const_cast<VCollide_IVP_Compact_Ledge *>(ledge));
+	m_Shape.setUserIndex(swappedLedge.client_data);
 	const VCollide_IVP_Compact_Triangle *triangles =
 			reinterpret_cast<const VCollide_IVP_Compact_Triangle *>(ledge + 1);
 	int triangleCount = swappedLedge.n_triangles;
