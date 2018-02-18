@@ -214,7 +214,9 @@ public:
 
 protected:
 	CPhysCollide(const btVector3 &orthographicAreas = btVector3(1.0f, 1.0f, 1.0f)) :
-			m_Owner(OWNER_GAME), m_OrthographicAreas(orthographicAreas) {}
+			m_Owner(OWNER_GAME),
+			m_OrthographicAreas(orthographicAreas),
+			m_ObjectReferenceList(nullptr) {}
 
 	void Initialize() {
 		btCollisionShape *shape = GetShape();
@@ -255,6 +257,7 @@ public:
 
 	virtual btVector3 GetMassCenter() const { return m_MassCenter; }
 	virtual void SetMassCenter(const btVector3 &massCenter);
+	virtual btVector3 GetInertia() const { return m_Inertia; }
 
 	virtual btScalar GetSubmergedVolume(const btVector4 &plane, btVector3 &buoyancyCenter) const;
 
