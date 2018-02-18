@@ -39,6 +39,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 
 class CPhysicsInterface : public CTier1AppSystem<IPhysics> {
 public:
+	virtual void *QueryInterface(const char *pInterfaceName);
 	virtual IPhysicsEnvironment *CreateEnvironment();
 	virtual void DestroyEnvironment(IPhysicsEnvironment *pEnvironment);
 	virtual IPhysicsEnvironment *GetActiveEnvironmentByIndex(int index);
@@ -55,6 +56,10 @@ private:
 static CPhysicsInterface s_MainDLLInterface;
 EXPOSE_SINGLE_INTERFACE_GLOBALVAR(CPhysicsInterface, IPhysics,
 		VPHYSICS_INTERFACE_VERSION, s_MainDLLInterface);
+
+void *CPhysicsInterface::QueryInterface(const char *pInterfaceName) {
+	return Sys_GetFactoryThis()(pInterfaceName, nullptr);
+}
 
 IPhysicsEnvironment *CPhysicsInterface::CreateEnvironment() {
 	IPhysicsEnvironment *environment = new CPhysicsEnvironment;
