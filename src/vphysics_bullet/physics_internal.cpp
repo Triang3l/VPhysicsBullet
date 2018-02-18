@@ -16,17 +16,17 @@ void ConvertMatrixToHL(const btMatrix3x3 &basis, const btVector3 &origin, matrix
 	matrix[0][0] = basis[0][0];
 	matrix[0][1] = -basis[0][2];
 	matrix[0][2] = basis[0][1];
-	matrix[0][3] = origin[0];
+	matrix[0][3] = BULLET2HL(origin[0]);
 
 	matrix[1][0] = -basis[2][0];
 	matrix[1][1] = basis[2][2];
 	matrix[1][2] = -basis[2][1];
-	matrix[1][3] = -origin[2];
+	matrix[1][3] = -BULLET2HL(origin[2]);
 
 	matrix[2][0] = basis[1][0];
 	matrix[2][1] = -basis[1][2];
 	matrix[2][2] = basis[1][1];
-	matrix[2][3] = origin[1];
+	matrix[2][3] = BULLET2HL(origin[1]);
 }
 
 void ConvertRotationToBullet(const QAngle &angles, btMatrix3x3 &basis) {
@@ -42,7 +42,7 @@ void ConvertRotationToBullet(const QAngle &angles, btMatrix3x3 &basis) {
 void ConvertRotationToHL(const btMatrix3x3 &basis, QAngle &angles) {
 	// Like in ConvertMatrixToHL, but with left instead of right.
 	float forward[3] = { basis[0][0], -basis[2][0], basis[1][0] };
-	float left[3] = { basis[0][2], -basis[2][2], basis[1][2] };
+	float left[3] = { -basis[0][2], basis[2][2], -basis[1][2] };
 	float up2 = basis[1][1];
 	float xyDist = sqrtf(forward[0] * forward[0] + forward[1] * forward[1]);
 	if (xyDist > 0.001f) { // enough here to get angles?
