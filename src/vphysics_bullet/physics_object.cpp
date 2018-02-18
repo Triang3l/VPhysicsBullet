@@ -1116,7 +1116,7 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 	fraction *= 1.0f / timeStep;
 
 	// Not a reference because it may be modified by proceedToTransform.
-	btTransform worldTransform = m_RigidBody->getWorldTransform();
+	const btTransform &worldTransform = m_RigidBody->getWorldTransform();
 	const btVector3 &massCenter = GetBulletMassCenter();
 	btVector3 objectPosition = worldTransform.getOrigin() - (worldTransform.getBasis() * massCenter);
 	btVector3 localAngularVelocity = m_RigidBody->getAngularVelocity() * worldTransform.getBasis();
@@ -1136,7 +1136,7 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 			const btMatrix3x3 &targetBasis = params.m_TargetObjectTransform.getBasis();
 			m_RigidBody->proceedToTransform(btTransform(targetBasis,
 					params.m_TargetObjectTransform.getOrigin() + (targetBasis * massCenter)));
-			// Angular velocity will be rotated later.
+			deltaPosition.setZero();
 		}
 	}
 
@@ -1151,12 +1151,11 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 			params.m_TargetObjectTransform.getRotation(),
 			worldTransform.getRotation(), axis, angle);
 	if (angle > SIMD_PI) {
-		// Take the shortest path.
-		angle -= SIMD_2_PI;
+		angle -= SIMD_2_PI; // Take the shortest path.
 	}
 	CPhysicsShadowController::ComputeVelocity(localAngularVelocity, axis * angle,
 			params.m_MaxAngular, params.m_MaxDampAngular, fraction, params.m_DampFactor, nullptr);
-	m_RigidBody->setAngularVelocity(m_RigidBody->getWorldTransform().getBasis() * localAngularVelocity);
+	m_RigidBody->setAngularVelocity(worldTransform.getBasis() * localAngularVelocity);
 
 	return secondsToArrival;
 }
