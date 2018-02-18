@@ -43,6 +43,8 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 	m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_Broadphase, m_Solver, m_CollisionConfiguration);
 	m_DynamicsWorld->setWorldUserInfo(this);
 
+	m_DynamicsWorld->setDebugDrawer(&m_DebugDrawer);
+
 	// Gravity is applied by CPhysicsObjects, also objects assume zero Bullet forces.
 	m_DynamicsWorld->setGravity(btVector3(0.0f, 0.0f, 0.0f));
 
@@ -126,7 +128,6 @@ void CPhysicsEnvironment::SetDebugOverlay(CreateInterfaceFn debugOverlayFactory)
 	IVPhysicsDebugOverlay *debugOverlay = reinterpret_cast<IVPhysicsDebugOverlay *>(
 			debugOverlayFactory(VPHYSICS_DEBUG_OVERLAY_INTERFACE_VERSION, nullptr));
 	m_DebugDrawer.SetDebugOverlay(debugOverlay);
-	m_DynamicsWorld->setDebugDrawer(debugOverlay != nullptr ? &m_DebugDrawer : nullptr);
 }
 
 IVPhysicsDebugOverlay *CPhysicsEnvironment::GetDebugOverlay() {
@@ -458,6 +459,9 @@ void CPhysicsEnvironment::Simulate(float deltaTime) {
 	}
 	if (!m_QueueDeleteObject) {
 		CleanupDeleteList();
+	}
+	if (m_DebugDrawer.getDebugMode() != 0) {
+		m_DynamicsWorld->debugDrawWorld();
 	}
 }
 
