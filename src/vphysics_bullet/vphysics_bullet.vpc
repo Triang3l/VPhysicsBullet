@@ -1,0 +1,59 @@
+$Macro SRCDIR ".."
+$Macro OUTBINNAME "vphysics"
+$Macro OUTBINDIR "$SRCDIR\..\bin"
+
+$Include "$SRCDIR\vpc_scripts\source_dll_base.vpc"
+
+$Configuration
+{
+	$Compiler
+	{
+		$AdditionalIncludeDirectories "$BASE;$SRCDIR\bullet3\src"
+	}
+}
+
+$Project "VPhysics_Bullet"
+{
+	$Folder "Source Files"
+	{
+		$File "$SRCDIR\public\filesystem_helpers.cpp"
+		$File "physics_collide.cpp"
+		$File "physics_constraint.cpp"
+		$File "physics_environment.cpp"
+		$File "physics_fluid.cpp"
+		$File "physics_internal.cpp"
+		$File "physics_main.cpp"
+		$File "physics_material.cpp"
+		$File "physics_motioncontroller.cpp"
+		$File "physics_object.cpp"
+		$File "physics_parse.cpp"
+		$File "physics_shadow.cpp"
+		$File "physics_vehicle.cpp"
+	}
+
+	$Folder "Header Files"
+	{
+		$File "physics_collide.h"
+		$File "physics_constraint.h"
+		$File "physics_environment.h"
+		$File "physics_fluid.h"
+		$File "physics_friction.h"
+		$File "physics_internal.h"
+		$File "physics_material.h"
+		$File "physics_object.h"
+		$File "physics_objecthash.h"
+		$File "physics_parse.h"
+		$File "physics_shadow.h"
+		$File "physics_spring.h"
+		$File "physics_vehicle.h"
+	}
+
+	$Folder "Link Libraries"
+	{
+		$Lib BulletCollision
+		$Lib BulletDynamics
+		$Lib LinearMath
+		$Lib mathlib
+		$Lib tier1
+	}
+}
