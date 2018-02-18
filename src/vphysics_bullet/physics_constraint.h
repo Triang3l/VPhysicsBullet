@@ -33,11 +33,13 @@ public:
 		if (pConstraintToAttached != nullptr) {
 			SetIdentityMatrix(*pConstraintToAttached);
 		}
+		return true;
 	}
 	/* DUMMY */ virtual bool GetConstraintParams(constraint_breakableparams_t *pParams) const {
 		if (pParams != nullptr) {
 			pParams->Defaults();
 		}
+		return true;
 	}
 	/* DUMMY */ virtual void OutputDebugInfo() {}
 
@@ -50,7 +52,7 @@ private:
 class CPhysicsConstraintGroup : public IPhysicsConstraintGroup {
 public:
 	/* DUMMY */ virtual void Activate() {}
-	/* DUMMY */ virtual bool IsInErrorState() {}
+	/* DUMMY */ virtual bool IsInErrorState() { return false; }
 	/* DUMMY */ virtual void ClearErrorState() {}
 	/* DUMMY */ virtual void GetErrorParams(constraint_groupparams_t *pParams) {
 		if (pParams != nullptr) {

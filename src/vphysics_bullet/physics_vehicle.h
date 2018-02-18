@@ -17,7 +17,7 @@ public:
 	virtual const vehicle_operatingparams_t &GetOperatingParams();
 	virtual const vehicleparams_t &GetVehicleParams();
 	virtual vehicleparams_t &GetVehicleParamsForChange();
-	/* DUMMY */ virtual float UpdateBooster(float dt) {}
+	/* DUMMY */ virtual float UpdateBooster(float dt) { return 0.0f; }
 	/* DUMMY */ virtual int GetWheelCount() { return 0; }
 	/* DUMMY */ virtual IPhysicsObject *GetWheel(int index) { return nullptr; }
 	/* DUMMY */ virtual bool GetWheelContactPoint(int index, Vector *pContactPoint, int *pSurfaceProps);

@@ -87,7 +87,7 @@ public:
 	virtual int GetActiveObjectCount() const;
 	virtual void GetActiveObjects(IPhysicsObject **pOutputObjectList) const;
 	virtual const IPhysicsObject **GetObjectList(int *pOutputObjectCount) const;
-	/* DUMMY */ virtual bool TransferObject(IPhysicsObject *pObject, IPhysicsEnvironment *pDestinationEnvironment) {}
+	/* DUMMY */ virtual bool TransferObject(IPhysicsObject *pObject, IPhysicsEnvironment *pDestinationEnvironment) { return false; }
 	virtual void CleanupDeleteList();
 	virtual void EnableDeleteQueue(bool enable);
 

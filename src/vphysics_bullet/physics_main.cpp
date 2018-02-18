@@ -58,6 +58,8 @@ EXPOSE_SINGLE_INTERFACE_GLOBALVAR(CPhysicsInterface, IPhysics,
 
 IPhysicsEnvironment *CPhysicsInterface::CreateEnvironment() {
 	IPhysicsEnvironment *environment = new CPhysicsEnvironment;
+	m_Environments.AddToTail(environment);
+	return environment;
 }
 
 void CPhysicsInterface::DestroyEnvironment(IPhysicsEnvironment *pEnvironment) {
