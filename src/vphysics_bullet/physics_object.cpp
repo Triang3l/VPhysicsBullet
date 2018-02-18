@@ -53,7 +53,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 
 	btVector3 massCenter = collide->GetMassCenter();
 	const Vector *massCenterOverride = params->massCenterOverride;
-	if (massCenterOverride != nullptr && *massCenterOverride != vec3_origin) {
+	if (massCenterOverride != nullptr) {
 		ConvertPositionToBullet(*massCenterOverride, m_MassCenterOverride);
 		btCompoundShape *massCenterOverrideShape = new(btAlignedAlloc(sizeof(btCompoundShape), 16))
 				btCompoundShape(false, 1);
