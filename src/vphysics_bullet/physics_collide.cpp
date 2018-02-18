@@ -1826,7 +1826,7 @@ CPhysCollide_TriangleMesh::MeshInterface::MeshInterface(const virtualmeshlist_t 
 	static_assert(sizeof(virtualMesh.indices[0]) == sizeof(m_Indices[0]),
 			"Virtual mesh indices are stored in a different type.");
 	m_Indices.resizeNoInitialize(virtualMesh.indexCount);
-	memcpy(&m_Indices[0], virtualMesh.indices, virtualMesh.indexCount * sizeof(virtualMesh.indices));
+	memcpy(&m_Indices[0], virtualMesh.indices, virtualMesh.indexCount * sizeof(virtualMesh.indices[0]));
 }
 
 void CPhysCollide_TriangleMesh::MeshInterface::getLockedReadOnlyVertexIndexBase(
