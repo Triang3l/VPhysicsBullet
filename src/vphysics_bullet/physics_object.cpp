@@ -1147,13 +1147,12 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 
 	btVector3 axis;
 	btScalar angle;
-	btTransformUtil::calculateDiffAxisAngleQuaternion(
-			params.m_TargetObjectTransform.getRotation(),
-			worldTransform.getRotation(), axis, angle);
+	btTransformUtil::calculateDiffAxisAngleQuaternion(worldTransform.getRotation(),
+			params.m_TargetObjectTransform.getRotation(), axis, angle);
 	if (angle > SIMD_PI) {
 		angle -= SIMD_2_PI; // Take the shortest path.
 	}
-	CPhysicsShadowController::ComputeVelocity(localAngularVelocity, axis * angle,
+	CPhysicsShadowController::ComputeVelocity(localAngularVelocity, (axis * worldTransform.getBasis()) * angle,
 			params.m_MaxAngular, params.m_MaxDampAngular, fraction, params.m_DampFactor, nullptr);
 	m_RigidBody->setAngularVelocity(worldTransform.getBasis() * localAngularVelocity);
 
