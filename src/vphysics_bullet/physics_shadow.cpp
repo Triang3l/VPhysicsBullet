@@ -150,9 +150,7 @@ void CPhysicsShadowController::Simulate(btScalar timeStep) {
 		return;
 	}
 	CPhysicsObject *object = static_cast<CPhysicsObject *>(m_Object);
-	object->ComputeBulletShadowControl(m_Shadow, m_SecondsToArrival, timeStep);
-	// If we have time left, subtract it off.
-	m_SecondsToArrival = btMax(m_SecondsToArrival - timeStep, btScalar(0.0f));
+	m_SecondsToArrival = object->ComputeBulletShadowControl(m_Shadow, m_SecondsToArrival, timeStep);
 }
 
 // TODO: For shadows with physics movement allowed, handle ground contacts in nearCallback.
