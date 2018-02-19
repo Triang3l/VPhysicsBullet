@@ -9,21 +9,32 @@
 
 class CPhysicsFrictionSnapshot : public IPhysicsFrictionSnapshot {
 public:
-	CPhysicsFrictionSnapshot(IPhysicsObject *object) {}
+	CPhysicsFrictionSnapshot(IPhysicsObject *object);
 
-	/* DUMMY */ virtual bool IsValid() { return false; }
-	/* DUMMY */ virtual IPhysicsObject *GetObject(int index) { return nullptr; }
-	/* DUMMY */ virtual int GetMaterial(int index) { return 0; }
-	/* DUMMY */ virtual void GetContactPoint(Vector &out) { out.Zero(); }
-	/* DUMMY */ virtual void GetSurfaceNormal(Vector &out) { out.Init(1.0f, 0.0f, 0.0f); }
-	/* DUMMY */ virtual float GetNormalForce() { return 0.0f; }
+	virtual bool IsValid();
+	virtual IPhysicsObject *GetObject(int index);
+	virtual int GetMaterial(int index);
+	virtual void GetContactPoint(Vector &out);
+	virtual void GetSurfaceNormal(Vector &out);
+	virtual float GetNormalForce();
 	/* DUMMY */ virtual float GetEnergyAbsorbed() { return 0.0f; }
 	/* DUMMY */ virtual void RecomputeFriction() {}
 	/* DUMMY */ virtual void ClearFrictionForce() {}
 	/* DUMMY */ virtual void MarkContactForDelete() {}
 	/* DUMMY */ virtual void DeleteAllMarkedContacts(bool wakeObjects) {}
-	/* DUMMY */ virtual void NextFrictionData() {}
-	/* DUMMY */ virtual float GetFrictionCoefficient() { return 0.0f; }
+	virtual void NextFrictionData();
+	virtual float GetFrictionCoefficient();
+
+private:
+	IPhysicsObject *m_Object;
+	btCollisionDispatcher *m_Dispatcher;
+	int m_ManifoldIndex;
+	bool m_ObjectIsB;
+	int m_ContactIndex;
+
+	inline btManifoldPoint &GetCurrentContact() const {
+		return m_Dispatcher->getManifoldByIndexInternal(m_ManifoldIndex)->getContactPoint(m_ContactIndex);
+	}
 };
 
 #endif
