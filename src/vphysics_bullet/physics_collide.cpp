@@ -2011,6 +2011,9 @@ void CPhysicsCollision::VCollideLoad(vcollide_t *pOutput,
 void CPhysicsCollision::VCollideUnload(vcollide_t *pVCollide) {
 	for (int solidIndex = 0; solidIndex < pVCollide->solidCount; ++solidIndex) {
 		CPhysCollide *solid = pVCollide->solids[solidIndex];
+		if (solid == nullptr) {
+			continue;
+		}
 		Assert(solid->GetOwner() == CPhysCollide::OWNER_GAME);
 		Assert(solid->GetObjectReferenceList() == nullptr);
 		if (solid->GetObjectReferenceList() != nullptr) {
