@@ -649,6 +649,7 @@ private:
 					return m_closestHitFraction;
 				}
 			}
+			m_closestHitFraction = rayResult.m_hitFraction;
 			m_collisionObject = rayResult.m_collisionObject;
 			if (normalInWorldSpace) {
 				m_ClosestHitNormal = rayResult.m_hitNormalLocal;
@@ -689,6 +690,7 @@ private:
 					return m_closestHitFraction;
 				}
 			}
+			m_closestHitFraction = convexResult.m_hitFraction;
 			m_HitCollisionObject = convexResult.m_hitCollisionObject;
 			if (normalInWorldSpace) {
 				m_ClosestHitNormal = convexResult.m_hitNormalLocal;
