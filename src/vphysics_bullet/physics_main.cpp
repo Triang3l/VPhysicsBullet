@@ -37,7 +37,7 @@ void VPhysicsInit() {
 	btAlignedAllocSetCustom(VPhysicsBulletAlloc, VPhysicsBulletFree);
 	btAlignedAllocSetCustomAligned(VPhysicsBulletAlignedAlloc, VPhysicsBulletFree);
 
-	gContactBreakingThreshold = 0.5f * VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	gContactBreakingThreshold = 4.0f * VPHYSICS_CONVEX_DISTANCE_MARGIN;
 
 	gDeactivationTime = 4.0f; // To match IVP more closely.
 }

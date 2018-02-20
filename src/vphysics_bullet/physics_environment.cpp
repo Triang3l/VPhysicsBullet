@@ -43,7 +43,6 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 			btCollisionDispatcher(m_CollisionConfiguration);
 	m_Broadphase = new(btAlignedAlloc(sizeof(btDbvtBroadphase), 16))
 			btDbvtBroadphase;
-	m_Broadphase->getOverlappingPairCache()->setOverlapFilterCallback(&m_OverlapFilterCallback);
 	m_Solver = new(btAlignedAlloc(sizeof(btSequentialImpulseConstraintSolver), 16))
 			btSequentialImpulseConstraintSolver;
 	m_DynamicsWorld = new(btAlignedAlloc(sizeof(btDiscreteDynamicsWorld), 16))
@@ -55,7 +54,14 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 	// Gravity is applied by CPhysicsObjects, also objects assume zero Bullet forces.
 	m_DynamicsWorld->setGravity(btVector3(0.0f, 0.0f, 0.0f));
 
+	m_Broadphase->getOverlappingPairCache()->setOverlapFilterCallback(&m_OverlapFilterCallback);
+
 	m_DynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	btContactSolverInfo &solverInfo = m_DynamicsWorld->getSolverInfo();
+	solverInfo.m_erp = 0.8f;
+	solverInfo.m_erp2 = 1.0f;
+	solverInfo.m_splitImpulsePenetrationThreshold = -0.25f * VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	solverInfo.m_splitImpulseTurnErp = 0.5f * solverInfo.m_erp2;
 
 	m_TriggerTouches.SetLessFunc(TriggerTouchLessFunc);
 
@@ -116,7 +122,7 @@ void CPhysicsEnvironment::DebugDrawer::drawLine(const btVector3 &from, const btV
 void CPhysicsEnvironment::DebugDrawer::drawContactPoint(const btVector3 &PointOnB, const btVector3 &normalOnB,
 		btScalar distance, int lifeTime, const btVector3 &color) {
 	// TODO: Check if the distance is too short to be useful.
-	drawLine(PointOnB, PointOnB + normalOnB * distance, color);
+	drawLine(PointOnB, PointOnB + normalOnB * 0.3f, color);
 }
 
 void CPhysicsEnvironment::DebugDrawer::reportErrorWarning(const char *warningString) {
