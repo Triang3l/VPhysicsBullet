@@ -450,6 +450,9 @@ public:
 
 	// Internal methods.
 
+	// To reduce the number of memory allocations.
+	FORCEINLINE btAlignedObjectArray<btVector3> &GetHullCreationPointArray() { return m_HullCreationPoints; }
+
 	CPhysCollide *UnserializeCollideFromBuffer(
 			const char *pBuffer, int size, int index, bool swap);
 
@@ -485,6 +488,7 @@ private:
 	 * Convex hulls
 	 ***************/
 
+	btAlignedObjectArray<btVector3> m_HullCreationPoints;
 	HullLibrary m_HullLibrary;
 
 	/*****************

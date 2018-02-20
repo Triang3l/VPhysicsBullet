@@ -417,7 +417,8 @@ CPhysConvex_Hull *CPhysConvex_Hull::CreateFromIVPCompactLedge(
 	// Remapping the points that are actually used.
 	const VCollide_IVP_U_Float_Point *ivpPoints = reinterpret_cast<const VCollide_IVP_U_Float_Point *>(
 			reinterpret_cast<const byte *>(ledge) + swappedLedge.c_point_offset);
-	btAlignedObjectArray<btVector3> points;
+	btAlignedObjectArray<btVector3> &points = g_pPhysCollision->GetHullCreationPointArray();
+	points.resizeNoInitialize(0);
 	points.reserve(swappedLedge.get_n_points());
 	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
 		VCollide_IVP_Compact_Triangle &triangle = swappedAndRemappedTriangles[triangleIndex];
@@ -426,11 +427,10 @@ CPhysConvex_Hull *CPhysConvex_Hull::CreateFromIVPCompactLedge(
 			int pointIndexInMap = edge.start_point_index - pointFirst;
 			int pointRemappedIndex = pointMap[pointIndexInMap];
 			if (pointRemappedIndex < 0) {
-				pointRemappedIndex = points.size();
-				points.resizeNoInitialize(pointRemappedIndex + 1);
 				VCollide_IVP_U_Float_Point swappedPoint;
 				byteswap.SwapBufferToTargetEndian(&swappedPoint, const_cast<VCollide_IVP_U_Float_Point *>(&ivpPoints[edge.start_point_index]));
-				points[pointRemappedIndex].setValue(swappedPoint.k[0], -swappedPoint.k[1], -swappedPoint.k[2]);
+				pointRemappedIndex = points.size();
+				points.push_back(btVector3(swappedPoint.k[0], -swappedPoint.k[1], -swappedPoint.k[2]));
 				pointMap[pointIndexInMap] = pointRemappedIndex;
 			}
 			edge.start_point_index = pointRemappedIndex;
@@ -763,7 +763,7 @@ void CPhysConvex_Hull::CalculateTrianglePlanes() {
 }
 
 CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) {
-	btAlignedObjectArray<btVector3> pointArray;
+	btAlignedObjectArray<btVector3> &pointArray = g_pPhysCollision->GetHullCreationPointArray();
 	pointArray.resizeNoInitialize(vertCount);
 	btVector3 *points = &pointArray[0];
 	for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex) {
@@ -782,7 +782,8 @@ CPhysConvex *CPhysicsCollision::ConvexFromPlanes(float *pPlanes, int planeCount,
 		ConvertDirectionToBullet(Vector(listPlane[0], listPlane[1], listPlane[2]), bulletPlane);
 		bulletPlane.setW(-HL2BULLET(listPlane[3]));
 	}
-	btAlignedObjectArray<btVector3> pointArray;
+	btAlignedObjectArray<btVector3> &pointArray = g_pPhysCollision->GetHullCreationPointArray();
+	pointArray.resizeNoInitialize(0);
 	btGeometryUtil::getVerticesFromPlaneEquations(planeArray, pointArray);
 	return CPhysConvex_Hull::CreateFromBulletPoints(m_HullLibrary, &pointArray[0], pointArray.size());
 }
@@ -793,7 +794,7 @@ CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &Co
 	if (vertCount < 3) {
 		return nullptr;
 	}
-	btAlignedObjectArray<btVector3> pointArray;
+	btAlignedObjectArray<btVector3> &pointArray = g_pPhysCollision->GetHullCreationPointArray();
 	pointArray.resizeNoInitialize(vertCount);
 	btVector3 *points = &pointArray[0];
 	for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex) {
