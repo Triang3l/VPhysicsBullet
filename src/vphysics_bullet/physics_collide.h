@@ -13,6 +13,98 @@
 
 #define VPHYSICS_CONVEX_DISTANCE_MARGIN HL2BULLET(0.25f)
 
+/***************************
+ * Serialization structures
+ ***************************/
+
+struct VCollide_SurfaceHeader {
+	DECLARE_BYTESWAP_DATADESC()
+	int vphysicsID;
+	short version;
+	short modelType;
+	int surfaceSize;
+	Vector dragAxisAreas;
+	int axisMapSize;
+};
+
+#ifdef _X360
+#pragma bitfield_order(push, lsb_to_msb)
+#endif
+
+struct VCollide_IVP_U_Float_Point {
+	DECLARE_BYTESWAP_DATADESC()
+	float k[3];
+	float hesse_val;
+};
+
+struct VCollide_IVP_Compact_Edge {
+	DECLARE_BYTESWAP_DATADESC()
+	BEGIN_BITFIELD(bf)
+	unsigned int start_point_index : 16;
+	signed int opposite_index : 15;
+	unsigned int is_virtual : 1;
+	END_BITFIELD()
+};
+
+struct VCollide_IVP_Compact_Triangle {
+	DECLARE_BYTESWAP_DATADESC()
+	BEGIN_BITFIELD(bf)
+	unsigned int tri_index : 12;
+	unsigned int pierce_index : 12;
+	unsigned int material_index : 7;
+	unsigned int is_virtual : 1;
+	END_BITFIELD()
+	VCollide_IVP_Compact_Edge c_three_edges[3];
+};
+
+struct VCollide_IVP_Compact_Ledge {
+	DECLARE_BYTESWAP_DATADESC()
+	int c_point_offset;
+	union {
+		int ledgetree_node_offset;
+		int client_data;
+	};
+	BEGIN_BITFIELD(bf)
+	unsigned int has_children_flag : 2;
+	unsigned int is_compact_flag : 2;
+	unsigned int dummy : 4;
+	unsigned int size_div_16 : 24;
+	END_BITFIELD()
+	short n_triangles;
+	short for_future_use;
+
+	FORCEINLINE int get_n_points() const {
+		return size_div_16 - n_triangles - 1;
+	}
+};
+
+struct VCollide_IVP_Compact_Ledgetree_Node {
+	DECLARE_BYTESWAP_DATADESC()
+	int offset_right_node;
+	int offset_compact_ledge;
+	float center[3];
+	float radius;
+	unsigned char box_sizes[3];
+	unsigned char free_0;
+};
+
+struct VCollide_IVP_Compact_Surface {
+	DECLARE_BYTESWAP_DATADESC()
+	float mass_center[3];
+	float rotation_inertia[3];
+	float upper_limit_radius;
+	BEGIN_BITFIELD(bf)
+	unsigned int max_factor_surface_deviation : 8;
+	int byte_size : 24;
+	END_BITFIELD()
+	int offset_ledgetree_root;
+	int dummy[3];
+};
+
+#ifdef _X360
+#pragma bitfield_order(pop)
+#endif
+
 /************************
  * Convex shape wrappers
  ************************/
@@ -69,10 +161,11 @@ public:
 	CPhysConvex_Hull(const btVector3 *points, int pointCount,
 			const unsigned int *indices, int triangleCount);
 	CPhysConvex_Hull(const btVector3 *points, int pointCount, const CPolyhedron &polyhedron);
+	CPhysConvex_Hull(
+			const VCollide_IVP_Compact_Triangle *swappedAndRemappedTriangles, int triangleCount,
+			const btVector3 *ledgePoints, int ledgePointCount, int userIndex);
 	static CPhysConvex_Hull *CreateFromBulletPoints(
 			HullLibrary &hullLibrary, const btVector3 *points, int pointCount);
-	static CPhysConvex_Hull *CreateFromIVPCompactLedge(
-			const struct VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap);
 
 	btCollisionShape *GetShape() { return &m_Shape; }
 	const btCollisionShape *GetShape() const { return &m_Shape; }
@@ -105,10 +198,6 @@ protected:
 	virtual void Initialize();
 
 private:
-	CPhysConvex_Hull(
-			const struct VCollide_IVP_Compact_Triangle *swappedAndRemappedTriangles, int triangleCount,
-			const btVector3 *ledgePoints, int ledgePointCount, int userIndex);
-
 	btConvexHullShape m_Shape;
 
 	btAlignedObjectArray<unsigned int> m_TriangleIndices;
@@ -233,7 +322,7 @@ class CPhysCollide_Compound : public CPhysCollide {
 public:
 	CPhysCollide_Compound(CPhysConvex **pConvex, int convexCount);
 	CPhysCollide_Compound(
-			const struct VCollide_IVP_Compact_Ledgetree_Node *root, CByteswap &byteswap,
+			const VCollide_IVP_Compact_Ledgetree_Node *root, CByteswap &byteswap,
 			const btVector3 &massCenter, const btVector3 &inertia,
 			const btVector3 &orthographicAreas);
 	virtual ~CPhysCollide_Compound();
@@ -453,18 +542,20 @@ public:
 	// To reduce the number of memory allocations.
 	FORCEINLINE btAlignedObjectArray<btVector3> &GetHullCreationPointArray() { return m_HullCreationPoints; }
 
+	CPhysConvex_Hull *CreateConvexHullFromIVPCompactLedge(const VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap);
+
 	CPhysCollide *UnserializeCollideFromBuffer(
 			const char *pBuffer, int size, int index, bool swap);
 
-	FORCEINLINE void PushIVPNode(const struct VCollide_IVP_Compact_Ledgetree_Node *node) {
+	FORCEINLINE void PushIVPNode(const VCollide_IVP_Compact_Ledgetree_Node *node) {
 		m_IVPNodeStack.AddToTail(node);
 	}
-	inline const struct VCollide_IVP_Compact_Ledgetree_Node *PopIVPNode() {
+	inline const VCollide_IVP_Compact_Ledgetree_Node *PopIVPNode() {
 		int stackDepth = m_IVPNodeStack.Count();
 		if (stackDepth == 0) {
 			return nullptr;
 		}
-		const struct VCollide_IVP_Compact_Ledgetree_Node *node = m_IVPNodeStack[stackDepth - 1];
+		const VCollide_IVP_Compact_Ledgetree_Node *node = m_IVPNodeStack[stackDepth - 1];
 		m_IVPNodeStack.Remove(stackDepth - 1);
 		return node;
 	}
@@ -489,7 +580,12 @@ private:
 	 ***************/
 
 	btAlignedObjectArray<btVector3> m_HullCreationPoints;
+
 	HullLibrary m_HullLibrary;
+
+	// Reducing the number of allocations during IVP surface unserialization.
+	CUtlVector<VCollide_IVP_Compact_Triangle> m_SwappedAndRemappedIVPTriangles;
+	CUtlVector<int> m_IVPPointMap;
 
 	/*****************
 	 * Bounding boxes
@@ -503,9 +599,9 @@ private:
 	 ******************/
 
 	CPhysCollide *UnserializeIVPCompactSurface(
-			const struct VCollide_IVP_Compact_Surface *surface, CByteswap &byteswap,
+			const VCollide_IVP_Compact_Surface *surface, CByteswap &byteswap,
 			const btVector3 &orthographicAreas);
-	CUtlVector<const struct VCollide_IVP_Compact_Ledgetree_Node *> m_IVPNodeStack;
+	CUtlVector<const VCollide_IVP_Compact_Ledgetree_Node *> m_IVPNodeStack;
 
 	CUtlVector<CPhysConvex *> m_CompoundConvexDeleteQueue;
 

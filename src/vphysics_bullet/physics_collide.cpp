@@ -96,94 +96,6 @@ void CPhysicsCollision::ThreadContextDestroy(IPhysicsCollision *pThreadContext) 
 // other VPhysics implementations, and also to version separately.
 #define VCOLLIDE_VERSION_BULLET 0x3b00
 
-struct VCollide_SurfaceHeader {
-	DECLARE_BYTESWAP_DATADESC()
-	int vphysicsID;
-	short version;
-	short modelType;
-	int surfaceSize;
-	Vector dragAxisAreas;
-	int axisMapSize;
-};
-
-#ifdef _X360
-#pragma bitfield_order(push, lsb_to_msb)
-#endif
-
-struct VCollide_IVP_U_Float_Point {
-	DECLARE_BYTESWAP_DATADESC()
-	float k[3];
-	float hesse_val;
-};
-
-struct VCollide_IVP_Compact_Edge {
-	DECLARE_BYTESWAP_DATADESC()
-	BEGIN_BITFIELD(bf)
-	unsigned int start_point_index : 16;
-	signed int opposite_index : 15;
-	unsigned int is_virtual : 1;
-	END_BITFIELD()
-};
-
-struct VCollide_IVP_Compact_Triangle {
-	DECLARE_BYTESWAP_DATADESC()
-	BEGIN_BITFIELD(bf)
-	unsigned int tri_index : 12;
-	unsigned int pierce_index : 12;
-	unsigned int material_index : 7;
-	unsigned int is_virtual : 1;
-	END_BITFIELD()
-	VCollide_IVP_Compact_Edge c_three_edges[3];
-};
-
-struct VCollide_IVP_Compact_Ledge {
-	DECLARE_BYTESWAP_DATADESC()
-	int c_point_offset;
-	union {
-		int ledgetree_node_offset;
-		int client_data;
-	};
-	BEGIN_BITFIELD(bf)
-	unsigned int has_children_flag : 2;
-	unsigned int is_compact_flag : 2;
-	unsigned int dummy : 4;
-	unsigned int size_div_16 : 24;
-	END_BITFIELD()
-	short n_triangles;
-	short for_future_use;
-
-	FORCEINLINE int get_n_points() const {
-		return size_div_16 - n_triangles - 1;
-	}
-};
-
-struct VCollide_IVP_Compact_Ledgetree_Node {
-	DECLARE_BYTESWAP_DATADESC()
-	int offset_right_node;
-	int offset_compact_ledge;
-	float center[3];
-	float radius;
-	unsigned char box_sizes[3];
-	unsigned char free_0;
-};
-
-struct VCollide_IVP_Compact_Surface {
-	DECLARE_BYTESWAP_DATADESC()
-	float mass_center[3];
-	float rotation_inertia[3];
-	float upper_limit_radius;
-	BEGIN_BITFIELD(bf)
-	unsigned int max_factor_surface_deviation : 8;
-	int byte_size : 24;
-	END_BITFIELD()
-	int offset_ledgetree_root;
-	int dummy[3];
-};
-
-#ifdef _X360
-#pragma bitfield_order(pop)
-#endif
-
 BEGIN_BYTESWAP_DATADESC(VCollide_SurfaceHeader)
 	DEFINE_FIELD(vphysicsID, FIELD_INTEGER),
 	DEFINE_FIELD(version, FIELD_SHORT),
@@ -381,7 +293,7 @@ CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
 			&hull.m_Indices[0], hull.mNumFaces);
 }
 
-CPhysConvex_Hull *CPhysConvex_Hull::CreateFromIVPCompactLedge(
+CPhysConvex_Hull *CPhysicsCollision::CreateConvexHullFromIVPCompactLedge(
 		const VCollide_IVP_Compact_Ledge *ledge, CByteswap &byteswap) {
 	// IVP surfaces have a common array of points for all ledges, need to include only points referenced by triangles.
 
@@ -394,51 +306,52 @@ CPhysConvex_Hull *CPhysConvex_Hull::CreateFromIVPCompactLedge(
 	}
 	const VCollide_IVP_Compact_Triangle *triangles =
 			reinterpret_cast<const VCollide_IVP_Compact_Triangle *>(ledge + 1);
-	CUtlVector<VCollide_IVP_Compact_Triangle> swappedAndRemappedTriangles;
-	swappedAndRemappedTriangles.EnsureCount(triangleCount);
-	byteswap.SwapBufferToTargetEndian(&swappedAndRemappedTriangles[0],
+	m_SwappedAndRemappedIVPTriangles.EnsureCount(triangleCount);
+	byteswap.SwapBufferToTargetEndian(&m_SwappedAndRemappedIVPTriangles[0],
 			const_cast<VCollide_IVP_Compact_Triangle *>(triangles), triangleCount);
 
 	// Finding the first and the last points (for map size).
 	int pointFirst = INT_MAX, pointLast = 0;
 	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
-		const VCollide_IVP_Compact_Triangle &triangle = swappedAndRemappedTriangles[triangleIndex];
+		const VCollide_IVP_Compact_Triangle &triangle = m_SwappedAndRemappedIVPTriangles[triangleIndex];
 		for (int vertexIndex = 0; vertexIndex < 3; ++vertexIndex) {
 			int pointIndex = (int) triangle.c_three_edges[vertexIndex].start_point_index;
 			pointFirst = MIN(pointIndex, pointFirst);
 			pointLast = MAX(pointIndex, pointLast);
 		}
 	}
-	int pointMapSize = pointLast - pointFirst + 1;
-	CUtlVector<int> pointMap;
-	pointMap.EnsureCount(pointMapSize);
-	memset(&pointMap[0], 0xff, pointMapSize * sizeof(pointMap[0]));
+	m_IVPPointMap.EnsureCount(pointLast - pointFirst + 1);
+	memset(&m_IVPPointMap[0], 0xff, m_IVPPointMap.Count() * sizeof(m_IVPPointMap[0]));
 
 	// Remapping the points that are actually used.
 	const VCollide_IVP_U_Float_Point *ivpPoints = reinterpret_cast<const VCollide_IVP_U_Float_Point *>(
 			reinterpret_cast<const byte *>(ledge) + swappedLedge.c_point_offset);
-	btAlignedObjectArray<btVector3> &points = g_pPhysCollision->GetHullCreationPointArray();
+	btAlignedObjectArray<btVector3> &points = GetHullCreationPointArray();
 	points.resizeNoInitialize(0);
 	points.reserve(swappedLedge.get_n_points());
 	for (int triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex) {
-		VCollide_IVP_Compact_Triangle &triangle = swappedAndRemappedTriangles[triangleIndex];
+		VCollide_IVP_Compact_Triangle &triangle = m_SwappedAndRemappedIVPTriangles[triangleIndex];
 		for (int vertexIndex = 0; vertexIndex < 3; ++vertexIndex) {
 			VCollide_IVP_Compact_Edge &edge = triangle.c_three_edges[vertexIndex];
 			int pointIndexInMap = edge.start_point_index - pointFirst;
-			int pointRemappedIndex = pointMap[pointIndexInMap];
+			int pointRemappedIndex = m_IVPPointMap[pointIndexInMap];
 			if (pointRemappedIndex < 0) {
 				VCollide_IVP_U_Float_Point swappedPoint;
 				byteswap.SwapBufferToTargetEndian(&swappedPoint, const_cast<VCollide_IVP_U_Float_Point *>(&ivpPoints[edge.start_point_index]));
 				pointRemappedIndex = points.size();
 				points.push_back(btVector3(swappedPoint.k[0], -swappedPoint.k[1], -swappedPoint.k[2]));
-				pointMap[pointIndexInMap] = pointRemappedIndex;
+				m_IVPPointMap[pointIndexInMap] = pointRemappedIndex;
 			}
 			edge.start_point_index = pointRemappedIndex;
 		}
 	}
 
-	return new CPhysConvex_Hull(&swappedAndRemappedTriangles[0], triangleCount,
+	m_IVPPointMap.RemoveAll();
+
+	CPhysConvex_Hull *hull = new CPhysConvex_Hull(&m_SwappedAndRemappedIVPTriangles[0], triangleCount,
 			&points[0], points.size(), swappedLedge.client_data);
+	m_SwappedAndRemappedIVPTriangles.RemoveAll();
+	return hull;
 }
 
 void CPhysConvex_Hull::CalculateVolumeProperties() {
@@ -1481,7 +1394,7 @@ CPhysCollide_Compound::CPhysCollide_Compound(
 		VCollide_IVP_Compact_Ledgetree_Node swappedNode;
 		byteswap.SwapBufferToTargetEndian(&swappedNode, const_cast<VCollide_IVP_Compact_Ledgetree_Node *>(node));
 		if (swappedNode.offset_right_node == 0) {
-			CPhysConvex_Hull *convex = CPhysConvex_Hull::CreateFromIVPCompactLedge(
+			CPhysConvex_Hull *convex = g_pPhysCollision->CreateConvexHullFromIVPCompactLedge(
 					reinterpret_cast<const VCollide_IVP_Compact_Ledge *>(
 							reinterpret_cast<const byte *>(node) + swappedNode.offset_compact_ledge), byteswap);
 			convex->SetOwner(CPhysConvex::OWNER_COMPOUND);
