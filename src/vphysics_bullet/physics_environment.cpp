@@ -5,6 +5,7 @@
 #include "physics_collide.h"
 #include "physics_constraint.h"
 #include "physics_fluid.h"
+#include "physics_friction.h"
 #include "physics_motioncontroller.h"
 #include "physics_object.h"
 #include "physics_shadow.h"
@@ -32,7 +33,8 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_InSimulation(false),
 		m_LastPSITime(0.0f), m_TimeSinceLastPSI(0.0f),
 		m_CollisionSolver(nullptr), m_OverlapFilterCallback(this),
-		m_CollisionEvents(nullptr) {
+		m_CollisionEvents(nullptr),
+		m_HighestActiveFrictionSnapshot(-1) {
 	m_PerformanceSettings.Defaults();
 
 	m_CollisionConfiguration = new(btAlignedAlloc(sizeof(btDefaultCollisionConfiguration), 16))
@@ -71,6 +73,11 @@ CPhysicsEnvironment::~CPhysicsEnvironment() {
 	int objectCount = m_Objects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
 		delete m_Objects[objectIndex];
+	}
+
+	int snapshotCount = m_FrictionSnapshots.Count();
+	for (int snapshotIndex = 0; snapshotIndex < snapshotCount; ++snapshotIndex) {
+		delete m_FrictionSnapshots[snapshotIndex];
 	}
 
 	m_DynamicsWorld->~btDiscreteDynamicsWorld();
@@ -272,6 +279,12 @@ void CPhysicsEnvironment::CleanupDeleteList() {
 void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {
 	CPhysicsObject *physicsObject = static_cast<CPhysicsObject *>(object);
 
+	int playerCount = m_PlayerControllers.Count();
+	for (int playerIndex = 0; playerIndex < playerCount; ++playerIndex) {
+		static_cast<CPhysicsPlayerController *>(
+				m_PlayerControllers[playerIndex])->NotifyPotentialGroundRemoving(object);
+	}
+
 	if (object->IsTrigger()) {
 		NotifyTriggerRemoved(object);
 	}
@@ -292,11 +305,14 @@ void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {
 		Assert(!physicsObject->IsTouchingTriggers());
 	}
 
-	int playerCount = m_PlayerControllers.Count();
-	for (int playerIndex = 0; playerIndex < playerCount; ++playerIndex) {
-		static_cast<CPhysicsPlayerController *>(
-				m_PlayerControllers[playerIndex])->NotifyPotentialGroundRemoving(object);
+	for (int snapshotIndex = m_HighestActiveFrictionSnapshot; snapshotIndex >= 0; --snapshotIndex) {
+		CPhysicsFrictionSnapshot *snapshot = static_cast<CPhysicsFrictionSnapshot *>(
+				m_FrictionSnapshots[snapshotIndex]);
+		if (snapshot->GetObject(0) == object) {
+			snapshot->Reset(nullptr);
+		}
 	}
+	UpdateHighestActiveFrictionSnapshot();
 
 	if (!object->IsStatic()) {
 		if (!physicsObject->WasAsleep()) {
@@ -654,6 +670,28 @@ void CPhysicsEnvironment::RemoveObjectCollisionPairs(btCollisionObject *object) 
 	RemoveObjectCollisionPairsCallback removeCallback(object);
 	m_Broadphase->getOverlappingPairCache()->processAllOverlappingPairs(&removeCallback, m_Dispatcher);
 	// Narrowphase contact manifolds are cleared by overlapping pair destruction.
+}
+
+IPhysicsFrictionSnapshot *CPhysicsEnvironment::CreateFrictionSnapshot(IPhysicsObject *object) {
+	int snapshotCount = m_FrictionSnapshots.Count(), snapshotIndex;
+	for (snapshotIndex = 0; snapshotIndex < snapshotCount; ++snapshotIndex) {
+		if (m_FrictionSnapshots[snapshotIndex]->GetObject(0) == nullptr) {
+			break;
+		}
+	}
+	if (snapshotIndex >= snapshotCount) {
+		m_FrictionSnapshots.AddToTail(new CPhysicsFrictionSnapshot);
+	}
+	CPhysicsFrictionSnapshot *snapshot = static_cast<CPhysicsFrictionSnapshot *>(
+			m_FrictionSnapshots[snapshotIndex]);
+	snapshot->Reset(object);
+	m_HighestActiveFrictionSnapshot = MAX(snapshotIndex, m_HighestActiveFrictionSnapshot);
+	return snapshot;
+}
+
+void CPhysicsEnvironment::DestroyFrictionSnapshot(IPhysicsFrictionSnapshot *snapshot) {
+	static_cast<CPhysicsFrictionSnapshot *>(snapshot)->Reset(nullptr);
+	UpdateHighestActiveFrictionSnapshot();
 }
 
 void CPhysicsEnvironment::CheckTriggerTouches() {

@@ -9,7 +9,10 @@
 
 class CPhysicsFrictionSnapshot : public IPhysicsFrictionSnapshot {
 public:
+	CPhysicsFrictionSnapshot();
 	CPhysicsFrictionSnapshot(IPhysicsObject *object);
+
+	// IPhysicsFrictionSnapshot methods.
 
 	virtual bool IsValid();
 	virtual IPhysicsObject *GetObject(int index);
@@ -24,6 +27,10 @@ public:
 	/* DUMMY */ virtual void DeleteAllMarkedContacts(bool wakeObjects) {}
 	virtual void NextFrictionData();
 	virtual float GetFrictionCoefficient();
+
+	// Internal methods.
+
+	void Reset(IPhysicsObject *object);
 
 private:
 	IPhysicsObject *m_Object;

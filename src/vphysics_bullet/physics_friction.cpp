@@ -8,10 +8,22 @@
 // memdbgon must be the last include file in a .cpp file!!!
 // #include "tier0/memdbgon.h"
 
-CPhysicsFrictionSnapshot::CPhysicsFrictionSnapshot(IPhysicsObject *object) :
-		m_Object(object), m_ManifoldIndex(-1) {
+CPhysicsFrictionSnapshot::CPhysicsFrictionSnapshot() {
+	Reset(nullptr);
+}
+
+CPhysicsFrictionSnapshot::CPhysicsFrictionSnapshot(IPhysicsObject *object) {
+	Reset(object);
+}
+
+void CPhysicsFrictionSnapshot::Reset(IPhysicsObject *object) {
+	m_Object = object;
+	if (object == nullptr) {
+		return;
+	}
 	m_Dispatcher = static_cast<CPhysicsEnvironment *>(static_cast<CPhysicsObject *>(
 			object)->GetEnvironment())->GetCollisionDispatcher();
+	m_ManifoldIndex = -1;
 	NextFrictionData();
 }
 

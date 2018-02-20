@@ -134,8 +134,8 @@ public:
 	virtual void BecomeHinged(int localAxis);
 	virtual void RemoveHinged();
 
-	/* DUMMY */ virtual IPhysicsFrictionSnapshot *CreateFrictionSnapshot();
-	/* DUMMY */ virtual void DestroyFrictionSnapshot(IPhysicsFrictionSnapshot *pSnapshot);
+	virtual IPhysicsFrictionSnapshot *CreateFrictionSnapshot();
+	virtual void DestroyFrictionSnapshot(IPhysicsFrictionSnapshot *pSnapshot);
 
 	/* DUMMY */ virtual void OutputDebugInfo() const {}
 

@@ -1237,12 +1237,12 @@ bool CPhysicsObject::GetContactPoint(Vector *contactPoint, IPhysicsObject **cont
 	return false;
 }
 
-/* DUMMY */ IPhysicsFrictionSnapshot *CPhysicsObject::CreateFrictionSnapshot() {
-	return new CPhysicsFrictionSnapshot(this);
+IPhysicsFrictionSnapshot *CPhysicsObject::CreateFrictionSnapshot() {
+	return static_cast<CPhysicsEnvironment *>(m_Environment)->CreateFrictionSnapshot(this);
 }
 
-/* DUMMY */ void CPhysicsObject::DestroyFrictionSnapshot(IPhysicsFrictionSnapshot *pSnapshot) {
-	delete pSnapshot;
+void CPhysicsObject::DestroyFrictionSnapshot(IPhysicsFrictionSnapshot *pSnapshot) {
+	static_cast<CPhysicsEnvironment *>(m_Environment)->DestroyFrictionSnapshot(pSnapshot);
 }
 
 /***********

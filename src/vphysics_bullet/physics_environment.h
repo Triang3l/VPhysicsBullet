@@ -5,6 +5,7 @@
 #define PHYSICS_ENVIRONMENT_H
 
 #include "physics_internal.h"
+#include "vphysics/friction.h"
 #include "vphysics/performance.h"
 #include "tier1/utlrbtree.h"
 #include "tier1/utlvector.h"
@@ -137,6 +138,10 @@ public:
 	void RecheckObjectCollisionFilter(btCollisionObject *object);
 	void RemoveObjectCollisionPairs(btCollisionObject *object);
 
+	// Friction snapshot pool - to avoid allocating them within frames.
+	IPhysicsFrictionSnapshot *CreateFrictionSnapshot(IPhysicsObject *object);
+	void DestroyFrictionSnapshot(IPhysicsFrictionSnapshot *snapshot);
+
 	void NotifyTriggerRemoved(IPhysicsObject *trigger);
 
 	FORCEINLINE btScalar GetMaxSpeed() const {
@@ -207,6 +212,17 @@ private:
 	OverlapFilterCallback m_OverlapFilterCallback;
 
 	IPhysicsCollisionEvent *m_CollisionEvents;
+
+	CUtlVector<IPhysicsFrictionSnapshot *> m_FrictionSnapshots;
+	int m_HighestActiveFrictionSnapshot;
+	inline void UpdateHighestActiveFrictionSnapshot() {
+		while (m_HighestActiveFrictionSnapshot >= 0) {
+			if (m_FrictionSnapshots[m_HighestActiveFrictionSnapshot]->GetObject(0) != nullptr) {
+				break;
+			}
+			--m_HighestActiveFrictionSnapshot;
+		}
+	}
 
 	struct TriggerTouch_t {
 		IPhysicsObject *m_Trigger;
