@@ -273,7 +273,7 @@ void CPhysicsEnvironment::CleanupDeleteList() {
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
 		delete m_DeadObjects[objectIndex];
 	}
-	m_DeadObjects.Purge();
+	m_DeadObjects.RemoveAll();
 }
 
 void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {

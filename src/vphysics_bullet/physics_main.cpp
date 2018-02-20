@@ -5,6 +5,7 @@
 #include "physics_collide.h"
 #include "physics_environment.h"
 #include "physics_objecthash.h"
+#include "vphysics/collision_set.h"
 #include "tier1/tier1.h"
 #include "tier1/utlvector.h"
 #ifdef WIN32
@@ -50,20 +51,52 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 }
 #endif
 
+class CPhysicsCollisionSet : public IPhysicsCollisionSet {
+public:
+	CPhysicsCollisionSet();
+
+	virtual void EnableCollisions(int index0, int index1);
+	virtual void DisableCollisions(int index0, int index1);
+	virtual bool ShouldCollide(int index0, int index1);
+
+private:
+	uint32 m_Set[32];
+};
+
+CPhysicsCollisionSet::CPhysicsCollisionSet() {
+	memset(m_Set, 0, sizeof(m_Set));
+}
+
+void CPhysicsCollisionSet::EnableCollisions(int index0, int index1) {
+	m_Set[index0] |= ((uint32) 1) << index1;
+	m_Set[index1] |= ((uint32) 1) << index0;
+}
+
+void CPhysicsCollisionSet::DisableCollisions(int index0, int index1) {
+	m_Set[index0] &= ~(((uint32) 1) << index1);
+	m_Set[index1] &= ~(((uint32) 1) << index0);
+}
+
+bool CPhysicsCollisionSet::ShouldCollide(int index0, int index1) {
+	return (m_Set[index0] & (((uint32) 1) << index1)) != 0;
+}
+
 class CPhysicsInterface : public CTier1AppSystem<IPhysics> {
 public:
 	virtual void *QueryInterface(const char *pInterfaceName);
+
 	virtual IPhysicsEnvironment *CreateEnvironment();
 	virtual void DestroyEnvironment(IPhysicsEnvironment *pEnvironment);
 	virtual IPhysicsEnvironment *GetActiveEnvironmentByIndex(int index);
 	/* DUMMY */ virtual IPhysicsObjectPairHash *CreateObjectPairHash() { return new CPhysicsObjectPairHash; }
-	/* DUMMY */ virtual void DestroyObjectPairHash(IPhysicsObjectPairHash *pHash) { delete pHash; }
-	/* DUMMY */ virtual IPhysicsCollisionSet *FindOrCreateCollisionSet(unsigned int id, int maxElementCount) { return nullptr; }
-	/* DUMMY */ virtual IPhysicsCollisionSet *FindCollisionSet(unsigned int id) { return nullptr; }
-	/* DUMMY */ virtual void DestroyAllCollisionSets() {}
+	/* DUMMY */ virtual void DestroyObjectPairHash(IPhysicsObjectPairHash *pHash) { delete static_cast<CPhysicsObjectPairHash *>(pHash); }
+	virtual IPhysicsCollisionSet *FindOrCreateCollisionSet(unsigned int id, int maxElementCount);
+	virtual IPhysicsCollisionSet *FindCollisionSet(unsigned int id);
+	virtual void DestroyAllCollisionSets();
 
 private:
 	CUtlVector<IPhysicsEnvironment *> m_Environments;
+	btHashMap<btHashInt, IPhysicsCollisionSet *> m_CollisionSets;
 };
 
 static CPhysicsInterface s_MainDLLInterface;
@@ -90,4 +123,26 @@ IPhysicsEnvironment *CPhysicsInterface::GetActiveEnvironmentByIndex(int index) {
 		return nullptr;
 	}
 	return m_Environments[index];
+}
+
+IPhysicsCollisionSet *CPhysicsInterface::FindOrCreateCollisionSet(unsigned int id, int maxElementCount) {
+	IPhysicsCollisionSet * const *setPointer = m_CollisionSets.find((btHashInt) id);
+	if (setPointer == nullptr) {
+		m_CollisionSets.insert((btHashInt) id, new CPhysicsCollisionSet);
+		setPointer = m_CollisionSets.find((btHashInt) id);
+	}
+	return *setPointer;
+}
+
+IPhysicsCollisionSet *CPhysicsInterface::FindCollisionSet(unsigned int id) {
+	IPhysicsCollisionSet * const *setPointer = m_CollisionSets.find((btHashInt) id);
+	return (setPointer != nullptr ? *setPointer : nullptr);
+}
+
+void CPhysicsInterface::DestroyAllCollisionSets() {
+	int setCount = m_CollisionSets.size();
+	for (int setIndex = 0; setIndex < setCount; ++setIndex) {
+		delete *m_CollisionSets.getAtIndex(setIndex);
+	}
+	m_CollisionSets.clear();
 }
