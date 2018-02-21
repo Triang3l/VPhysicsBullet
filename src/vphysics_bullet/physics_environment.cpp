@@ -103,7 +103,7 @@ CPhysicsEnvironment::~CPhysicsEnvironment() {
  ****************/
 
 // A ConVar can't support more than 25 flags because it uses a float! As of February 2018, Bullet has 16.
-static ConVar physics_bullet_debugdrawmode("physics_bullet_debugdrawmode", "0", FCVAR_CHEAT,
+static ConVar physics_bullet_debugmode("physics_bullet_debugmode", "0", FCVAR_CHEAT,
 		"Bullet Physics debug drawer mode flags. Refer to LinearMath/btIDebugDraw::DebugDrawModes for bit meanings.",
 		true, 0.0f, true, (float) (((btIDebugDraw::DBG_MAX_DEBUG_DRAW_MODE - 1) << 1) - 1));
 
@@ -135,7 +135,7 @@ void CPhysicsEnvironment::DebugDrawer::setDebugMode(int debugMode) {
 }
 
 int CPhysicsEnvironment::DebugDrawer::getDebugMode() const {
-	return physics_bullet_debugdrawmode.GetInt();
+	return physics_bullet_debugmode.GetInt();
 }
 
 void CPhysicsEnvironment::DebugDrawer::draw3dText(const btVector3 &location, const char *textString) {
