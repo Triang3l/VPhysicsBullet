@@ -49,7 +49,7 @@ private:
 		CUtlSymbol m_Name;
 		surfacedata_t m_Data;
 	};
-	CUtlFixedLinkedList<Surface_t> m_Surfaces;
+	CUtlVector<Surface_t> m_Surfaces;
 	struct SurfaceDictEntry_t {
 		CUtlSymbol m_Symbol;
 		int m_Index;
