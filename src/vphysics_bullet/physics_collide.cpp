@@ -1317,7 +1317,9 @@ bool CPhysicsCollision::IsBoxIntersectingCone(
 		btScalar addSingleResult(btManifoldPoint &cp,
 				const btCollisionObjectWrapper *colObj0Wrap, int partId0, int index0,
 				const btCollisionObjectWrapper *colObj1Wrap, int partId1, int index1) {
-			m_Hit = true;
+			if (cp.getDistance() < -VPHYSICS_CONVEX_DISTANCE_MARGIN) {
+				m_Hit = true;
+			}
 			return 0.0f;
 		}
 	};

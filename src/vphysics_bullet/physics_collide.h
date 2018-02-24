@@ -687,9 +687,15 @@ private:
 				const btCollisionObjectWrapper *colObj0Wrap, int partId0, int index0,
 				const btCollisionObjectWrapper *colObj1Wrap, int partId1, int index1) {
 			btScalar distance = cp.getDistance();
+
+			// Testing penetration, not touches.
+			if (distance > -VPHYSICS_CONVEX_DISTANCE_MARGIN) {
+				return 0.0f;
+			}
+
 			// The contact closest to the surface has the most accurate hit point and normal.
 			if (distance <= m_ShallowestHitDistance) {
-				return distance;
+				return 0.0f;
 			}
 
 			btVector3 hitNormal, hitPoint;
@@ -710,7 +716,7 @@ private:
 			if (m_ContentsFilter != nullptr) {
 				contents = m_ContentsFilter->Hit(hitChildIndex);
 				if (contents == 0) {
-					return distance;
+					return 0.0f;
 				}
 			}
 
@@ -719,7 +725,7 @@ private:
 			m_ShallowestHitNormal = hitNormal;
 			m_ShallowestHitPoint = hitPoint;
 			m_ShallowestHitContents = hitChildIndex;
-			return distance;
+			return 0.0f;
 		}
 
 		void Reset() {
