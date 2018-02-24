@@ -36,8 +36,6 @@ void VPhysicsInit() {
 
 	btAlignedAllocSetCustom(VPhysicsBulletAlloc, VPhysicsBulletFree);
 	btAlignedAllocSetCustomAligned(VPhysicsBulletAlignedAlloc, VPhysicsBulletFree);
-
-	gContactBreakingThreshold = HL2BULLET(2.0f);
 }
 
 #ifdef WIN32

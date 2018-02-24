@@ -689,7 +689,7 @@ private:
 			btScalar distance = cp.getDistance();
 
 			// Testing penetration, not touches.
-			if (distance > -VPHYSICS_CONVEX_DISTANCE_MARGIN) {
+			if (distance > -2.0f * VPHYSICS_CONVEX_DISTANCE_MARGIN) {
 				return 0.0f;
 			}
 

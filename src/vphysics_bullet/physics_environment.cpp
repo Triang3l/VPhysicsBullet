@@ -58,10 +58,8 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 
 	m_DynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = VPHYSICS_CONVEX_DISTANCE_MARGIN;
 	btContactSolverInfo &solverInfo = m_DynamicsWorld->getSolverInfo();
-	solverInfo.m_erp = 0.8f;
-	solverInfo.m_erp2 = 1.0f;
-	solverInfo.m_splitImpulsePenetrationThreshold = -0.25f * VPHYSICS_CONVEX_DISTANCE_MARGIN;
-	solverInfo.m_splitImpulseTurnErp = 0.5f * solverInfo.m_erp2;
+	solverInfo.m_erp2 = 0.4f;
+	solverInfo.m_splitImpulsePenetrationThreshold = 0.5f * VPHYSICS_CONVEX_DISTANCE_MARGIN;
 
 	m_TriggerTouches.SetLessFunc(TriggerTouchLessFunc);
 

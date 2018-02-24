@@ -1076,8 +1076,6 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 		btVector3 halfExtents;
 		ConvertPositionToBullet(ray.m_Extents, halfExtents);
 		m_TraceBoxShape.setImplicitShapeDimensions(halfExtents.absolute());
-		// TODO: Check if the size needs to be exact (inner margin rather than outer).
-		// Probably not because of allowed penetration (which has the same value as the margin).
 	}
 
 	// Target shape.
@@ -1140,7 +1138,7 @@ void CPhysicsCollision::TraceBox(const Ray_t &ray, unsigned int contentsMask,
 			btCollisionWorld::objectQuerySingle(
 					&m_TraceBoxShape, btTransform::getIdentity(), rayToTransform,
 					&m_TraceCollisionObject, colObjShape, colObjWorldTransform, convexTestResult,
-					VPHYSICS_CONVEX_DISTANCE_MARGIN);
+					2.0f * VPHYSICS_CONVEX_DISTANCE_MARGIN);
 			if (convexTestResult.m_HitCollisionObject != nullptr) {
 				ptr->fraction = convexTestResult.m_closestHitFraction;
 				hitNormal = convexTestResult.m_ClosestHitNormal;
@@ -1246,7 +1244,7 @@ void CPhysicsCollision::TraceCollide(const Vector &start, const Vector &end,
 						static_cast<const btConvexShape *>(testCompoundShape->getChildShape(childIndex)),
 						rayFromTransform, rayToTransform,
 						&m_TraceCollisionObject, colObjShape, colObjWorldTransform,
-						convexTestResult, VPHYSICS_CONVEX_DISTANCE_MARGIN);
+						convexTestResult, 2.0f * VPHYSICS_CONVEX_DISTANCE_MARGIN);
 				if (convexTestResult.m_HitCollisionObject != nullptr) {
 					ptr->fraction *= convexTestResult.m_closestHitFraction;
 					childRayDelta *= convexTestResult.m_closestHitFraction;
@@ -1261,7 +1259,7 @@ void CPhysicsCollision::TraceCollide(const Vector &start, const Vector &end,
 			btCollisionWorld::objectQuerySingle(
 					static_cast<const btConvexShape *>(testShape), rayFromTransform, rayToTransform,
 					&m_TraceCollisionObject, colObjShape, colObjWorldTransform,
-					convexTestResult, VPHYSICS_CONVEX_DISTANCE_MARGIN);
+					convexTestResult, 2.0f * VPHYSICS_CONVEX_DISTANCE_MARGIN);
 			if (convexTestResult.m_HitCollisionObject != nullptr) {
 				ptr->fraction = convexTestResult.m_closestHitFraction;
 				hitNormal = convexTestResult.m_ClosestHitNormal;
@@ -1317,7 +1315,7 @@ bool CPhysicsCollision::IsBoxIntersectingCone(
 		btScalar addSingleResult(btManifoldPoint &cp,
 				const btCollisionObjectWrapper *colObj0Wrap, int partId0, int index0,
 				const btCollisionObjectWrapper *colObj1Wrap, int partId1, int index1) {
-			if (cp.getDistance() < -VPHYSICS_CONVEX_DISTANCE_MARGIN) {
+			if (cp.getDistance() < -2.0f * VPHYSICS_CONVEX_DISTANCE_MARGIN) {
 				m_Hit = true;
 			}
 			return 0.0f;
