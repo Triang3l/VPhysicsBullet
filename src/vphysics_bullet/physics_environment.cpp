@@ -245,10 +245,10 @@ const IPhysicsObject **CPhysicsEnvironment::GetObjectList(int *pOutputObjectCoun
 	return const_cast<const IPhysicsObject **>(m_Objects.Base());
 }
 
-void CPhysicsEnvironment::UpdateObjectInterpolation() {
+void CPhysicsEnvironment::UpdateNonStaticObjectsAfterPSI() {
 	int objectCount = m_NonStaticObjects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
-		static_cast<CPhysicsObject *>(m_NonStaticObjects[objectIndex])->UpdateInterpolation();
+		static_cast<CPhysicsObject *>(m_NonStaticObjects[objectIndex])->UpdateAfterPSI();
 	}
 }
 
@@ -486,7 +486,7 @@ void CPhysicsEnvironment::Simulate(float deltaTime) {
 		int objectCount = m_ActiveNonStaticObjects.Count();
 		for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
 			CPhysicsObject *object = static_cast<CPhysicsObject *>(m_ActiveNonStaticObjects[objectIndex]);
-			object->InterpolateWorldTransform();
+			object->InterpolateBetweenPSIs();
 		}
 	}
 	if (!m_QueueDeleteObject) {
@@ -521,7 +521,7 @@ void CPhysicsEnvironment::ResetSimulationClock() {
 	// Move interpolated transforms to the last PSI.
 	int objectCount = m_NonStaticObjects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
-		static_cast<CPhysicsObject *>(m_NonStaticObjects[objectIndex])->InterpolateWorldTransform();
+		static_cast<CPhysicsObject *>(m_NonStaticObjects[objectIndex])->InterpolateBetweenPSIs();
 	}
 }
 
@@ -580,7 +580,7 @@ void CPhysicsEnvironment::TickCallback(btDynamicsWorld *world, btScalar timeStep
 	CPhysicsEnvironment *environment = reinterpret_cast<CPhysicsEnvironment *>(world->getWorldUserInfo());
 	environment->CheckTriggerTouches();
 	environment->UpdateActiveObjects();
-	environment->UpdateObjectInterpolation();
+	environment->UpdateNonStaticObjectsAfterPSI();
 	environment->m_InSimulation = false;
 }
 

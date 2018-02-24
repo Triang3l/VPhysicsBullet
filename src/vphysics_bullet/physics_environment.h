@@ -181,7 +181,7 @@ private:
 
 	void AddObject(IPhysicsObject *object);
 	void UpdateActiveObjects();
-	void UpdateObjectInterpolation();
+	void UpdateNonStaticObjectsAfterPSI();
 	CUtlVector<IPhysicsObject *> m_Objects; // Doesn't include objects in the deletion queue!
 	CUtlVector<IPhysicsObject *> m_NonStaticObjects;
 	CUtlVector<IPhysicsObject *> m_ActiveNonStaticObjects;

@@ -219,8 +219,9 @@ public:
 		return m_TouchingTriggers > 0;
 	}
 
-	void UpdateInterpolation(); // Called in the end of each PSI.
-	void InterpolateWorldTransform();
+	void UpdateAfterPSI(); // Only called for non-static objects.
+
+	void InterpolateBetweenPSIs();
 
 	void NotifyTransferred(IPhysicsEnvironment *newEnvironment);
 
@@ -285,9 +286,8 @@ private:
 
 	int m_TouchingTriggers;
 
-	// Interpolation between PSIs for non-static objects.
-	btTransform m_InterpolationWorldTransform;
-	btVector3 m_InterpolationLinearVelocity, m_InterpolationAngularVelocity;
+	btTransform m_InterPSIWorldTransform;
+	btVector3 m_InterPSILinearVelocity, m_InterPSIAngularVelocity;
 };
 
 #endif

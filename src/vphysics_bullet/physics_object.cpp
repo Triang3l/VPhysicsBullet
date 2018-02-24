@@ -38,8 +38,8 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_LinearVelocityChange(0.0f, 0.0f, 0.0f),
 		m_LocalAngularVelocityChange(0.0f, 0.0f, 0.0f),
 		m_TouchingTriggers(0),
-		m_InterpolationLinearVelocity(0.0f, 0.0f, 0.0f),
-		m_InterpolationAngularVelocity(0.0f, 0.0f, 0.0f) {
+		m_InterPSILinearVelocity(0.0f, 0.0f, 0.0f),
+		m_InterPSIAngularVelocity(0.0f, 0.0f, 0.0f) {
 	if (params->pName != nullptr) {
 		V_strncpy(m_Name, params->pName, sizeof(m_Name));
 	} else {
@@ -81,7 +81,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	btTransform &startWorldTransform = constructionInfo.m_startWorldTransform;
 	ConvertMatrixToBullet(startMatrix, startWorldTransform);
 	startWorldTransform.getOrigin() += startWorldTransform.getBasis() * massCenter;
-	m_InterpolationWorldTransform = startWorldTransform;
+	m_InterPSIWorldTransform = startWorldTransform;
 
 	m_RigidBody = new(btAlignedAlloc(sizeof(btRigidBody), 16)) btRigidBody(constructionInfo);
 	m_RigidBody->setUserPointer(this);
@@ -274,8 +274,8 @@ void CPhysicsObject::EnableMotion(bool enable) {
 	m_LinearVelocityChange.setZero();
 	m_LocalAngularVelocityChange.setZero();
 	// Freeze in place if called externally, don't wait for the next PSI.
-	m_InterpolationLinearVelocity.setZero();
-	m_InterpolationAngularVelocity.setZero();
+	m_InterPSILinearVelocity.setZero();
+	m_InterPSIAngularVelocity.setZero();
 
 	UpdateMassProps();
 }
@@ -618,9 +618,9 @@ void CPhysicsObject::SetPosition(const Vector &worldPosition, const QAngle &angl
 	if (!IsStatic()) {
 		m_RigidBody->setAngularVelocity(transform.getBasis() * localAngularVelocity);
 		if (!m_Environment->IsInSimulation()) {
-			m_InterpolationAngularVelocity = transform.getBasis() *
-					(m_InterpolationAngularVelocity * oldBasis);
-			InterpolateWorldTransform();
+			m_InterPSIAngularVelocity = transform.getBasis() *
+					(m_InterPSIAngularVelocity * oldBasis);
+			InterpolateBetweenPSIs();
 		}
 	}
 }
@@ -645,16 +645,16 @@ void CPhysicsObject::SetPositionMatrix(const matrix3x4_t &matrix, bool isTelepor
 	if (!IsStatic()) {
 		m_RigidBody->setAngularVelocity(transform.getBasis() * localAngularVelocity);
 		if (!m_Environment->IsInSimulation()) {
-			m_InterpolationAngularVelocity = transform.getBasis() *
-					(m_InterpolationAngularVelocity * oldBasis);
-			InterpolateWorldTransform();
+			m_InterPSIAngularVelocity = transform.getBasis() *
+					(m_InterPSIAngularVelocity * oldBasis);
+			InterpolateBetweenPSIs();
 		}
 	}
 }
 
 void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
 	const btTransform &transform = ((IsStatic() || m_Environment->IsInSimulation()) ?
-			m_RigidBody->getWorldTransform() : m_InterpolationWorldTransform);
+			m_RigidBody->getWorldTransform() : m_InterPSIWorldTransform);
 	const btMatrix3x3 &basis = transform.getBasis();
 	if (worldPosition != nullptr) {
 		ConvertPositionToHL(transform.getOrigin() - (basis * GetBulletMassCenter()), *worldPosition);
@@ -666,7 +666,7 @@ void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
 
 void CPhysicsObject::GetPositionMatrix(matrix3x4_t *positionMatrix) const {
 	const btTransform &transform = ((IsStatic() || m_Environment->IsInSimulation()) ?
-			m_RigidBody->getWorldTransform() : m_InterpolationWorldTransform);
+			m_RigidBody->getWorldTransform() : m_InterPSIWorldTransform);
 	const btMatrix3x3 &basis = transform.getBasis();
 	btVector3 origin = transform.getOrigin() - (basis * GetBulletMassCenter());
 	ConvertMatrixToHL(basis, origin, *positionMatrix);
@@ -700,20 +700,19 @@ void CPhysicsObject::WorldToLocalVector(Vector *localVector, const Vector &world
 	VectorIRotate(Vector(worldVector), matrix, *localVector);
 }
 
-void CPhysicsObject::UpdateInterpolation() {
-	m_InterpolationLinearVelocity = m_RigidBody->getLinearVelocity();
-	m_InterpolationAngularVelocity = m_RigidBody->getAngularVelocity();
-	// For any actions between two PSIs.
-	m_InterpolationWorldTransform = m_RigidBody->getWorldTransform();
+void CPhysicsObject::UpdateAfterPSI() {
+	m_InterPSIWorldTransform = m_RigidBody->getWorldTransform();
+	m_InterPSILinearVelocity = m_RigidBody->getLinearVelocity();
+	m_InterPSIAngularVelocity = m_RigidBody->getAngularVelocity();
 }
 
-void CPhysicsObject::InterpolateWorldTransform() {
+void CPhysicsObject::InterpolateBetweenPSIs() {
 	// For non-moving objects, the transform was already updated at the end of the PSI.
-	if (!m_InterpolationLinearVelocity.isZero() || !m_InterpolationAngularVelocity.isZero()) {
+	if (!m_InterPSILinearVelocity.isZero() || !m_InterPSIAngularVelocity.isZero()) {
 		btTransformUtil::integrateTransform(m_RigidBody->getWorldTransform(),
-				m_InterpolationLinearVelocity, m_InterpolationAngularVelocity,
+				m_InterPSILinearVelocity, m_InterPSIAngularVelocity,
 				static_cast<const CPhysicsEnvironment *>(m_Environment)->GetTimeSinceLastPSI(),
-				m_InterpolationWorldTransform);
+				m_InterPSIWorldTransform);
 	}
 }
 
@@ -783,7 +782,7 @@ void CPhysicsObject::SetVelocityInstantaneous(const Vector *velocity, const Angu
 		btClamp(bulletVelocity[2], -maxSpeed, maxSpeed);
 		m_RigidBody->setLinearVelocity(bulletVelocity);
 		m_LinearVelocityChange.setZero();
-		m_InterpolationLinearVelocity = bulletVelocity;
+		m_InterPSILinearVelocity = bulletVelocity;
 		wake = (wake || !bulletVelocity.isZero());
 	}
 	if (angularVelocity != nullptr) {
@@ -796,7 +795,7 @@ void CPhysicsObject::SetVelocityInstantaneous(const Vector *velocity, const Angu
 		bulletAngularVelocity = m_RigidBody->getWorldTransform().getBasis() * bulletAngularVelocity;
 		m_RigidBody->setAngularVelocity(bulletAngularVelocity);
 		m_LocalAngularVelocityChange.setZero();
-		m_InterpolationAngularVelocity = bulletAngularVelocity;
+		m_InterPSIAngularVelocity = bulletAngularVelocity;
 		wake = (wake || !bulletAngularVelocity.isZero());
 	}
 	if (wake) {
@@ -1095,7 +1094,7 @@ void CPhysicsObject::StepUp(btScalar height) {
 	m_RigidBody->setInterpolationWorldTransform(transform);
 	// In case this is called outside a PSI.
 	if (!IsStatic() && m_Environment->IsInSimulation()) {
-		m_InterpolationWorldTransform.getOrigin()[1] += height;
+		m_InterPSIWorldTransform.getOrigin()[1] += height;
 	}
 }
 
