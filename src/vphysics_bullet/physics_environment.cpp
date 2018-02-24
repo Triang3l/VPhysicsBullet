@@ -594,15 +594,13 @@ void CPhysicsEnvironment::SetCollisionSolver(IPhysicsCollisionSolver *pSolver) {
 	// IVP VPhysics assumes this too.
 }
 
-bool CPhysicsEnvironment::OverlapFilterCallback::needBroadphaseCollision(
-		btBroadphaseProxy *proxy0, btBroadphaseProxy *proxy1) const {
-	if (proxy0->m_clientObject == nullptr || proxy1->m_clientObject == nullptr) {
+bool CPhysicsEnvironment::NeedCollision(const btCollisionObject *collisionObject0,
+		const btCollisionObject *collisionObject1) {
+	if (collisionObject0 == nullptr || collisionObject1 == nullptr) {
+		// In case client objects in needBroadphaseCollision are null.
 		return false;
 	}
 
-	// Two static objects shouldn't collide.
-	btCollisionObject *collisionObject0 = reinterpret_cast<btCollisionObject *>(proxy0->m_clientObject);
-	btCollisionObject *collisionObject1 = reinterpret_cast<btCollisionObject *>(proxy1->m_clientObject);
 	if (collisionObject0->isStaticObject() && collisionObject1->isStaticObject()) {
 		return false;
 	}
@@ -618,9 +616,7 @@ bool CPhysicsEnvironment::OverlapFilterCallback::needBroadphaseCollision(
 		return false;
 	}
 
-	// TODO: Pairs.
-
-	if (m_Environment->m_CollisionSolver != nullptr) {
+	if (m_CollisionSolver != nullptr) {
 		unsigned int callbackFlags0 = object0->GetCallbackFlags();
 		unsigned int callbackFlags1 = object1->GetCallbackFlags();
 		if ((callbackFlags0 & CALLBACK_ENABLING_COLLISION) && (callbackFlags1 & CALLBACK_MARKED_FOR_DELETE)) {
@@ -629,15 +625,20 @@ bool CPhysicsEnvironment::OverlapFilterCallback::needBroadphaseCollision(
 		if ((callbackFlags1 & CALLBACK_ENABLING_COLLISION) && (callbackFlags0 & CALLBACK_MARKED_FOR_DELETE)) {
 			return false;
 		}
-		if (!m_Environment->m_CollisionSolver->ShouldCollide(object0, object1,
+		if (!m_CollisionSolver->ShouldCollide(object0, object1,
 				object0->GetGameData(), object1->GetGameData())) {
 			return false;
 		}
 	}
 
-	// Fall back to the default behavior of Bullet (though the static-static case is already handled).
-	return (proxy0->m_collisionFilterGroup & proxy1->m_collisionFilterMask) &&
-			(proxy1->m_collisionFilterGroup & proxy0->m_collisionFilterMask);
+	return true;
+}
+
+bool CPhysicsEnvironment::OverlapFilterCallback::needBroadphaseCollision(
+		btBroadphaseProxy *proxy0, btBroadphaseProxy *proxy1) const {
+	return m_Environment->NeedCollision(
+			reinterpret_cast<const btCollisionObject *>(proxy0->m_clientObject),
+			reinterpret_cast<const btCollisionObject *>(proxy1->m_clientObject));
 }
 
 void CPhysicsEnvironment::SetCollisionEventHandler(IPhysicsCollisionEvent *pCollisionEvents) {
