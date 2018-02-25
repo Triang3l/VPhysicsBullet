@@ -34,7 +34,8 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_LastPSITime(0.0f), m_TimeSinceLastPSI(0.0f),
 		m_CollisionSolver(nullptr), m_OverlapFilterCallback(this),
 		m_CollisionEvents(nullptr),
-		m_HighestActiveFrictionSnapshot(-1) {
+		m_HighestActiveFrictionSnapshot(-1),
+		m_ConstraintQuickDelete(false) {
 	m_PerformanceSettings.Defaults();
 
 	m_CollisionConfiguration = new(btAlignedAlloc(sizeof(btDefaultCollisionConfiguration), 16))
@@ -273,6 +274,12 @@ void CPhysicsEnvironment::DestroyObject(IPhysicsObject *pObject) {
 }
 
 void CPhysicsEnvironment::CleanupDeleteList() {
+	int constraintCount = m_DeadConstraints.Count();
+	for (int constraintIndex = 0; constraintIndex < constraintCount; ++constraintIndex) {
+		DeleteConstraint(m_DeadConstraints[constraintIndex]);
+	}
+	m_DeadConstraints.RemoveAll();
+
 	int objectCount = m_DeadObjects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
 		delete m_DeadObjects[objectIndex];
@@ -282,6 +289,20 @@ void CPhysicsEnvironment::CleanupDeleteList() {
 
 void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {
 	CPhysicsObject *physicsObject = static_cast<CPhysicsObject *>(object);
+
+	if (physicsObject->IsAttachedToConstraint(false)) {
+		for (int constraintIndex = m_DynamicsWorld->getNumConstraints() - 1; constraintIndex >= 0; --constraintIndex) {
+			btTypedConstraint *constraint = m_DynamicsWorld->getConstraint(constraintIndex);
+			if (constraint->getRigidBodyA().getUserPointer() == object ||
+					constraint->getRigidBodyB().getUserPointer() == object) {
+				// Force remove it - if it's fine to destroy objects, it's fine to remove constraints too.
+				static_cast<CPhysicsConstraint *>(reinterpret_cast<IPhysicsConstraint *>(
+						constraint->getUserConstraintPtr()))->MakeInvalid();
+				m_DynamicsWorld->removeConstraint(constraint);
+			}
+		}
+		physicsObject->NotifyAllConstraintsRemoved();
+	}
 
 	int playerCount = m_PlayerControllers.Count();
 	for (int playerIndex = 0; playerIndex < playerCount; ++playerIndex) {
@@ -367,8 +388,10 @@ float CPhysicsEnvironment::GetAirDensity() const {
 	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
 }
 
-/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateHingeConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_hingeparams_t &hinge) {
-	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+IPhysicsConstraint *CPhysicsEnvironment::CreateHingeConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_hingeparams_t &hinge) {
+	IPhysicsConstraint *constraint = new CPhysicsConstraint_Hinge(pReferenceObject, pAttachedObject, hinge);
+	AddConstraint(constraint);
+	return constraint;
 }
 
 /* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateFixedConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_fixedparams_t &fixed) {
@@ -391,8 +414,16 @@ float CPhysicsEnvironment::GetAirDensity() const {
 	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
 }
 
-/* DUMMY */ void CPhysicsEnvironment::DestroyConstraint(IPhysicsConstraint *pConstraint) {
-	delete pConstraint;
+void CPhysicsEnvironment::DestroyConstraint(IPhysicsConstraint *pConstraint) {
+	if (pConstraint == nullptr) {
+		return;
+	}
+	if (!IsInSimulation() || m_ConstraintQuickDelete) {
+		DeleteConstraint(pConstraint);
+	} else {
+		pConstraint->Deactivate();
+		m_DeadConstraints.AddToTail(pConstraint);
+	}
 }
 
 /* DUMMY */ IPhysicsConstraintGroup *CPhysicsEnvironment::CreateConstraintGroup(const constraint_groupparams_t &groupParams) {
@@ -401,6 +432,28 @@ float CPhysicsEnvironment::GetAirDensity() const {
 
 /* DUMMY */ void CPhysicsEnvironment::DestroyConstraintGroup(IPhysicsConstraintGroup *pGroup) {
 	delete pGroup;
+}
+
+void CPhysicsEnvironment::AddConstraint(IPhysicsConstraint *constraint) {
+	btTypedConstraint *bulletConstraint = static_cast<CPhysicsConstraint *>(
+			constraint)->GetBulletConstraint();
+	if (bulletConstraint == nullptr) {
+		return;
+	}
+	m_DynamicsWorld->addConstraint(bulletConstraint);
+	static_cast<CPhysicsObject *>(constraint->GetReferenceObject())->NotifyConstraintAdded();
+	static_cast<CPhysicsObject *>(constraint->GetAttachedObject())->NotifyConstraintAdded();
+}
+
+void CPhysicsEnvironment::DeleteConstraint(IPhysicsConstraint *constraint) {
+	CPhysicsConstraint *physicsConstraint = static_cast<CPhysicsConstraint *>(constraint);
+	btTypedConstraint *bulletConstraint = physicsConstraint->GetBulletConstraint();
+	if (bulletConstraint != nullptr) {
+		m_DynamicsWorld->removeConstraint(bulletConstraint);
+		static_cast<CPhysicsObject *>(constraint->GetReferenceObject())->NotifyConstraintRemoved();
+		static_cast<CPhysicsObject *>(constraint->GetAttachedObject())->NotifyConstraintRemoved();
+	}
+	delete constraint;
 }
 
 /**************

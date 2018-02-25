@@ -47,13 +47,13 @@ public:
 	/* DUMMY */ virtual void DestroySpring(IPhysicsSpring *pSpring);
 
 	/* DUMMY */ virtual IPhysicsConstraint *CreateRagdollConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_ragdollparams_t &ragdoll);
-	/* DUMMY */ virtual IPhysicsConstraint *CreateHingeConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_hingeparams_t &hinge);
+	virtual IPhysicsConstraint *CreateHingeConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_hingeparams_t &hinge);
 	/* DUMMY */ virtual IPhysicsConstraint *CreateFixedConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_fixedparams_t &fixed);
 	/* DUMMY */ virtual IPhysicsConstraint *CreateSlidingConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_slidingparams_t &sliding);
 	/* DUMMY */ virtual IPhysicsConstraint *CreateBallsocketConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_ballsocketparams_t &ballsocket);
 	/* DUMMY */ virtual IPhysicsConstraint *CreatePulleyConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_pulleyparams_t &pulley);
 	/* DUMMY */ virtual IPhysicsConstraint *CreateLengthConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_lengthparams_t &length);
-	/* DUMMY */ virtual void DestroyConstraint(IPhysicsConstraint *pConstraint);
+	virtual void DestroyConstraint(IPhysicsConstraint *pConstraint);
 
 	/* DUMMY */ virtual IPhysicsConstraintGroup *CreateConstraintGroup(const constraint_groupparams_t &groupParams);
 	/* DUMMY */ virtual void DestroyConstraintGroup(IPhysicsConstraintGroup *pGroup);
@@ -146,6 +146,9 @@ public:
 	void DestroyFrictionSnapshot(IPhysicsFrictionSnapshot *snapshot);
 
 	void NotifyTriggerRemoved(IPhysicsObject *trigger);
+
+	void AddConstraint(IPhysicsConstraint *constraint);
+	void DeleteConstraint(IPhysicsConstraint *constraint);
 
 	FORCEINLINE btScalar GetMaxSpeed() const {
 		return HL2BULLET(m_PerformanceSettings.maxVelocity);
@@ -246,6 +249,9 @@ private:
 	}
 	CUtlRBTree<TriggerTouch_t> m_TriggerTouches;
 	void CheckTriggerTouches();
+
+	bool m_ConstraintQuickDelete;
+	CUtlVector<IPhysicsConstraint *> m_DeadConstraints;
 
 	physics_performanceparams_t m_PerformanceSettings;
 };

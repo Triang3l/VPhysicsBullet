@@ -30,6 +30,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_ContentsMask(CONTENTS_SOLID),
 		m_Shadow(nullptr), m_Player(nullptr),
 		m_CollisionEnabled(params->enableCollisions),
+		m_ConstraintCount(0),
 		m_GameData(params->pGameData), m_GameFlags(0), m_GameIndex(0),
 		m_Callbacks(CALLBACK_GLOBAL_COLLISION | CALLBACK_GLOBAL_FRICTION |
 				CALLBACK_FLUID_TOUCH | CALLBACK_GLOBAL_TOUCH |
@@ -1289,4 +1290,13 @@ void CPhysicsObject::RemoveReferenceFromCollide() {
 	GetCollide()->RemoveObjectReference(this);
 	m_CollideObjectNext->m_CollideObjectPrevious = m_CollideObjectPrevious;
 	m_CollideObjectPrevious->m_CollideObjectNext = m_CollideObjectNext;
+}
+
+/**************
+ * Constraints
+ **************/
+
+bool CPhysicsObject::IsAttachedToConstraint(bool bExternalOnly) const {
+	// TODO: bExternalOnly.
+	return m_ConstraintCount > 0;
 }

@@ -29,7 +29,7 @@ public:
 	virtual bool IsDragEnabled() const;
 	virtual bool IsMotionEnabled() const;
 	virtual bool IsMoveable() const;
-	/* DUMMY */ virtual bool IsAttachedToConstraint(bool bExternalOnly) const { return false; }
+	virtual bool IsAttachedToConstraint(bool bExternalOnly) const;
 
 	virtual void EnableCollisions(bool enable);
 	virtual void EnableGravity(bool enable);
@@ -219,6 +219,17 @@ public:
 		return m_TouchingTriggers > 0;
 	}
 
+	FORCEINLINE void NotifyConstraintAdded() {
+		++m_ConstraintCount;
+	}
+	FORCEINLINE void NotifyConstraintRemoved() {
+		Assert(m_ConstraintCount > 0);
+		--m_ConstraintCount;
+	}
+	FORCEINLINE void NotifyAllConstraintsRemoved() {
+		m_ConstraintCount = 0;
+	}
+
 	void UpdateAfterPSI(); // Only called for non-static objects.
 
 	void InterpolateBetweenPSIs();
@@ -267,6 +278,8 @@ private:
 	IPhysicsPlayerController *m_Player;
 
 	bool m_CollisionEnabled;
+
+	int m_ConstraintCount;
 
 	void *m_GameData;
 	unsigned short m_GameFlags;

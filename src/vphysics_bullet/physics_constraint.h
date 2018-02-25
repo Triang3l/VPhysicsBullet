@@ -11,12 +11,12 @@ class CPhysicsConstraint : public IPhysicsConstraint {
 public:
 	BT_DECLARE_ALIGNED_ALLOCATOR()
 
-	CPhysicsConstraint(IPhysicsObject *referenceObject, IPhysicsObject *attachedObject) :
-			m_ObjectReference(referenceObject), m_ObjectAttached(attachedObject),
-			m_GameData(nullptr) {}
+	CPhysicsConstraint(IPhysicsObject *objectReference, IPhysicsObject *objectAttached);
 
-	/* DUMMY */ virtual void Activate() {}
-	/* DUMMY */ virtual void Deactivate() {}
+	// IPhysicsConstraint methods.
+
+	virtual void Activate();
+	virtual void Deactivate();
 	virtual void SetGameData(void *gameData);
 	virtual void *GetGameData() const;
 	virtual IPhysicsObject *GetReferenceObject() const;
@@ -43,10 +43,28 @@ public:
 	}
 	/* DUMMY */ virtual void OutputDebugInfo() {}
 
-private:
-	IPhysicsObject *m_ObjectReference, *m_ObjectAttached;
+	// Internal methods.
 
+	FORCEINLINE btTypedConstraint *GetBulletConstraint() const { return m_Constraint; }
+
+	void MakeInvalid();
+
+protected:
+	btTypedConstraint *m_Constraint;
+	void InitializeBulletConstraint(const constraint_breakableparams_t &params);
+
+	IPhysicsObject *m_ObjectReference, *m_ObjectAttached;
+	FORCEINLINE bool AreObjectsValid() const { return m_ObjectAttached != nullptr; }
+
+private:
 	void *m_GameData;
+};
+
+class CPhysicsConstraint_Hinge : public CPhysicsConstraint {
+public:
+	CPhysicsConstraint_Hinge(
+			IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
+			const constraint_hingeparams_t &params);
 };
 
 class CPhysicsConstraintGroup : public IPhysicsConstraintGroup {
