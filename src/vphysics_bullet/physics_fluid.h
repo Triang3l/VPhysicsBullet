@@ -8,7 +8,7 @@
 
 class CPhysicsFluidController : public IPhysicsFluidController {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR();
+	BT_DECLARE_ALIGNED_ALLOCATOR()
 
 	CPhysicsFluidController(IPhysicsObject *fluidObject, const fluidparams_t *params);
 

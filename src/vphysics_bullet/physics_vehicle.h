@@ -9,7 +9,7 @@
 
 class CPhysicsVehicleController : public IPhysicsVehicleController {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR();
+	BT_DECLARE_ALIGNED_ALLOCATOR()
 
 	CPhysicsVehicleController(const vehicleparams_t &params);
 

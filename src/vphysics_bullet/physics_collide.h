@@ -111,7 +111,7 @@ struct VCollide_IVP_Compact_Surface {
 
 class CPhysConvex {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR();
+	BT_DECLARE_ALIGNED_ALLOCATOR()
 
 	enum Owner {
 		OWNER_GAME, // Created and by the game, not added to a compound collideable yet.
@@ -250,7 +250,7 @@ private:
 
 class CPhysCollide {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR();
+	BT_DECLARE_ALIGNED_ALLOCATOR()
 
 	virtual ~CPhysCollide() {}
 
@@ -358,7 +358,7 @@ private:
 
 class CPhysPolysoup {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR();
+	BT_DECLARE_ALIGNED_ALLOCATOR()
 
 	~CPhysPolysoup();
 	void AddTriangle(HullLibrary &hullLibrary,
@@ -454,7 +454,7 @@ private:
 
 class CPhysicsCollision : public IPhysicsCollision {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR();
+	BT_DECLARE_ALIGNED_ALLOCATOR()
 
 	CPhysicsCollision();
 	virtual ~CPhysicsCollision();
