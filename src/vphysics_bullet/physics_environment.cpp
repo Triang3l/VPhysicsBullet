@@ -40,6 +40,7 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 
 	m_CollisionConfiguration = new(btAlignedAlloc(sizeof(btDefaultCollisionConfiguration), 16))
 			btDefaultCollisionConfiguration;
+	m_CollisionConfiguration->setConvexConvexMultipointIterations(); // Stability - very important.
 	m_Dispatcher = new(btAlignedAlloc(sizeof(btCollisionDispatcher), 16))
 			btCollisionDispatcher(m_CollisionConfiguration);
 	m_Broadphase = new(btAlignedAlloc(sizeof(btDbvtBroadphase), 16))
@@ -59,8 +60,10 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 
 	m_DynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = VPHYSICS_CONVEX_DISTANCE_MARGIN;
 	btContactSolverInfo &solverInfo = m_DynamicsWorld->getSolverInfo();
-	solverInfo.m_erp2 = 0.4f;
-	solverInfo.m_splitImpulsePenetrationThreshold = 0.5f * VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	// Stability.
+	solverInfo.m_erp = 0.4f;
+	solverInfo.m_erp2 = 0.6f;
+	solverInfo.m_splitImpulsePenetrationThreshold = -0.5f * VPHYSICS_CONVEX_DISTANCE_MARGIN;
 
 	m_TriggerTouches.SetLessFunc(TriggerTouchLessFunc);
 
