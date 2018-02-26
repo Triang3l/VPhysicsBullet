@@ -22,7 +22,7 @@ public:
 	virtual IPhysicsObject *GetReferenceObject() const;
 	virtual IPhysicsObject *GetAttachedObject() const;
 	/* DUMMY */ virtual void SetLinearMotor(float speed, float maxLinearImpulse) {}
-	/* DUMMY */ virtual void SetAngularMotor(float rotSpeed, float maxAngularImpulse) {}
+	virtual void SetAngularMotor(float rotSpeed, float maxAngularImpulse) {}
 	/* DUMMY */ virtual void UpdateRagdollTransforms(
 			const matrix3x4_t &constraintToReference, const matrix3x4_t &constraintToAttached) {}
 	/* DUMMY */ virtual bool GetConstraintTransform(
@@ -65,6 +65,7 @@ public:
 	CPhysicsConstraint_Hinge(
 			IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
 			const constraint_hingeparams_t &params);
+	virtual void SetAngularMotor(float rotSpeed, float maxAngularImpulse);
 };
 
 class CPhysicsConstraintGroup : public IPhysicsConstraintGroup {

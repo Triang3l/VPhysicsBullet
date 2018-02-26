@@ -88,3 +88,8 @@ CPhysicsConstraint_Hinge::CPhysicsConstraint_Hinge(
 			worldAxisDirection * transformA.getBasis(), worldAxisDirection * transformB.getBasis());
 	InitializeBulletConstraint(params.constraint);
 }
+
+void CPhysicsConstraint_Hinge::SetAngularMotor(float rotSpeed, float maxAngularImpulse) {
+	static_cast<btHingeConstraint *>(m_Constraint)->enableAngularMotor(
+			rotSpeed != 0.0f, DEG2RAD(rotSpeed), DEG2RAD(maxAngularImpulse));
+}
