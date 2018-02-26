@@ -93,5 +93,5 @@ void CPhysicsMotionController::Simulate(IPhysicsObject *object, btScalar timeSte
 					result == IMotionEvent::SIM_GLOBAL_FORCE,
 			result == IMotionEvent::SIM_GLOBAL_FORCE ||
 					result == IMotionEvent::SIM_LOCAL_FORCE,
-			bulletLinear, bulletAngular);
+			bulletLinear * timeStep, bulletAngular * timeStep);
 }
