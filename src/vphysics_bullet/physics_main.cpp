@@ -13,9 +13,6 @@
 #include <Windows.h>
 #endif
 
-// memdbgon must be the last include file in a .cpp file!!!
-// #include "tier0/memdbgon.h"
-
 static void *VPhysicsBulletAlloc(size_t size) {
 	return MemAlloc_Alloc(size);
 }
@@ -84,8 +81,8 @@ public:
 	virtual IPhysicsEnvironment *CreateEnvironment();
 	virtual void DestroyEnvironment(IPhysicsEnvironment *pEnvironment);
 	virtual IPhysicsEnvironment *GetActiveEnvironmentByIndex(int index);
-	/* DUMMY */ virtual IPhysicsObjectPairHash *CreateObjectPairHash() { return new CPhysicsObjectPairHash; }
-	/* DUMMY */ virtual void DestroyObjectPairHash(IPhysicsObjectPairHash *pHash) { delete static_cast<CPhysicsObjectPairHash *>(pHash); }
+	/* DUMMY */ virtual IPhysicsObjectPairHash *CreateObjectPairHash() { return VPhysicsNew(CPhysicsObjectPairHash); }
+	/* DUMMY */ virtual void DestroyObjectPairHash(IPhysicsObjectPairHash *pHash) { VPhysicsDelete(CPhysicsObjectPairHash, pHash); }
 	virtual IPhysicsCollisionSet *FindOrCreateCollisionSet(unsigned int id, int maxElementCount);
 	virtual IPhysicsCollisionSet *FindCollisionSet(unsigned int id);
 	virtual void DestroyAllCollisionSets();
@@ -104,14 +101,14 @@ void *CPhysicsInterface::QueryInterface(const char *pInterfaceName) {
 }
 
 IPhysicsEnvironment *CPhysicsInterface::CreateEnvironment() {
-	IPhysicsEnvironment *environment = new CPhysicsEnvironment;
+	IPhysicsEnvironment *environment = VPhysicsNew(CPhysicsEnvironment);
 	m_Environments.AddToTail(environment);
 	return environment;
 }
 
 void CPhysicsInterface::DestroyEnvironment(IPhysicsEnvironment *pEnvironment) {
 	m_Environments.FindAndRemove(pEnvironment);
-	delete pEnvironment;
+	VPhysicsDelete(CPhysicsEnvironment, pEnvironment);
 }
 
 IPhysicsEnvironment *CPhysicsInterface::GetActiveEnvironmentByIndex(int index) {
@@ -124,7 +121,7 @@ IPhysicsEnvironment *CPhysicsInterface::GetActiveEnvironmentByIndex(int index) {
 IPhysicsCollisionSet *CPhysicsInterface::FindOrCreateCollisionSet(unsigned int id, int maxElementCount) {
 	IPhysicsCollisionSet * const *setPointer = m_CollisionSets.find((btHashInt) id);
 	if (setPointer == nullptr) {
-		m_CollisionSets.insert((btHashInt) id, new CPhysicsCollisionSet);
+		m_CollisionSets.insert((btHashInt) id, VPhysicsNew(CPhysicsCollisionSet));
 		setPointer = m_CollisionSets.find((btHashInt) id);
 	}
 	return *setPointer;
@@ -138,7 +135,7 @@ IPhysicsCollisionSet *CPhysicsInterface::FindCollisionSet(unsigned int id) {
 void CPhysicsInterface::DestroyAllCollisionSets() {
 	int setCount = m_CollisionSets.size();
 	for (int setIndex = 0; setIndex < setCount; ++setIndex) {
-		delete *m_CollisionSets.getAtIndex(setIndex);
+		VPhysicsDelete(CPhysicsCollisionSet, *m_CollisionSets.getAtIndex(setIndex));
 	}
 	m_CollisionSets.clear();
 }

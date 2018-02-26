@@ -9,8 +9,6 @@
 
 class CPhysicsConstraint : public IPhysicsConstraint {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR()
-
 	CPhysicsConstraint(IPhysicsObject *objectReference, IPhysicsObject *objectAttached);
 
 	// IPhysicsConstraint methods.
@@ -45,19 +43,32 @@ public:
 
 	// Internal methods.
 
-	FORCEINLINE btTypedConstraint *GetBulletConstraint() const { return m_Constraint; }
+	virtual btTypedConstraint *GetBulletConstraint() const = 0;
 
-	void MakeInvalid();
+	void MakeInvalid(); // Safe to call when the constraint is already invalid.
+
+	virtual void DeleteSelf() = 0;
 
 protected:
-	btTypedConstraint *m_Constraint;
 	void InitializeBulletConstraint(const constraint_breakableparams_t &params);
 
 	IPhysicsObject *m_ObjectReference, *m_ObjectAttached;
 	FORCEINLINE bool AreObjectsValid() const { return m_ObjectAttached != nullptr; }
 
+	virtual void DeleteBulletConstraint() = 0; // May be called when the constraint is null.
+
 private:
 	void *m_GameData;
+};
+
+/* DUMMY */ class CPhysicsConstraint_Dummy : public CPhysicsConstraint {
+public:
+	/* DUMMY */ CPhysicsConstraint_Dummy(IPhysicsObject *objectReference, IPhysicsObject *objectAttached) :
+			CPhysicsConstraint(objectReference, objectAttached) {}
+	/* DUMMY */ virtual btTypedConstraint *GetBulletConstraint() const { return nullptr; }
+	/* DUMMY */ virtual void DeleteSelf() { VPhysicsDelete(CPhysicsConstraint_Dummy, this); }
+protected:
+	/* DUMMY */ virtual void DeleteBulletConstraint() {}
 };
 
 class CPhysicsConstraint_Hinge : public CPhysicsConstraint {
@@ -65,7 +76,14 @@ public:
 	CPhysicsConstraint_Hinge(
 			IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
 			const constraint_hingeparams_t &params);
+	virtual ~CPhysicsConstraint_Hinge();
 	virtual void SetAngularMotor(float rotSpeed, float maxAngularImpulse);
+	virtual btTypedConstraint *GetBulletConstraint() const;
+	virtual void DeleteSelf();
+protected:
+	virtual void DeleteBulletConstraint();
+private:
+	btHingeConstraint *m_Constraint;
 };
 
 class CPhysicsConstraintGroup : public IPhysicsConstraintGroup {

@@ -3,9 +3,6 @@
 
 #include "physics_vehicle.h"
 
-// memdbgon must be the last include file in a .cpp file!!!
-// #include "tier0/memdbgon.h"
-
 CPhysicsVehicleController::CPhysicsVehicleController(const vehicleparams_t &params) :
 		m_VehicleParameters(params) {
 	memset(&m_OperatingParameters, 0, sizeof(m_OperatingParameters));

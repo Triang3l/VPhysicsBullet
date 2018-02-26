@@ -5,9 +5,6 @@
 #include "physics_environment.h"
 #include "physics_object.h"
 
-// memdbgon must be the last include file in a .cpp file!!!
-// #include "tier0/memdbgon.h"
-
 CPhysicsShadowController::CPhysicsShadowController(IPhysicsObject *object,
 			bool allowTranslation, bool allowRotation) :
 		m_Object(object),

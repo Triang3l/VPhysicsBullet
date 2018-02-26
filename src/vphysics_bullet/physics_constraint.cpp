@@ -4,11 +4,8 @@
 #include "physics_constraint.h"
 #include "physics_object.h"
 
-// memdbgon must be the last include file in a .cpp file!!!
-// #include "tier0/memdbgon.h"
-
 CPhysicsConstraint::CPhysicsConstraint(IPhysicsObject *objectReference, IPhysicsObject *objectAttached) :
-		m_Constraint(nullptr), m_GameData(nullptr) {
+		m_GameData(nullptr) {
 	if (objectReference == nullptr || objectAttached == nullptr ||
 			objectReference == objectAttached || objectAttached->IsStatic()) {
 		objectReference = nullptr;
@@ -19,14 +16,16 @@ CPhysicsConstraint::CPhysicsConstraint(IPhysicsObject *objectReference, IPhysics
 }
 
 void CPhysicsConstraint::Activate() {
-	if (m_Constraint != nullptr) {
-		m_Constraint->setEnabled(true);
+	btTypedConstraint *constraint = GetBulletConstraint();
+	if (constraint != nullptr) {
+		constraint->setEnabled(true);
 	}
 }
 
 void CPhysicsConstraint::Deactivate() {
-	if (m_Constraint != nullptr) {
-		m_Constraint->setEnabled(false);
+	btTypedConstraint *constraint = GetBulletConstraint();
+	if (constraint != nullptr) {
+		constraint->setEnabled(false);
 	}
 }
 
@@ -47,17 +46,13 @@ IPhysicsObject *CPhysicsConstraint::GetAttachedObject() const {
 }
 
 void CPhysicsConstraint::InitializeBulletConstraint(const constraint_breakableparams_t &params) {
-	m_Constraint->setUserConstraintPtr(static_cast<IPhysicsConstraint *>(this));
-	m_Constraint->setEnabled(params.isActive);
+	btTypedConstraint *constraint = GetBulletConstraint();
+	constraint->setUserConstraintPtr(static_cast<IPhysicsConstraint *>(this));
+	constraint->setEnabled(params.isActive);
 }
 
 void CPhysicsConstraint::MakeInvalid() {
-	if (m_Constraint == nullptr) {
-		return;
-	}
-	m_Constraint->~btTypedConstraint();
-	btAlignedFree(m_Constraint);
-	m_Constraint = nullptr;
+	DeleteBulletConstraint();
 	m_ObjectAttached = m_ObjectReference = nullptr;
 }
 
@@ -82,14 +77,29 @@ CPhysicsConstraint_Hinge::CPhysicsConstraint_Hinge(
 	ConvertPositionToBullet(params.worldPosition, worldPosition);
 	ConvertDirectionToBullet(params.worldAxisDirection, worldAxisDirection);
 
-	m_Constraint = new(btAlignedAlloc(sizeof(btHingeConstraint), 16))
-			btHingeConstraint(*rigidBodyA, *rigidBodyB,
+	m_Constraint = VPhysicsNew(btHingeConstraint, *rigidBodyA, *rigidBodyB,
 			transformA.invXform(worldPosition), transformB.invXform(worldPosition),
 			worldAxisDirection * transformA.getBasis(), worldAxisDirection * transformB.getBasis());
 	InitializeBulletConstraint(params.constraint);
 }
 
+btTypedConstraint *CPhysicsConstraint_Hinge::GetBulletConstraint() const {
+	return m_Constraint;
+}
+
 void CPhysicsConstraint_Hinge::SetAngularMotor(float rotSpeed, float maxAngularImpulse) {
-	static_cast<btHingeConstraint *>(m_Constraint)->enableAngularMotor(
-			rotSpeed != 0.0f, DEG2RAD(rotSpeed), btFabs(DEG2RAD(maxAngularImpulse)));
+	m_Constraint->enableAngularMotor(rotSpeed != 0.0f, DEG2RAD(rotSpeed), btFabs(DEG2RAD(maxAngularImpulse)));
+}
+
+void CPhysicsConstraint_Hinge::DeleteBulletConstraint() {
+	VPhysicsDelete(btHingeConstraint, m_Constraint);
+	m_Constraint = nullptr;
+}
+
+void CPhysicsConstraint_Hinge::DeleteSelf() {
+	VPhysicsDelete(CPhysicsConstraint_Hinge, this);
+}
+
+CPhysicsConstraint_Hinge::~CPhysicsConstraint_Hinge() {
+	DeleteBulletConstraint();
 }

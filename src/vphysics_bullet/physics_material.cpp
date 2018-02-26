@@ -4,9 +4,6 @@
 #include "physics_material.h"
 #include "physics_parse.h"
 
-// memdbgon must be the last include file in a .cpp file!!!
-// #include "tier0/memdbgon.h"
-
 static CPhysicsSurfaceProps s_PhysSurfaceProps;
 CPhysicsSurfaceProps *g_pPhysSurfaceProps = &s_PhysSurfaceProps;
 EXPOSE_SINGLE_INTERFACE_GLOBALVAR(CPhysicsSurfaceProps, IPhysicsSurfaceProps,

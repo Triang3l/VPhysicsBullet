@@ -9,9 +9,6 @@
 #include "mathlib/vplane.h"
 #include "tier0/dbg.h"
 
-// memdbgon must be the last include file in a .cpp file!!!
-// #include "tier0/memdbgon.h"
-
 static CPhysicsCollision s_PhysCollision;
 CPhysicsCollision *g_pPhysCollision = &s_PhysCollision;
 EXPOSE_SINGLE_INTERFACE_GLOBALVAR(CPhysicsCollision, IPhysicsCollision,
@@ -25,25 +22,18 @@ CPhysicsCollision::CPhysicsCollision() :
 	m_TraceBoxShape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
 	m_TraceConeShape.setMargin(VPHYSICS_CONVEX_DISTANCE_MARGIN);
 
-	m_ContactTestCollisionConfiguration = new(btAlignedAlloc(sizeof(btDefaultCollisionConfiguration), 16))
-			btDefaultCollisionConfiguration();
-	m_ContactTestDispatcher = new(btAlignedAlloc(sizeof(btCollisionDispatcher), 16))
-			btCollisionDispatcher(m_ContactTestCollisionConfiguration);
-	m_ContactTestBroadphase = new(btAlignedAlloc(sizeof(btSimpleBroadphase), 16))
-			btSimpleBroadphase(2); // 0 is dangerous as it's array size.
-	m_ContactTestCollisionWorld = new(btAlignedAlloc(sizeof(btCollisionWorld), 16))
-			btCollisionWorld(m_ContactTestDispatcher, m_ContactTestBroadphase, m_ContactTestCollisionConfiguration);
+	m_ContactTestCollisionConfiguration = VPhysicsNew(btDefaultCollisionConfiguration);
+	m_ContactTestDispatcher = VPhysicsNew(btCollisionDispatcher, m_ContactTestCollisionConfiguration);
+	m_ContactTestBroadphase = VPhysicsNew(btSimpleBroadphase, 2); // 0 is dangerous as it's array size.
+	m_ContactTestCollisionWorld = VPhysicsNew(btCollisionWorld,
+			m_ContactTestDispatcher, m_ContactTestBroadphase, m_ContactTestCollisionConfiguration);
 }
 
 CPhysicsCollision::~CPhysicsCollision() {
-	m_ContactTestCollisionWorld->~btCollisionWorld();
-	btAlignedFree(m_ContactTestCollisionWorld);
-	m_ContactTestBroadphase->~btSimpleBroadphase();
-	btAlignedFree(m_ContactTestBroadphase);
-	m_ContactTestDispatcher->~btCollisionDispatcher();
-	btAlignedFree(m_ContactTestDispatcher);
-	m_ContactTestCollisionConfiguration->~btDefaultCollisionConfiguration();
-	btAlignedFree(m_ContactTestCollisionConfiguration);
+	VPhysicsDelete(btCollisionWorld, m_ContactTestCollisionWorld);
+	VPhysicsDelete(btSimpleBroadphase, m_ContactTestBroadphase);
+	VPhysicsDelete(btCollisionDispatcher, m_ContactTestDispatcher);
+	VPhysicsDelete(btDefaultCollisionConfiguration, m_ContactTestCollisionConfiguration);
 
 	int sphereCount = m_SphereCache.Count();
 	for (int sphereIndex = 0; sphereIndex < sphereCount; ++sphereIndex) {
@@ -53,7 +43,7 @@ CPhysicsCollision::~CPhysicsCollision() {
 			DevMsg("Freed sphere collision model while in use!!!\n");
 			continue;
 		}
-		delete sphere;
+		sphere->DeleteSelf();
 	}
 
 	int bboxCount = m_BBoxCache.Count();
@@ -67,8 +57,8 @@ CPhysicsCollision::~CPhysicsCollision() {
 		// A bbox may be a part of other compounds, but there's no way to check that.
 		CPhysConvex *bboxConvex = reinterpret_cast<CPhysConvex *>(
 				bboxCompound->GetCompoundShape()->getChildShape(0)->getUserPointer());
-		delete bboxCompound;
-		delete bboxConvex;
+		bboxCompound->DeleteSelf();
+		bboxConvex->DeleteSelf();
 	}
 }
 
@@ -183,7 +173,7 @@ void CPhysicsCollision::SetConvexGameData(CPhysConvex *pConvex, unsigned int gam
 
 void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
 	if (pConvex->GetOwner() == CPhysConvex::OWNER_GAME) {
-		delete pConvex;
+		pConvex->DeleteSelf();
 	}
 }
 
@@ -289,7 +279,7 @@ CPhysConvex_Hull *CPhysConvex_Hull::CreateFromBulletPoints(
 		AssertMsg(false, "Convex hull creation failed");
 		return nullptr;
 	}
-	return new CPhysConvex_Hull(&hull.m_OutputVertices[0], hull.mNumOutputVertices,
+	return VPhysicsNew(CPhysConvex_Hull, &hull.m_OutputVertices[0], hull.mNumOutputVertices,
 			&hull.m_Indices[0], hull.mNumFaces);
 }
 
@@ -348,7 +338,7 @@ CPhysConvex_Hull *CPhysicsCollision::CreateConvexHullFromIVPCompactLedge(
 
 	m_IVPPointMap.RemoveAll();
 
-	CPhysConvex_Hull *hull = new CPhysConvex_Hull(&m_SwappedAndRemappedIVPTriangles[0], triangleCount,
+	CPhysConvex_Hull *hull = VPhysicsNew(CPhysConvex_Hull, &m_SwappedAndRemappedIVPTriangles[0], triangleCount,
 			&points[0], points.size(), swappedLedge.client_data);
 	m_SwappedAndRemappedIVPTriangles.RemoveAll();
 	return hull;
@@ -675,6 +665,10 @@ void CPhysConvex_Hull::CalculateTrianglePlanes() {
 	}
 }
 
+void CPhysConvex_Hull::DeleteSelf() {
+	VPhysicsDelete(CPhysConvex_Hull, this);
+}
+
 CPhysConvex *CPhysicsCollision::ConvexFromVerts(Vector **pVerts, int vertCount) {
 	btAlignedObjectArray<btVector3> &pointArray = g_pPhysCollision->GetHullCreationPointArray();
 	pointArray.resizeNoInitialize(vertCount);
@@ -713,7 +707,7 @@ CPhysConvex *CPhysicsCollision::ConvexFromConvexPolyhedron(const CPolyhedron &Co
 	for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex) {
 		ConvertPositionToBullet(verts[vertIndex], points[vertIndex]);
 	}
-	return new CPhysConvex_Hull(points, vertCount, ConvexPolyhedron);
+	return VPhysicsNew(CPhysConvex_Hull, points, vertCount, ConvexPolyhedron);
 }
 
 /***********************************************
@@ -780,6 +774,10 @@ void CPhysConvex_Box::GetTriangleVertices(int triangleIndex, btVector3 vertices[
 	}
 }
 
+void CPhysConvex_Box::DeleteSelf() {
+	VPhysicsDelete(CPhysConvex_Box, this);
+}
+
 const unsigned int CPhysConvex_Box::s_BoxTriangleIndices[36] = {
 	0, 1, 3,
 	0, 3, 2,
@@ -827,9 +825,9 @@ CPhysCollide_Compound *CPhysicsCollision::CreateBBox(const Vector &mins, const V
 		}
 	}
 
-	CPhysConvex *box = new CPhysConvex_Box(halfExtents, origin);
+	CPhysConvex *box = VPhysicsNew(CPhysConvex_Box, halfExtents, origin);
 	box->SetOwner(CPhysConvex::OWNER_INTERNAL);
-	CPhysCollide_Compound *compound = new CPhysCollide_Compound(&box, 1);
+	CPhysCollide_Compound *compound = VPhysicsNew(CPhysCollide_Compound, &box, 1);
 	compound->SetOwner(CPhysCollide::OWNER_INTERNAL);
 	m_BBoxCache.AddToTail(compound);
 	return compound;
@@ -1052,7 +1050,7 @@ void CPhysicsCollision::DestroyCollide(CPhysCollide *pCollide) {
 		DevMsg("Freed collision model while in use!!!\n");
 		return;
 	}
-	delete pCollide;
+	pCollide->DeleteSelf();
 	CleanupCompoundConvexDeleteQueue();
 }
 
@@ -1422,7 +1420,7 @@ CPhysCollide *CPhysicsCollision::ConvertConvexToCollideParams(CPhysConvex **pCon
 	if (convexCount == 0 || pConvex == nullptr) {
 		return nullptr;
 	}
-	CPhysCollide_Compound *collide = new CPhysCollide_Compound(pConvex, convexCount);
+	CPhysCollide_Compound *collide = VPhysicsNew(CPhysCollide_Compound, pConvex, convexCount);
 	if (convertParams.buildDragAxisAreas) {
 		collide->ComputeOrthographicAreas(HL2BULLET(sqrtf(MAX(convertParams.dragAreaEpsilon, 0.25f))));
 	}
@@ -1430,20 +1428,18 @@ CPhysCollide *CPhysicsCollision::ConvertConvexToCollideParams(CPhysConvex **pCon
 }
 
 CPhysPolysoup *CPhysicsCollision::PolysoupCreate() {
-	return new CPhysPolysoup;
+	return VPhysicsNew(CPhysPolysoup);
 }
 
 CPhysPolysoup::~CPhysPolysoup() {
-	int convexCount = m_Convexes.size();
+	int convexCount = m_Convexes.Count();
 	for (int convexIndex = 0; convexIndex < convexCount; ++convexIndex) {
 		g_pPhysCollision->ConvexFree(m_Convexes[convexIndex]);
 	}
 }
 
 void CPhysicsCollision::PolysoupDestroy(CPhysPolysoup *pSoup) {
-	if (pSoup != nullptr) {
-		delete pSoup;
-	}
+	VPhysicsDelete(CPhysPolysoup, pSoup);
 }
 
 void CPhysPolysoup::AddTriangle(HullLibrary &hullLibrary,
@@ -1459,7 +1455,7 @@ void CPhysPolysoup::AddTriangle(HullLibrary &hullLibrary,
 		return;
 	}
 	convex->SetTriangleMaterialIndex(0, materialIndex7bits);
-	m_Convexes.push_back(convex);
+	m_Convexes.AddToTail(convex);
 }
 
 void CPhysicsCollision::PolysoupAddTriangle(CPhysPolysoup *pSoup,
@@ -1468,12 +1464,12 @@ void CPhysicsCollision::PolysoupAddTriangle(CPhysPolysoup *pSoup,
 }
 
 CPhysCollide *CPhysPolysoup::ConvertToCollide() {
-	int convexCount = m_Convexes.size();
+	int convexCount = m_Convexes.Count();
 	if (convexCount == 0) {
 		return nullptr;
 	}
-	CPhysCollide *collide = new CPhysCollide_Compound(&m_Convexes[0], convexCount);
-	m_Convexes.resizeNoInitialize(0);
+	CPhysCollide *collide = VPhysicsNew(CPhysCollide_Compound, &m_Convexes[0], convexCount);
+	m_Convexes.RemoveAll();
 	return collide;
 }
 
@@ -1660,11 +1656,11 @@ void CCollisionQuery::SetTriangleMaterialIndex(int convexIndex, int triangleInde
 }
 
 ICollisionQuery *CPhysicsCollision::CreateQueryModel(CPhysCollide *pCollide) {
-	return new CCollisionQuery(pCollide);
+	return VPhysicsNew(CCollisionQuery, pCollide);
 }
 
 void CPhysicsCollision::DestroyQueryModel(ICollisionQuery *pQuery) {
-	delete pQuery;
+	VPhysicsDelete(CCollisionQuery, pQuery);
 }
 
 CPhysCollide_Compound::~CPhysCollide_Compound() {
@@ -1675,6 +1671,10 @@ CPhysCollide_Compound::~CPhysCollide_Compound() {
 	}
 }
 
+void CPhysCollide_Compound::DeleteSelf() {
+	VPhysicsDelete(CPhysCollide_Compound, this);
+}
+
 void CPhysicsCollision::AddCompoundConvexToDeleteQueue(CPhysConvex *convex) {
 	if (convex->GetOwner() == CPhysConvex::OWNER_COMPOUND) {
 		m_CompoundConvexDeleteQueue.AddToTail(convex);
@@ -1683,7 +1683,7 @@ void CPhysicsCollision::AddCompoundConvexToDeleteQueue(CPhysConvex *convex) {
 
 void CPhysicsCollision::CleanupCompoundConvexDeleteQueue() {
 	for (int convexIndex = m_CompoundConvexDeleteQueue.Size() - 1; convexIndex >= 0; --convexIndex) {
-		delete m_CompoundConvexDeleteQueue[convexIndex];
+		m_CompoundConvexDeleteQueue[convexIndex]->DeleteSelf();
 		m_CompoundConvexDeleteQueue.FastRemove(convexIndex);
 	}
 }
@@ -1710,7 +1710,7 @@ CPhysCollide_Sphere *CPhysicsCollision::CreateCachedSphereCollide(btScalar radiu
 			freeCollide->SetRadius(radius);
 			collide = freeCollide;
 		} else {
-			collide = new CPhysCollide_Sphere(radius);
+			collide = VPhysicsNew(CPhysCollide_Sphere, radius);
 			collide->SetOwner(CPhysCollide::OWNER_INTERNAL);
 			m_SphereCache.AddToTail(collide);
 		}
@@ -1762,6 +1762,10 @@ btScalar CPhysCollide_Sphere::GetSubmergedVolume(const btVector4 &plane, btVecto
 
 void CPhysCollide_Sphere::ComputeOrthographicAreas(btScalar axisEpsilon) {
 	SetOrthographicAreas(btVector3(0.25f * SIMD_PI, 0.25f * SIMD_PI, 0.25f * SIMD_PI));
+}
+
+void CPhysCollide_Sphere::DeleteSelf() {
+	VPhysicsDelete(CPhysCollide_Sphere, this);
 }
 
 /**************************
@@ -1819,13 +1823,17 @@ btScalar CPhysCollide_TriangleMesh::GetSurfaceArea() const {
 	return 0.5f * area;
 }
 
+void CPhysCollide_TriangleMesh::DeleteSelf() {
+	VPhysicsDelete(CPhysCollide_TriangleMesh, this);
+}
+
 CPhysCollide *CPhysicsCollision::CreateVirtualMesh(const virtualmeshparams_t &params) {
 	if (params.pMeshEventHandler == nullptr) {
 		return nullptr;
 	}
 	virtualmeshlist_t virtualMesh;
 	params.pMeshEventHandler->GetVirtualMesh(params.userData, &virtualMesh);
-	return new CPhysCollide_TriangleMesh(virtualMesh);
+	return VPhysicsNew(CPhysCollide_TriangleMesh, virtualMesh);
 }
 
 bool CPhysicsCollision::SupportsVirtualMesh() {
@@ -1844,7 +1852,7 @@ CPhysCollide *CPhysicsCollision::UnserializeIVPCompactSurface(
 	if (swappedSurface.dummy[2] != VCOLLIDE_IVP_COMPACT_SURFACE_ID) {
 		return nullptr;
 	}
-	return new CPhysCollide_Compound(
+	return VPhysicsNew(CPhysCollide_Compound,
 			reinterpret_cast<const VCollide_IVP_Compact_Ledgetree_Node *>(
 					reinterpret_cast<const byte *>(surface) + swappedSurface.offset_ledgetree_root),
 			byteswap,
@@ -1898,7 +1906,7 @@ void CPhysicsCollision::VCollideLoad(vcollide_t *pOutput,
 			int solidCount, const char *pBuffer, int size, bool swap) {
 	memset(pOutput, 0, sizeof(*pOutput));
 	pOutput->solidCount = solidCount;
-	pOutput->solids = new CPhysCollide *[solidCount];
+	pOutput->solids = new CPhysCollide *[solidCount]; // Safe.
 	int position = 0;
 	for (int solidIndex = 0; solidIndex < solidCount; ++solidIndex) {
 		union {
@@ -1918,7 +1926,7 @@ void CPhysicsCollision::VCollideLoad(vcollide_t *pOutput,
 		position += solidSize;
 	}
 	int keySize = size - position;
-	pOutput->pKeyValues = new char[keySize];
+	pOutput->pKeyValues = new char[keySize]; // Safe.
 	memcpy(pOutput->pKeyValues, pBuffer + position, keySize);
 }
 
@@ -1936,18 +1944,18 @@ void CPhysicsCollision::VCollideUnload(vcollide_t *pVCollide) {
 		}
 	}
 	for (int solidIndex = 0; solidIndex < pVCollide->solidCount; ++solidIndex) {
-		delete pVCollide->solids[solidIndex];
+		pVCollide->solids[solidIndex]->DeleteSelf();
 		CleanupCompoundConvexDeleteQueue();
 	}
-	delete[] pVCollide->solids;
-	delete[] pVCollide->pKeyValues;
+	delete[] pVCollide->solids; // Safe.
+	delete[] pVCollide->pKeyValues; // Safe.
 	memset(pVCollide, 0, sizeof(*pVCollide));
 }
 
 IVPhysicsKeyParser *CPhysicsCollision::VPhysicsKeyParserCreate(const char *pKeyData) {
-	return new CVPhysicsKeyParser(pKeyData);
+	return VPhysicsNew(CVPhysicsKeyParser, pKeyData);
 }
 
 void CPhysicsCollision::VPhysicsKeyParserDestroy(IVPhysicsKeyParser *pParser) {
-	delete pParser;
+	VPhysicsDelete(CVPhysicsKeyParser, pParser);
 }

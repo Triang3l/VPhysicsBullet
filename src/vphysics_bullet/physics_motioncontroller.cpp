@@ -4,9 +4,6 @@
 #include "physics_motioncontroller.h"
 #include "physics_object.h"
 
-// memdbgon must be the last include file in a .cpp file!!!
-// #include "tier0/memdbgon.h"
-
 CPhysicsMotionController::~CPhysicsMotionController() {
 	ClearObjects();
 }

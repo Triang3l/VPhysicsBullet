@@ -5,9 +5,6 @@
 #include "physics_environment.h"
 #include "physics_object.h"
 
-// memdbgon must be the last include file in a .cpp file!!!
-// #include "tier0/memdbgon.h"
-
 CPhysicsFrictionSnapshot::CPhysicsFrictionSnapshot() {
 	Reset(nullptr);
 }

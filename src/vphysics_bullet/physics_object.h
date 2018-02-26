@@ -9,8 +9,6 @@
 
 class CPhysicsObject : public IPhysicsObject {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR()
-
 	CPhysicsObject(IPhysicsEnvironment *environment,
 			const CPhysCollide *collide, int materialIndex,
 			const Vector &position, const QAngle &angles,

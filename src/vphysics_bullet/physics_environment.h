@@ -12,8 +12,6 @@
 
 class CPhysicsEnvironment : public IPhysicsEnvironment {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR()
-
 	CPhysicsEnvironment();
 	virtual ~CPhysicsEnvironment();
 

@@ -15,9 +15,6 @@
 #include "const.h"
 #include "tier1/convar.h"
 
-// memdbgon must be the last include file in a .cpp file!!!
-// #include "tier0/memdbgon.h"
-
 #ifdef WIN32
 #pragma warning(push)
 #pragma warning(disable : 4355) // 'this' : used in base member initializer list
@@ -38,17 +35,12 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 		m_ConstraintQuickDelete(false) {
 	m_PerformanceSettings.Defaults();
 
-	m_CollisionConfiguration = new(btAlignedAlloc(sizeof(btDefaultCollisionConfiguration), 16))
-			btDefaultCollisionConfiguration;
+	m_CollisionConfiguration = VPhysicsNew(btDefaultCollisionConfiguration);
 	m_CollisionConfiguration->setConvexConvexMultipointIterations(); // Stability - very important.
-	m_Dispatcher = new(btAlignedAlloc(sizeof(btCollisionDispatcher), 16))
-			btCollisionDispatcher(m_CollisionConfiguration);
-	m_Broadphase = new(btAlignedAlloc(sizeof(btDbvtBroadphase), 16))
-			btDbvtBroadphase;
-	m_Solver = new(btAlignedAlloc(sizeof(btSequentialImpulseConstraintSolver), 16))
-			btSequentialImpulseConstraintSolver;
-	m_DynamicsWorld = new(btAlignedAlloc(sizeof(btDiscreteDynamicsWorld), 16))
-			btDiscreteDynamicsWorld(m_Dispatcher, m_Broadphase, m_Solver, m_CollisionConfiguration);
+	m_Dispatcher = VPhysicsNew(btCollisionDispatcher, m_CollisionConfiguration);
+	m_Broadphase = VPhysicsNew(btDbvtBroadphase);
+	m_Solver = VPhysicsNew(btSequentialImpulseConstraintSolver);
+	m_DynamicsWorld = VPhysicsNew(btDiscreteDynamicsWorld, m_Dispatcher, m_Broadphase, m_Solver, m_CollisionConfiguration);
 	m_DynamicsWorld->setWorldUserInfo(this);
 
 	m_DynamicsWorld->setDebugDrawer(&m_DebugDrawer);
@@ -80,24 +72,19 @@ CPhysicsEnvironment::~CPhysicsEnvironment() {
 	CleanupDeleteList();
 	int objectCount = m_Objects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
-		delete m_Objects[objectIndex];
+		VPhysicsDelete(CPhysicsObject, m_Objects[objectIndex]);
 	}
 
 	int snapshotCount = m_FrictionSnapshots.Count();
 	for (int snapshotIndex = 0; snapshotIndex < snapshotCount; ++snapshotIndex) {
-		delete m_FrictionSnapshots[snapshotIndex];
+		VPhysicsDelete(CPhysicsFrictionSnapshot, m_FrictionSnapshots[snapshotIndex]);
 	}
 
-	m_DynamicsWorld->~btDiscreteDynamicsWorld();
-	btAlignedFree(m_DynamicsWorld);
-	m_Solver->~btSequentialImpulseConstraintSolver();
-	btAlignedFree(m_Solver);
-	m_Broadphase->~btDbvtBroadphase();
-	btAlignedFree(m_Broadphase);
-	m_Dispatcher->~btCollisionDispatcher();
-	btAlignedFree(m_Dispatcher);
-	m_CollisionConfiguration->~btDefaultCollisionConfiguration();
-	btAlignedFree(m_CollisionConfiguration);
+	VPhysicsDelete(btDiscreteDynamicsWorld, m_DynamicsWorld);
+	VPhysicsDelete(btSequentialImpulseConstraintSolver, m_Solver);
+	VPhysicsDelete(btDbvtBroadphase, m_Broadphase);
+	VPhysicsDelete(btCollisionDispatcher, m_Dispatcher);
+	VPhysicsDelete(btDefaultCollisionConfiguration, m_CollisionConfiguration);
 }
 
 /****************
@@ -178,7 +165,7 @@ void CPhysicsEnvironment::AddObject(IPhysicsObject *object) {
 IPhysicsObject *CPhysicsEnvironment::CreatePolyObject(
 		const CPhysCollide *pCollisionModel, int materialIndex,
 		const Vector &position, const QAngle &angles, objectparams_t *pParams) {
-	IPhysicsObject *object = new CPhysicsObject(this, pCollisionModel, materialIndex,
+	IPhysicsObject *object = VPhysicsNew(CPhysicsObject, this, pCollisionModel, materialIndex,
 			position, angles, pParams, false);
 	AddObject(object);
 	return object;
@@ -187,7 +174,7 @@ IPhysicsObject *CPhysicsEnvironment::CreatePolyObject(
 IPhysicsObject *CPhysicsEnvironment::CreatePolyObjectStatic(
 		const CPhysCollide *pCollisionModel, int materialIndex,
 		const Vector &position, const QAngle &angles, objectparams_t *pParams) {
-	IPhysicsObject *object = new CPhysicsObject(this, pCollisionModel, materialIndex,
+	IPhysicsObject *object = VPhysicsNew(CPhysicsObject, this, pCollisionModel, materialIndex,
 			position, angles, pParams, true);
 	AddObject(object);
 	return object;
@@ -195,9 +182,8 @@ IPhysicsObject *CPhysicsEnvironment::CreatePolyObjectStatic(
 
 IPhysicsObject *CPhysicsEnvironment::CreateSphereObject(float radius, int materialIndex,
 		const Vector &position, const QAngle &angles, objectparams_t *pParams, bool isStatic) {
-	IPhysicsObject *object = new CPhysicsObject(this,
-			static_cast<CPhysicsCollision *>(
-					g_pPhysCollision)->CreateCachedSphereCollide(HL2BULLET(radius)),
+	IPhysicsObject *object = VPhysicsNew(CPhysicsObject, this, static_cast<CPhysicsCollision *>(
+			g_pPhysCollision)->CreateCachedSphereCollide(HL2BULLET(radius)),
 			materialIndex, position, angles, pParams, isStatic);
 	AddObject(object);
 	return object;
@@ -272,7 +258,7 @@ void CPhysicsEnvironment::DestroyObject(IPhysicsObject *pObject) {
 		pObject->SetCallbackFlags(pObject->GetCallbackFlags() | CALLBACK_MARKED_FOR_DELETE);
 		m_DeadObjects.AddToTail(pObject);
 	} else {
-		delete pObject;
+		VPhysicsDelete(CPhysicsObject, pObject);
 	}
 }
 
@@ -285,7 +271,7 @@ void CPhysicsEnvironment::CleanupDeleteList() {
 
 	int objectCount = m_DeadObjects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
-		delete m_DeadObjects[objectIndex];
+		VPhysicsDelete(CPhysicsObject, m_DeadObjects[objectIndex]);
 	}
 	m_DeadObjects.RemoveAll();
 }
@@ -380,41 +366,41 @@ float CPhysicsEnvironment::GetAirDensity() const {
 
 /* DUMMY */ IPhysicsSpring *CPhysicsEnvironment::CreateSpring(IPhysicsObject *pObjectStart, IPhysicsObject *pObjectEnd,
 		springparams_t *pParams) {
-	return new CPhysicsSpring(pObjectStart, pObjectEnd, pParams);
+	return VPhysicsNew(CPhysicsSpring, pObjectStart, pObjectEnd, pParams);
 }
 
 /* DUMMY */ void CPhysicsEnvironment::DestroySpring(IPhysicsSpring *pSpring) {
-	delete pSpring;
+	VPhysicsDelete(CPhysicsSpring, pSpring);
 }
 
 /* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateRagdollConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_ragdollparams_t &ragdoll) {
-	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+	return VPhysicsNew(CPhysicsConstraint_Dummy, pReferenceObject, pAttachedObject);
 }
 
 IPhysicsConstraint *CPhysicsEnvironment::CreateHingeConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_hingeparams_t &hinge) {
-	IPhysicsConstraint *constraint = new CPhysicsConstraint_Hinge(pReferenceObject, pAttachedObject, hinge);
+	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Hinge, pReferenceObject, pAttachedObject, hinge);
 	AddConstraint(constraint);
 	return constraint;
 }
 
 /* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateFixedConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_fixedparams_t &fixed) {
-	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+	return VPhysicsNew(CPhysicsConstraint_Dummy, pReferenceObject, pAttachedObject);
 }
 
 /* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateSlidingConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_slidingparams_t &sliding) {
-	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+	return VPhysicsNew(CPhysicsConstraint_Dummy, pReferenceObject, pAttachedObject);
 }
 
 /* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateBallsocketConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_ballsocketparams_t &ballsocket) {
-	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+	return VPhysicsNew(CPhysicsConstraint_Dummy, pReferenceObject, pAttachedObject);
 }
 
 /* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreatePulleyConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_pulleyparams_t &pulley) {
-	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+	return VPhysicsNew(CPhysicsConstraint_Dummy, pReferenceObject, pAttachedObject);
 }
 
 /* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateLengthConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_lengthparams_t &length) {
-	return new CPhysicsConstraint(pReferenceObject, pAttachedObject);
+	return VPhysicsNew(CPhysicsConstraint_Dummy, pReferenceObject, pAttachedObject);
 }
 
 void CPhysicsEnvironment::DestroyConstraint(IPhysicsConstraint *pConstraint) {
@@ -430,11 +416,11 @@ void CPhysicsEnvironment::DestroyConstraint(IPhysicsConstraint *pConstraint) {
 }
 
 /* DUMMY */ IPhysicsConstraintGroup *CPhysicsEnvironment::CreateConstraintGroup(const constraint_groupparams_t &groupParams) {
-	return new CPhysicsConstraintGroup;
+	return VPhysicsNew(CPhysicsConstraintGroup);
 }
 
 /* DUMMY */ void CPhysicsEnvironment::DestroyConstraintGroup(IPhysicsConstraintGroup *pGroup) {
-	delete pGroup;
+	VPhysicsDelete(CPhysicsConstraintGroup, pGroup);
 }
 
 void CPhysicsEnvironment::AddConstraint(IPhysicsConstraint *constraint) {
@@ -456,7 +442,7 @@ void CPhysicsEnvironment::DeleteConstraint(IPhysicsConstraint *constraint) {
 		static_cast<CPhysicsObject *>(constraint->GetReferenceObject())->NotifyConstraintRemoved();
 		static_cast<CPhysicsObject *>(constraint->GetAttachedObject())->NotifyConstraintRemoved();
 	}
-	delete constraint;
+	physicsConstraint->DeleteSelf();
 }
 
 /**************
@@ -465,30 +451,30 @@ void CPhysicsEnvironment::DeleteConstraint(IPhysicsConstraint *constraint) {
 
 /* DUMMY */ IPhysicsFluidController *CPhysicsEnvironment::CreateFluidController(IPhysicsObject *pFluidObject,
 		fluidparams_t *pParams) {
-	return new CPhysicsFluidController(pFluidObject, pParams);
+	return VPhysicsNew(CPhysicsFluidController, pFluidObject, pParams);
 }
 
 /* DUMMY */ void CPhysicsEnvironment::DestroyFluidController(IPhysicsFluidController *pFluid) {
-	delete pFluid;
+	VPhysicsDelete(CPhysicsFluidController, pFluid);
 }
 
 IPhysicsShadowController *CPhysicsEnvironment::CreateShadowController(IPhysicsObject *pObject,
 		bool allowTranslation, bool allowRotation) {
 	pObject->RemoveShadowController();
-	return new CPhysicsShadowController(pObject, allowTranslation, allowRotation);
+	return VPhysicsNew(CPhysicsShadowController, pObject, allowTranslation, allowRotation);
 }
 
 void CPhysicsEnvironment::DestroyShadowController(IPhysicsShadowController *pController) {
-	delete pController;
+	VPhysicsDelete(CPhysicsShadowController, pController);
 }
 
 IPhysicsPlayerController *CPhysicsEnvironment::CreatePlayerController(IPhysicsObject *pObject) {
 	static_cast<CPhysicsObject *>(pObject)->RemovePlayerController();
-	return new CPhysicsPlayerController(pObject);
+	return VPhysicsNew(CPhysicsPlayerController, pObject);
 }
 
 void CPhysicsEnvironment::DestroyPlayerController(IPhysicsPlayerController *pController) {
-	delete pController;
+	VPhysicsDelete(CPhysicsPlayerController, pController);
 }
 
 void CPhysicsEnvironment::NotifyPlayerControllerAttached(IPhysicsPlayerController *controller) {
@@ -500,20 +486,20 @@ void CPhysicsEnvironment::NotifyPlayerControllerDetached(IPhysicsPlayerControlle
 }
 
 IPhysicsMotionController *CPhysicsEnvironment::CreateMotionController(IMotionEvent *pHandler) {
-	return new CPhysicsMotionController(pHandler);
+	return VPhysicsNew(CPhysicsMotionController, pHandler);
 }
 
 void CPhysicsEnvironment::DestroyMotionController(IPhysicsMotionController *pController) {
-	delete pController;
+	VPhysicsDelete(CPhysicsMotionController, pController);
 }
 
 /* DUMMY */ IPhysicsVehicleController *CPhysicsEnvironment::CreateVehicleController(IPhysicsObject *pVehicleBodyObject,
 		const vehicleparams_t &params, unsigned int nVehicleType, IPhysicsGameTrace *pGameTrace) {
-	return new CPhysicsVehicleController(params);
+	return VPhysicsNew(CPhysicsVehicleController, params);
 }
 
 /* DUMMY */ void CPhysicsEnvironment::DestroyVehicleController(IPhysicsVehicleController *pController) {
-	delete pController;
+	VPhysicsDelete(CPhysicsVehicleController, pController);
 }
 
 /*******************
@@ -741,7 +727,7 @@ IPhysicsFrictionSnapshot *CPhysicsEnvironment::CreateFrictionSnapshot(IPhysicsOb
 		}
 	}
 	if (snapshotIndex >= snapshotCount) {
-		m_FrictionSnapshots.AddToTail(new CPhysicsFrictionSnapshot);
+		m_FrictionSnapshots.AddToTail(VPhysicsNew(CPhysicsFrictionSnapshot));
 	}
 	CPhysicsFrictionSnapshot *snapshot = static_cast<CPhysicsFrictionSnapshot *>(
 			m_FrictionSnapshots[snapshotIndex]);

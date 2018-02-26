@@ -5,9 +5,6 @@
 #include "physics_material.h"
 #include "filesystem_helpers.h"
 
-// memdbgon must be the last include file in a .cpp file!!!
-// #include "tier0/memdbgon.h"
-
 const char *CVPhysicsKeyParser::ParseKeyvalue(const char *buffer, char *key, char *value) {
 	buffer = ParseFileInternal(buffer, key, nullptr, nullptr, VPHYSICS_MAX_KEYVALUE);
 	V_strlower(key);

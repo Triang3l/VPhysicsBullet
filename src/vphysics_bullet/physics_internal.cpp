@@ -3,9 +3,6 @@
 
 #include "physics_internal.h"
 
-// memdbgon must be the last include file in a .cpp file!!!
-// #include "tier0/memdbgon.h"
-
 void ConvertMatrixToBullet(const matrix3x4_t &matrix, btTransform &transform) {
 	transform.getBasis().setValue(
 			matrix[0][0], matrix[0][2], -matrix[0][1],

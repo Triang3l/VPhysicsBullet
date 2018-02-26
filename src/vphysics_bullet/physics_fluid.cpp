@@ -4,9 +4,6 @@
 #include "physics_fluid.h"
 #include "physics_material.h"
 
-// memdbgon must be the last include file in a .cpp file!!!
-// #include "tier0/memdbgon.h"
-
 CPhysicsFluidController::CPhysicsFluidController(IPhysicsObject *fluidObject, const fluidparams_t *params) :
 		m_Contents(params->contents),
 		m_GameData(params->pGameData) {

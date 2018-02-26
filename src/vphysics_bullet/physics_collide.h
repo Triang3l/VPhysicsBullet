@@ -111,7 +111,7 @@ struct VCollide_IVP_Compact_Surface {
 
 class CPhysConvex {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR()
+	virtual ~CPhysConvex() {}
 
 	enum Owner {
 		OWNER_GAME, // Created and by the game, not added to a compound collideable yet.
@@ -146,6 +146,8 @@ public:
 	virtual void SetTriangleMaterialIndex(int triangleIndex, int index7bits) {}
 
 	virtual btVector3 GetOriginInCompound() const { return btVector3(0.0f, 0.0f, 0.0f); }
+
+	virtual void DeleteSelf() = 0;
 
 protected:
 	CPhysConvex() : m_Owner(OWNER_GAME) {}
@@ -194,6 +196,8 @@ public:
 	int GetTriangleMaterialIndexAtPoint(const btVector3 &point) const;
 	virtual void SetTriangleMaterialIndex(int triangleIndex, int index7bits);
 
+	virtual void DeleteSelf();
+
 protected:
 	virtual void Initialize();
 
@@ -236,6 +240,8 @@ public:
 
 	virtual btVector3 GetOriginInCompound() const { return m_Origin; }
 
+	virtual void DeleteSelf();
+
 	// These are correctly oriented for the ---, --+, -+-... sequence.
 	static const unsigned int s_BoxTriangleIndices[36];
 
@@ -250,8 +256,6 @@ private:
 
 class CPhysCollide {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR()
-
 	virtual ~CPhysCollide() {}
 
 	enum Owner {
@@ -297,6 +301,8 @@ public:
 	}
 	// For internal use in CPhysicsObject::RemoveReferenceToCollide!
 	void RemoveObjectReference(IPhysicsObject *object);
+
+	virtual void DeleteSelf() = 0;
 
 protected:
 	CPhysCollide(const btVector3 &orthographicAreas = btVector3(1.0f, 1.0f, 1.0f)) :
@@ -347,6 +353,8 @@ public:
 
 	virtual int GetConvexes(CPhysConvex **output, int limit) const;
 
+	virtual void DeleteSelf();
+
 private:
 	btCompoundShape m_Shape;
 
@@ -358,15 +366,12 @@ private:
 
 class CPhysPolysoup {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR()
-
 	~CPhysPolysoup();
 	void AddTriangle(HullLibrary &hullLibrary,
 			const Vector &a, const Vector &b, const Vector &c, int materialIndex7bits);
 	CPhysCollide *ConvertToCollide();
-
 private:
-	btAlignedObjectArray<CPhysConvex *> m_Convexes;
+	CUtlVector<CPhysConvex *> m_Convexes;
 };
 
 class CPhysCollide_Sphere : public CPhysCollide {
@@ -401,6 +406,8 @@ public:
 
 	virtual void ComputeOrthographicAreas(btScalar axisEpsilon);
 
+	virtual void DeleteSelf();
+
 private:
 	btSphereShape m_Shape;
 };
@@ -419,6 +426,8 @@ public:
 	virtual btScalar GetSurfaceArea() const;
 
 	FORCEINLINE int GetSurfacePropsIndex() const { return m_SurfacePropsIndex; }
+
+	virtual void DeleteSelf();
 
 private:
 	class MeshInterface : public btStridingMeshInterface {
@@ -454,8 +463,6 @@ private:
 
 class CPhysicsCollision : public IPhysicsCollision {
 public:
-	BT_DECLARE_ALIGNED_ALLOCATOR()
-
 	CPhysicsCollision();
 	virtual ~CPhysicsCollision();
 

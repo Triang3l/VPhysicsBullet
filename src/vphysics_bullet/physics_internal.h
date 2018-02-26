@@ -8,6 +8,28 @@
 #include <btBulletDynamicsCommon.h>
 #include "mathlib/mathlib.h"
 #include "tier0/memalloc.h"
+#include <utility>
+
+// Bullet types assume 16-byte alignment. While it's the default for Source 2013, things may become messy in Source 2007.
+// memdbgon is not really recommended from this point (at least not tested).
+template<typename Type, typename... Arguments> FORCEINLINE Type *VPhysicsNewImplementation(
+		const char *fileName, int fileLine, Arguments&&... arguments) {
+	void *memblock = MemAlloc_AllocAligned(sizeof(Type), 16, fileName, fileLine);
+	return new(memblock) Type(std::forward<Arguments>(arguments)...);
+}
+#define VPhysicsNew(Type, ...) VPhysicsNewImplementation<Type>(__FILE__, __LINE__, __VA_ARGS__)
+
+// Real creation type needed to make sure the offset and the delete operator are correct.
+template<typename CreationType, typename PointerType> inline void VPhysicsDeleteImplementation(
+		PointerType *memblock, const char *fileName, int fileLine) {
+	if (memblock == nullptr) {
+		return;
+	}
+	CreationType *object = static_cast<CreationType *>(memblock);
+	object->~CreationType();
+	MemAlloc_FreeAligned(object);
+}
+#define VPhysicsDelete(CreationType, memblock) VPhysicsDeleteImplementation<CreationType>(memblock, __FILE__, __LINE__)
 
 #define HL2BULLET_FACTOR METERS_PER_INCH
 #define BULLET2HL_FACTOR (1.0f / HL2BULLET_FACTOR)
