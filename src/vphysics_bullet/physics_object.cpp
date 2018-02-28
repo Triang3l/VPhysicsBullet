@@ -82,7 +82,6 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 
 	m_RigidBody = VPhysicsNew(btRigidBody, constructionInfo);
 	m_RigidBody->setUserPointer(this);
-	m_RigidBody->setSleepingThresholds(0.1f, 0.2f);
 
 	if (!IsStatic()) {
 		m_GravityEnabled = true;
