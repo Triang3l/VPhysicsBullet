@@ -53,9 +53,9 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 	m_DynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = VPHYSICS_CONVEX_DISTANCE_MARGIN;
 	btContactSolverInfo &solverInfo = m_DynamicsWorld->getSolverInfo();
 	// Stability.
-	solverInfo.m_erp = 0.4f;
-	solverInfo.m_erp2 = 0.6f;
-	solverInfo.m_splitImpulsePenetrationThreshold = -0.5f * VPHYSICS_CONVEX_DISTANCE_MARGIN;
+	solverInfo.m_erp2 = 0.25f; // Slightly above the default 0.2, which has visible penetration, but not too high bounce.
+	solverInfo.m_splitImpulse = false;
+	solverInfo.m_solverMode |= SOLVER_RANDMIZE_ORDER | SOLVER_USE_2_FRICTION_DIRECTIONS;
 
 	m_TriggerTouches.SetLessFunc(TriggerTouchLessFunc);
 
