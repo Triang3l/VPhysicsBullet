@@ -81,8 +81,8 @@ public:
 	virtual IPhysicsEnvironment *CreateEnvironment();
 	virtual void DestroyEnvironment(IPhysicsEnvironment *pEnvironment);
 	virtual IPhysicsEnvironment *GetActiveEnvironmentByIndex(int index);
-	/* DUMMY */ virtual IPhysicsObjectPairHash *CreateObjectPairHash() { return VPhysicsNew(CPhysicsObjectPairHash); }
-	/* DUMMY */ virtual void DestroyObjectPairHash(IPhysicsObjectPairHash *pHash) { VPhysicsDelete(CPhysicsObjectPairHash, pHash); }
+	virtual IPhysicsObjectPairHash *CreateObjectPairHash();
+	virtual void DestroyObjectPairHash(IPhysicsObjectPairHash *pHash);
 	virtual IPhysicsCollisionSet *FindOrCreateCollisionSet(unsigned int id, int maxElementCount);
 	virtual IPhysicsCollisionSet *FindCollisionSet(unsigned int id);
 	virtual void DestroyAllCollisionSets();
@@ -116,6 +116,14 @@ IPhysicsEnvironment *CPhysicsInterface::GetActiveEnvironmentByIndex(int index) {
 		return nullptr;
 	}
 	return m_Environments[index];
+}
+
+IPhysicsObjectPairHash *CPhysicsInterface::CreateObjectPairHash() {
+	return VPhysicsNew(CPhysicsObjectPairHash);
+}
+
+void CPhysicsInterface::DestroyObjectPairHash(IPhysicsObjectPairHash *pHash) {
+	VPhysicsDelete(CPhysicsObjectPairHash, pHash);
 }
 
 IPhysicsCollisionSet *CPhysicsInterface::FindOrCreateCollisionSet(unsigned int id, int maxElementCount) {
