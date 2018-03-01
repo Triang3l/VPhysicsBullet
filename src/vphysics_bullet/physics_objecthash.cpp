@@ -148,10 +148,10 @@ void CPhysicsObjectPairHash::RemoveObjectPair(void *pObject0, void *pObject1) {
 	if (pair.m_Previous[0] >= 0) {
 		ObjectPair &previousPair = m_PairArray[pair.m_Previous[0]];
 		if (previousPair.m_Objects[0] == pair.m_Objects[0]) {
-			previousPair.m_Previous[0] = pair.m_Next[0];
+			previousPair.m_Next[0] = pair.m_Next[0];
 		}
 		if (previousPair.m_Objects[1] == pair.m_Objects[0]) {
-			previousPair.m_Previous[1] = pair.m_Next[0];
+			previousPair.m_Next[1] = pair.m_Next[0];
 		}
 	} else {
 		if (pair.m_Next[0] >= 0) {
@@ -164,10 +164,10 @@ void CPhysicsObjectPairHash::RemoveObjectPair(void *pObject0, void *pObject1) {
 		if (pair.m_Previous[1] >= 0) {
 			ObjectPair &previousPair = m_PairArray[pair.m_Previous[1]];
 			if (previousPair.m_Objects[0] == pair.m_Objects[1]) {
-				previousPair.m_Previous[0] = pair.m_Next[1];
+				previousPair.m_Next[0] = pair.m_Next[1];
 			}
 			if (previousPair.m_Objects[1] == pair.m_Objects[1]) {
-				previousPair.m_Previous[1] = pair.m_Next[1];
+				previousPair.m_Next[1] = pair.m_Next[1];
 			}
 		} else {
 			if (pair.m_Next[1] >= 0) {
@@ -222,10 +222,10 @@ void CPhysicsObjectPairHash::RemoveAllPairsForObject(void *pObject0) {
 			if (otherPreviousPairIndex >= 0) {
 				ObjectPair &previousPair = m_PairArray[otherPreviousPairIndex];
 				if (previousPair.m_Objects[0] == otherObject) {
-					previousPair.m_Previous[0] = otherNextPairIndex;
+					previousPair.m_Next[0] = otherNextPairIndex;
 				}
 				if (previousPair.m_Objects[1] == otherObject) {
-					previousPair.m_Previous[1] = otherNextPairIndex;
+					previousPair.m_Next[1] = otherNextPairIndex;
 				}
 			} else {
 				if (otherNextPairIndex >= 0) {
