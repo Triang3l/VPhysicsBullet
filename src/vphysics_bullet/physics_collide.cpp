@@ -1944,7 +1944,10 @@ void CPhysicsCollision::VCollideUnload(vcollide_t *pVCollide) {
 		}
 	}
 	for (int solidIndex = 0; solidIndex < pVCollide->solidCount; ++solidIndex) {
-		pVCollide->solids[solidIndex]->Release();
+		CPhysCollide *solid = pVCollide->solids[solidIndex];
+		if (solid != nullptr) {
+			solid->Release();
+		}
 		CleanupCompoundConvexDeleteQueue();
 	}
 	delete[] pVCollide->solids; // Safe.
