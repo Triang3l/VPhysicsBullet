@@ -64,7 +64,7 @@ private:
 /* DUMMY */ class CPhysicsConstraint_Dummy : public CPhysicsConstraint {
 public:
 	/* DUMMY */ CPhysicsConstraint_Dummy(IPhysicsObject *objectReference, IPhysicsObject *objectAttached) :
-			CPhysicsConstraint(objectReference, objectAttached) {}
+			CPhysicsConstraint(nullptr, nullptr) {}
 	/* DUMMY */ virtual btTypedConstraint *GetBulletConstraint() const { return nullptr; }
 	/* DUMMY */ virtual void Release() { VPhysicsDelete(CPhysicsConstraint_Dummy, this); }
 protected:
