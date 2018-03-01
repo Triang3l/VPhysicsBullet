@@ -209,23 +209,32 @@ public:
 		++m_TouchingTriggers;
 	}
 	FORCEINLINE void RemoveTriggerTouchReference() {
-		--m_TouchingTriggers;
-		Assert(m_TouchingTriggers >= 0);
-		m_TouchingTriggers = MAX(m_TouchingTriggers, 0);
+		Assert(m_TouchingTriggers > 0);
+		m_TouchingTriggers = btMax(m_TouchingTriggers - 1, 0);
 	}
-	FORCEINLINE bool IsTouchingTriggers() {
+	FORCEINLINE bool IsTouchingTriggers() const {
 		return m_TouchingTriggers > 0;
 	}
 
-	FORCEINLINE void NotifyConstraintAdded() {
-		++m_ConstraintCount;
+	FORCEINLINE bool IsAttachedToConstraintObjects() const {
+		return m_ConstraintObjectCount > 0;
 	}
-	FORCEINLINE void NotifyConstraintRemoved() {
-		Assert(m_ConstraintCount > 0);
-		--m_ConstraintCount;
+	FORCEINLINE void NotifyConstraintAdded(bool valid) {
+		++m_ConstraintObjectCount;
+		if (valid) {
+			++m_ValidConstraintCount;
+		}
+	}
+	FORCEINLINE void NotifyConstraintRemoved(bool valid) {
+		if (valid) {
+			Assert(m_ValidConstraintCount > 0);
+			m_ValidConstraintCount = btMax(m_ValidConstraintCount - 1, 0);
+		}
+		Assert(m_ConstraintObjectCount > 0);
+		m_ConstraintObjectCount = btMax(m_ConstraintObjectCount - 1, 0);
 	}
 	FORCEINLINE void NotifyAllConstraintsRemoved() {
-		m_ConstraintCount = 0;
+		m_ValidConstraintCount = m_ConstraintObjectCount = 0;
 	}
 
 	void UpdateAfterPSI(); // Only called for non-static objects.
@@ -280,7 +289,7 @@ private:
 
 	bool m_CollisionEnabled;
 
-	int m_ConstraintCount;
+	int m_ConstraintObjectCount, m_ValidConstraintCount;
 
 	void *m_GameData;
 	unsigned short m_GameFlags;

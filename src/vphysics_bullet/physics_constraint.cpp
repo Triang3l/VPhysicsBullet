@@ -5,15 +5,7 @@
 #include "physics_object.h"
 
 CPhysicsConstraint::CPhysicsConstraint(IPhysicsObject *objectReference, IPhysicsObject *objectAttached) :
-		m_GameData(nullptr) {
-	if (objectReference == nullptr || objectAttached == nullptr ||
-			objectReference == objectAttached || objectAttached->IsStatic()) {
-		objectReference = nullptr;
-		objectAttached = nullptr;
-	}
-	m_ObjectReference = objectReference;
-	m_ObjectAttached = objectAttached;
-}
+		m_ObjectReference(objectReference), m_ObjectAttached(objectAttached), m_GameData(nullptr) {}
 
 void CPhysicsConstraint::Activate() {
 	btTypedConstraint *constraint = GetBulletConstraint();
@@ -51,9 +43,9 @@ void CPhysicsConstraint::InitializeBulletConstraint(const constraint_breakablepa
 	constraint->setEnabled(params.isActive);
 }
 
-void CPhysicsConstraint::MakeInvalid() {
-	DeleteBulletConstraint();
-	m_ObjectAttached = m_ObjectReference = nullptr;
+bool CPhysicsConstraint::AreObjectsValid() const {
+	return m_ObjectReference != nullptr && m_ObjectAttached != nullptr &&
+			m_ObjectReference != m_ObjectAttached && !m_ObjectAttached->IsStatic();
 }
 
 /********
@@ -65,6 +57,7 @@ CPhysicsConstraint_Hinge::CPhysicsConstraint_Hinge(
 		const constraint_hingeparams_t &params) :
 		CPhysicsConstraint(objectReference, objectAttached) {
 	if (!AreObjectsValid()) {
+		m_Constraint = nullptr;
 		return;
 	}
 

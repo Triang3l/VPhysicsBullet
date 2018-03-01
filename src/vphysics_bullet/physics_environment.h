@@ -81,7 +81,7 @@ public:
 	virtual void SetObjectEventHandler(IPhysicsObjectEvent *pObjectEvents);
 	/* DUMMY */ virtual void SetConstraintEventHandler(IPhysicsConstraintEvent *pConstraintEvents) {}
 
-	/* DUMMY */ virtual void SetQuickDelete(bool bQuick) {}
+	virtual void SetQuickDelete(bool bQuick);
 
 	virtual int GetActiveObjectCount() const;
 	virtual void GetActiveObjects(IPhysicsObject **pOutputObjectList) const;
@@ -146,7 +146,7 @@ public:
 	void NotifyTriggerRemoved(IPhysicsObject *trigger);
 
 	void AddConstraint(IPhysicsConstraint *constraint);
-	void DeleteConstraint(IPhysicsConstraint *constraint);
+	void DeleteConstraint(IPhysicsConstraint *constraint, bool removeFromList = true);
 
 	FORCEINLINE btScalar GetMaxSpeed() const {
 		return HL2BULLET(m_PerformanceSettings.maxVelocity);
@@ -251,8 +251,10 @@ private:
 	CUtlRBTree<TriggerTouch_t> m_TriggerTouches;
 	void CheckTriggerTouches();
 
-	bool m_ConstraintQuickDelete;
+	CUtlVector<IPhysicsConstraint *> m_ConstraintObjects; // Both valid and invalid.
 	CUtlVector<IPhysicsConstraint *> m_DeadConstraints;
+
+	bool m_QuickDelete;
 
 	physics_performanceparams_t m_PerformanceSettings;
 };

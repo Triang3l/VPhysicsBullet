@@ -45,7 +45,11 @@ public:
 
 	virtual btTypedConstraint *GetBulletConstraint() const = 0;
 
-	void MakeInvalid(); // Safe to call when the constraint is already invalid.
+	// Safe to call when the constraint is already invalid.
+	FORCEINLINE void NotifyObjectRemoving() {
+		DeleteBulletConstraint();
+		m_ObjectReference = m_ObjectAttached = nullptr;
+	}
 
 	virtual void Release() = 0;
 
@@ -53,7 +57,7 @@ protected:
 	void InitializeBulletConstraint(const constraint_breakableparams_t &params);
 
 	IPhysicsObject *m_ObjectReference, *m_ObjectAttached;
-	FORCEINLINE bool AreObjectsValid() const { return m_ObjectAttached != nullptr; }
+	virtual bool AreObjectsValid() const;
 
 	virtual void DeleteBulletConstraint() = 0; // May be called when the constraint is null.
 
@@ -64,7 +68,7 @@ private:
 /* DUMMY */ class CPhysicsConstraint_Dummy : public CPhysicsConstraint {
 public:
 	/* DUMMY */ CPhysicsConstraint_Dummy(IPhysicsObject *objectReference, IPhysicsObject *objectAttached) :
-			CPhysicsConstraint(nullptr, nullptr) {}
+			CPhysicsConstraint(objectReference, objectAttached) {}
 	/* DUMMY */ virtual btTypedConstraint *GetBulletConstraint() const { return nullptr; }
 	/* DUMMY */ virtual void Release() { VPhysicsDelete(CPhysicsConstraint_Dummy, this); }
 protected:
