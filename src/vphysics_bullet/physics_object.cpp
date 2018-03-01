@@ -105,6 +105,18 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 }
 
 CPhysicsObject::~CPhysicsObject() {
+	btCollisionShape *shape = m_RigidBody->getCollisionShape();
+	if (shape->getUserPointer() == nullptr) {
+		// Delete the mass override shape.
+		m_RigidBody->setCollisionShape(static_cast<btCompoundShape *>(shape)->getChildShape(0));
+		VPhysicsDelete(btCompoundShape, shape);
+	}
+
+	RemoveReferenceFromCollide();
+	VPhysicsDelete(btRigidBody, m_RigidBody);
+}
+
+void CPhysicsObject::Release() {
 	// Prevent callbacks to the game code and unlink from this object.
 	m_Callbacks = 0;
 	m_GameData = nullptr;
@@ -115,15 +127,7 @@ CPhysicsObject::~CPhysicsObject() {
 
 	static_cast<CPhysicsEnvironment *>(m_Environment)->NotifyObjectRemoving(this);
 
-	btCollisionShape *shape = m_RigidBody->getCollisionShape();
-	if (shape->getUserPointer() == nullptr) {
-		// Delete the mass override shape.
-		m_RigidBody->setCollisionShape(static_cast<btCompoundShape *>(shape)->getChildShape(0));
-		VPhysicsDelete(btCompoundShape, shape);
-	}
-
-	RemoveReferenceFromCollide();
-	VPhysicsDelete(btRigidBody, m_RigidBody);
+	VPhysicsDelete(CPhysicsObject, this);
 }
 
 CPhysCollide *CPhysicsObject::GetCollide() {

@@ -13,7 +13,7 @@
 class CPhysicsEnvironment : public IPhysicsEnvironment {
 public:
 	CPhysicsEnvironment();
-	virtual ~CPhysicsEnvironment();
+	virtual ~CPhysicsEnvironment(); // Must be deleted via Release!
 
 	// IPhysicsEnvironment methods.
 
@@ -154,6 +154,9 @@ public:
 	FORCEINLINE btScalar GetMaxAngularSpeed() const {
 		return DEG2RAD(m_PerformanceSettings.maxAngularVelocity);
 	}
+
+	// Destruction permitting calling back through virtual functions.
+	void Release();
 
 private:
 	btDefaultCollisionConfiguration *m_CollisionConfiguration;

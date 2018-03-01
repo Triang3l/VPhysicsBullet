@@ -13,7 +13,7 @@ public:
 			const CPhysCollide *collide, int materialIndex,
 			const Vector &position, const QAngle &angles,
 			const objectparams_t *params, bool isStatic);
-	virtual ~CPhysicsObject();
+	virtual ~CPhysicsObject(); // Must be deleted via Release!
 
 	// IPhysicsObject methods.
 
@@ -208,7 +208,7 @@ public:
 	FORCEINLINE void AddTriggerTouchReference() {
 		++m_TouchingTriggers;
 	}
-	inline void RemoveTriggerTouchReference() {
+	FORCEINLINE void RemoveTriggerTouchReference() {
 		--m_TouchingTriggers;
 		Assert(m_TouchingTriggers >= 0);
 		m_TouchingTriggers = MAX(m_TouchingTriggers, 0);
@@ -233,6 +233,9 @@ public:
 	void InterpolateBetweenPSIs();
 
 	void NotifyTransferred(IPhysicsEnvironment *newEnvironment);
+
+	// Destruction permitting calling back through virtual functions.
+	void Release();
 
 private:
 	/***********************************

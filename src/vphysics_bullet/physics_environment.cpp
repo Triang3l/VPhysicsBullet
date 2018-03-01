@@ -69,12 +69,6 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 #endif
 
 CPhysicsEnvironment::~CPhysicsEnvironment() {
-	CleanupDeleteList();
-	int objectCount = m_Objects.Count();
-	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
-		VPhysicsDelete(CPhysicsObject, m_Objects[objectIndex]);
-	}
-
 	int snapshotCount = m_FrictionSnapshots.Count();
 	for (int snapshotIndex = 0; snapshotIndex < snapshotCount; ++snapshotIndex) {
 		VPhysicsDelete(CPhysicsFrictionSnapshot, m_FrictionSnapshots[snapshotIndex]);
@@ -85,6 +79,16 @@ CPhysicsEnvironment::~CPhysicsEnvironment() {
 	VPhysicsDelete(btDbvtBroadphase, m_Broadphase);
 	VPhysicsDelete(btCollisionDispatcher, m_Dispatcher);
 	VPhysicsDelete(btDefaultCollisionConfiguration, m_CollisionConfiguration);
+}
+
+void CPhysicsEnvironment::Release() {
+	CleanupDeleteList();
+	int objectCount = m_Objects.Count();
+	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
+		static_cast<CPhysicsObject *>(m_Objects[objectIndex])->Release();
+	}
+
+	VPhysicsDelete(CPhysicsEnvironment, this);
 }
 
 /****************
@@ -258,7 +262,7 @@ void CPhysicsEnvironment::DestroyObject(IPhysicsObject *pObject) {
 		pObject->SetCallbackFlags(pObject->GetCallbackFlags() | CALLBACK_MARKED_FOR_DELETE);
 		m_DeadObjects.AddToTail(pObject);
 	} else {
-		VPhysicsDelete(CPhysicsObject, pObject);
+		static_cast<CPhysicsObject *>(pObject)->Release();
 	}
 }
 
@@ -271,7 +275,7 @@ void CPhysicsEnvironment::CleanupDeleteList() {
 
 	int objectCount = m_DeadObjects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
-		VPhysicsDelete(CPhysicsObject, m_DeadObjects[objectIndex]);
+		static_cast<CPhysicsObject *>(m_DeadObjects[objectIndex])->Release();
 	}
 	m_DeadObjects.RemoveAll();
 }
@@ -308,8 +312,8 @@ void CPhysicsEnvironment::NotifyObjectRemoving(IPhysicsObject *object) {
 		while (touchIndex != m_TriggerTouches.InvalidIndex()) {
 			unsigned short nextTouch = m_TriggerTouches.NextInorder(touchIndex);
 			if (m_TriggerTouches[touchIndex].m_Object == object) {
-				m_TriggerTouches.RemoveAt(touchIndex);
 				physicsObject->RemoveTriggerTouchReference();
+				m_TriggerTouches.RemoveAt(touchIndex);
 				if (!physicsObject->IsTouchingTriggers()) {
 					break;
 				}
@@ -791,6 +795,7 @@ void CPhysicsEnvironment::CheckTriggerTouches() {
 					m_TriggerTouches[foundIndex].m_TouchingThisTick = true;
 				} else {
 					m_TriggerTouches.Insert(newTouch);
+					static_cast<CPhysicsObject *>(object)->AddTriggerTouchReference();
 					if (m_CollisionEvents != nullptr) {
 						m_CollisionEvents->ObjectEnterTrigger(trigger, object);
 					}
@@ -805,6 +810,7 @@ void CPhysicsEnvironment::CheckTriggerTouches() {
 		unsigned short next = m_TriggerTouches.NextInorder(index);
 		TriggerTouch_t &touch = m_TriggerTouches[index];
 		if (!touch.m_TouchingThisTick) {
+			static_cast<CPhysicsObject *>(touch.m_Object)->RemoveTriggerTouchReference();
 			if (m_CollisionEvents != nullptr) {
 				m_CollisionEvents->ObjectLeaveTrigger(touch.m_Trigger, touch.m_Object);
 			}
@@ -825,6 +831,7 @@ void CPhysicsEnvironment::NotifyTriggerRemoved(IPhysicsObject *trigger) {
 			break;
 		}
 		if (touch.m_Trigger == trigger) {
+			static_cast<CPhysicsObject *>(touch.m_Object)->RemoveTriggerTouchReference();
 			// TODO: Trigger the leave event?
 			// Probably shouldn't be done because this usually happens when the trigger is removed.
 			m_TriggerTouches.RemoveAt(index);

@@ -108,7 +108,7 @@ IPhysicsEnvironment *CPhysicsInterface::CreateEnvironment() {
 
 void CPhysicsInterface::DestroyEnvironment(IPhysicsEnvironment *pEnvironment) {
 	m_Environments.FindAndRemove(pEnvironment);
-	VPhysicsDelete(CPhysicsEnvironment, pEnvironment);
+	static_cast<CPhysicsEnvironment *>(pEnvironment)->Release();
 }
 
 IPhysicsEnvironment *CPhysicsInterface::GetActiveEnvironmentByIndex(int index) {
