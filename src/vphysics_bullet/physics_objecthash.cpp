@@ -202,6 +202,7 @@ void CPhysicsObjectPairHash::RemoveAllPairsForObject(void *pObject0) {
 	int pairIndex = *firstPair;
 	while (pairIndex >= 0) {
 		ObjectPair &pair = m_PairArray[pairIndex];
+		int nextPairIndex = pair.m_Next[(int) (pair.m_Objects[0] != pObject0)];
 
 		if (pair.m_Objects[0] != pair.m_Objects[1]) {
 			int otherObjectIndex = (int) (pair.m_Objects[0] == pObject0);
@@ -210,22 +211,22 @@ void CPhysicsObjectPairHash::RemoveAllPairsForObject(void *pObject0) {
 			int otherPreviousPairIndex = pair.m_Previous[otherObjectIndex];
 
 			if (otherNextPairIndex >= 0) {
-				ObjectPair &nextPair = m_PairArray[otherNextPairIndex];
-				if (nextPair.m_Objects[0] == otherObject) {
-					nextPair.m_Previous[0] = otherPreviousPairIndex;
+				ObjectPair &otherNextPair = m_PairArray[otherNextPairIndex];
+				if (otherNextPair.m_Objects[0] == otherObject) {
+					otherNextPair.m_Previous[0] = otherPreviousPairIndex;
 				}
-				if (nextPair.m_Objects[1] == otherObject) {
-					nextPair.m_Previous[1] = otherPreviousPairIndex;
+				if (otherNextPair.m_Objects[1] == otherObject) {
+					otherNextPair.m_Previous[1] = otherPreviousPairIndex;
 				}
 			}
 
 			if (otherPreviousPairIndex >= 0) {
-				ObjectPair &previousPair = m_PairArray[otherPreviousPairIndex];
-				if (previousPair.m_Objects[0] == otherObject) {
-					previousPair.m_Next[0] = otherNextPairIndex;
+				ObjectPair &otherPreviousPair = m_PairArray[otherPreviousPairIndex];
+				if (otherPreviousPair.m_Objects[0] == otherObject) {
+					otherPreviousPair.m_Next[0] = otherNextPairIndex;
 				}
-				if (previousPair.m_Objects[1] == otherObject) {
-					previousPair.m_Next[1] = otherNextPairIndex;
+				if (otherPreviousPair.m_Objects[1] == otherObject) {
+					otherPreviousPair.m_Next[1] = otherNextPairIndex;
 				}
 			} else {
 				if (otherNextPairIndex >= 0) {
@@ -252,6 +253,8 @@ void CPhysicsObjectPairHash::RemoveAllPairsForObject(void *pObject0) {
 		pair.m_Objects[0] = nullptr;
 		pair.m_Next[0] = m_FirstFreePair;
 		m_FirstFreePair = pairIndex;
+
+		pairIndex = nextPairIndex;
 	}
 
 	m_FirstPairsForObjects.remove(pObject0);
