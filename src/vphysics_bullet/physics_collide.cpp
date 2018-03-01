@@ -43,7 +43,7 @@ CPhysicsCollision::~CPhysicsCollision() {
 			DevMsg("Freed sphere collision model while in use!!!\n");
 			continue;
 		}
-		sphere->DeleteSelf();
+		sphere->Release();
 	}
 
 	int bboxCount = m_BBoxCache.Count();
@@ -57,8 +57,8 @@ CPhysicsCollision::~CPhysicsCollision() {
 		// A bbox may be a part of other compounds, but there's no way to check that.
 		CPhysConvex *bboxConvex = reinterpret_cast<CPhysConvex *>(
 				bboxCompound->GetCompoundShape()->getChildShape(0)->getUserPointer());
-		bboxCompound->DeleteSelf();
-		bboxConvex->DeleteSelf();
+		bboxCompound->Release();
+		bboxConvex->Release();
 	}
 }
 
@@ -173,7 +173,7 @@ void CPhysicsCollision::SetConvexGameData(CPhysConvex *pConvex, unsigned int gam
 
 void CPhysicsCollision::ConvexFree(CPhysConvex *pConvex) {
 	if (pConvex->GetOwner() == CPhysConvex::OWNER_GAME) {
-		pConvex->DeleteSelf();
+		pConvex->Release();
 	}
 }
 
@@ -665,7 +665,7 @@ void CPhysConvex_Hull::CalculateTrianglePlanes() {
 	}
 }
 
-void CPhysConvex_Hull::DeleteSelf() {
+void CPhysConvex_Hull::Release() {
 	VPhysicsDelete(CPhysConvex_Hull, this);
 }
 
@@ -774,7 +774,7 @@ void CPhysConvex_Box::GetTriangleVertices(int triangleIndex, btVector3 vertices[
 	}
 }
 
-void CPhysConvex_Box::DeleteSelf() {
+void CPhysConvex_Box::Release() {
 	VPhysicsDelete(CPhysConvex_Box, this);
 }
 
@@ -1050,7 +1050,7 @@ void CPhysicsCollision::DestroyCollide(CPhysCollide *pCollide) {
 		DevMsg("Freed collision model while in use!!!\n");
 		return;
 	}
-	pCollide->DeleteSelf();
+	pCollide->Release();
 	CleanupCompoundConvexDeleteQueue();
 }
 
@@ -1671,7 +1671,7 @@ CPhysCollide_Compound::~CPhysCollide_Compound() {
 	}
 }
 
-void CPhysCollide_Compound::DeleteSelf() {
+void CPhysCollide_Compound::Release() {
 	VPhysicsDelete(CPhysCollide_Compound, this);
 }
 
@@ -1683,7 +1683,7 @@ void CPhysicsCollision::AddCompoundConvexToDeleteQueue(CPhysConvex *convex) {
 
 void CPhysicsCollision::CleanupCompoundConvexDeleteQueue() {
 	for (int convexIndex = m_CompoundConvexDeleteQueue.Size() - 1; convexIndex >= 0; --convexIndex) {
-		m_CompoundConvexDeleteQueue[convexIndex]->DeleteSelf();
+		m_CompoundConvexDeleteQueue[convexIndex]->Release();
 		m_CompoundConvexDeleteQueue.FastRemove(convexIndex);
 	}
 }
@@ -1764,7 +1764,7 @@ void CPhysCollide_Sphere::ComputeOrthographicAreas(btScalar axisEpsilon) {
 	SetOrthographicAreas(btVector3(0.25f * SIMD_PI, 0.25f * SIMD_PI, 0.25f * SIMD_PI));
 }
 
-void CPhysCollide_Sphere::DeleteSelf() {
+void CPhysCollide_Sphere::Release() {
 	VPhysicsDelete(CPhysCollide_Sphere, this);
 }
 
@@ -1823,7 +1823,7 @@ btScalar CPhysCollide_TriangleMesh::GetSurfaceArea() const {
 	return 0.5f * area;
 }
 
-void CPhysCollide_TriangleMesh::DeleteSelf() {
+void CPhysCollide_TriangleMesh::Release() {
 	VPhysicsDelete(CPhysCollide_TriangleMesh, this);
 }
 
@@ -1944,7 +1944,7 @@ void CPhysicsCollision::VCollideUnload(vcollide_t *pVCollide) {
 		}
 	}
 	for (int solidIndex = 0; solidIndex < pVCollide->solidCount; ++solidIndex) {
-		pVCollide->solids[solidIndex]->DeleteSelf();
+		pVCollide->solids[solidIndex]->Release();
 		CleanupCompoundConvexDeleteQueue();
 	}
 	delete[] pVCollide->solids; // Safe.

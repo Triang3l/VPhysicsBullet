@@ -148,7 +148,7 @@ public:
 
 	virtual btVector3 GetOriginInCompound() const { return btVector3(0.0f, 0.0f, 0.0f); }
 
-	virtual void DeleteSelf() = 0;
+	virtual void Release() = 0;
 
 protected:
 	CPhysConvex() : m_Owner(OWNER_GAME) {}
@@ -197,7 +197,7 @@ public:
 	int GetTriangleMaterialIndexAtPoint(const btVector3 &point) const;
 	virtual void SetTriangleMaterialIndex(int triangleIndex, int index7bits);
 
-	virtual void DeleteSelf();
+	virtual void Release();
 
 protected:
 	virtual void Initialize();
@@ -241,7 +241,7 @@ public:
 
 	virtual btVector3 GetOriginInCompound() const { return m_Origin; }
 
-	virtual void DeleteSelf();
+	virtual void Release();
 
 	// These are correctly oriented for the ---, --+, -+-... sequence.
 	static const unsigned int s_BoxTriangleIndices[36];
@@ -303,7 +303,7 @@ public:
 	// For internal use in CPhysicsObject::RemoveReferenceToCollide!
 	void RemoveObjectReference(IPhysicsObject *object);
 
-	virtual void DeleteSelf() = 0;
+	virtual void Release() = 0;
 
 protected:
 	CPhysCollide(const btVector3 &orthographicAreas = btVector3(1.0f, 1.0f, 1.0f)) :
@@ -354,7 +354,7 @@ public:
 
 	virtual int GetConvexes(CPhysConvex **output, int limit) const;
 
-	virtual void DeleteSelf();
+	virtual void Release();
 
 private:
 	btCompoundShape m_Shape;
@@ -407,7 +407,7 @@ public:
 
 	virtual void ComputeOrthographicAreas(btScalar axisEpsilon);
 
-	virtual void DeleteSelf();
+	virtual void Release();
 
 private:
 	btSphereShape m_Shape;
@@ -428,7 +428,7 @@ public:
 
 	FORCEINLINE int GetSurfacePropsIndex() const { return m_SurfacePropsIndex; }
 
-	virtual void DeleteSelf();
+	virtual void Release();
 
 private:
 	class MeshInterface : public btStridingMeshInterface {

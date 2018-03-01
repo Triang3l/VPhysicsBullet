@@ -47,7 +47,7 @@ public:
 
 	void MakeInvalid(); // Safe to call when the constraint is already invalid.
 
-	virtual void DeleteSelf() = 0;
+	virtual void Release() = 0;
 
 protected:
 	void InitializeBulletConstraint(const constraint_breakableparams_t &params);
@@ -66,7 +66,7 @@ public:
 	/* DUMMY */ CPhysicsConstraint_Dummy(IPhysicsObject *objectReference, IPhysicsObject *objectAttached) :
 			CPhysicsConstraint(objectReference, objectAttached) {}
 	/* DUMMY */ virtual btTypedConstraint *GetBulletConstraint() const { return nullptr; }
-	/* DUMMY */ virtual void DeleteSelf() { VPhysicsDelete(CPhysicsConstraint_Dummy, this); }
+	/* DUMMY */ virtual void Release() { VPhysicsDelete(CPhysicsConstraint_Dummy, this); }
 protected:
 	/* DUMMY */ virtual void DeleteBulletConstraint() {}
 };
@@ -79,7 +79,7 @@ public:
 	virtual ~CPhysicsConstraint_Hinge();
 	virtual void SetAngularMotor(float rotSpeed, float maxAngularImpulse);
 	virtual btTypedConstraint *GetBulletConstraint() const;
-	virtual void DeleteSelf();
+	virtual void Release();
 protected:
 	virtual void DeleteBulletConstraint();
 private:

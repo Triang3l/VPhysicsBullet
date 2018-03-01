@@ -96,7 +96,7 @@ void CPhysicsConstraint_Hinge::DeleteBulletConstraint() {
 	m_Constraint = nullptr;
 }
 
-void CPhysicsConstraint_Hinge::DeleteSelf() {
+void CPhysicsConstraint_Hinge::Release() {
 	VPhysicsDelete(CPhysicsConstraint_Hinge, this);
 }
 

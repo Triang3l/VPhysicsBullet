@@ -442,7 +442,7 @@ void CPhysicsEnvironment::DeleteConstraint(IPhysicsConstraint *constraint) {
 		static_cast<CPhysicsObject *>(constraint->GetReferenceObject())->NotifyConstraintRemoved();
 		static_cast<CPhysicsObject *>(constraint->GetAttachedObject())->NotifyConstraintRemoved();
 	}
-	physicsConstraint->DeleteSelf();
+	physicsConstraint->Release();
 }
 
 /**************
