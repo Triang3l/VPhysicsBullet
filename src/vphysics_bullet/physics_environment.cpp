@@ -254,6 +254,33 @@ bool CPhysicsEnvironment::IsCollisionModelUsed(CPhysCollide *pCollide) const {
 	return pCollide->GetObjectReferenceList() != nullptr;
 }
 
+void CPhysicsEnvironment::WakeContactingObjects(IPhysicsObject *object) {
+	if (!object->IsCollisionEnabled() || object->IsTrigger()) {
+		return;
+	}
+	const btCollisionObject *body = static_cast<const CPhysicsObject *>(object)->GetRigidBody();
+	int manifoldCount = m_Dispatcher->getNumManifolds();
+	for (int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex) {
+		const btPersistentManifold *manifold = m_Dispatcher->getManifoldByIndexInternal(manifoldIndex);
+		int contactCount = manifold->getNumContacts();
+		if (contactCount == 0) {
+			continue;
+		}
+		const btCollisionObject *otherBody;
+		if (body == manifold->getBody0()) {
+			otherBody = manifold->getBody1();
+		} else if (body == manifold->getBody1()) {
+			otherBody = manifold->getBody0();
+		} else {
+			continue;
+		}
+		IPhysicsObject *otherObject = reinterpret_cast<IPhysicsObject *>(otherBody->getUserPointer());
+		if (otherObject != nullptr && !otherObject->IsTrigger()) {
+			otherObject->Wake();
+		}
+	}
+}
+
 void CPhysicsEnvironment::SetQuickDelete(bool bQuick) {
 	m_QuickDelete = bQuick;
 }
@@ -267,7 +294,11 @@ void CPhysicsEnvironment::DestroyObject(IPhysicsObject *pObject) {
 		DevMsg("Deleted NULL vphysics object\n");
 		return;
 	}
-	// TODO: Activate islands containing this object if not deleting quickly.
+
+	if (!m_QuickDelete) {
+		WakeContactingObjects(pObject);
+	}
+
 	m_Objects.FindAndFastRemove(pObject);
 	if (IsInSimulation() || m_QueueDeleteObject) {
 		pObject->SetCallbackFlags(pObject->GetCallbackFlags() | CALLBACK_MARKED_FOR_DELETE);
@@ -441,11 +472,23 @@ void CPhysicsEnvironment::DestroyConstraint(IPhysicsConstraint *pConstraint) {
 	if (pConstraint == nullptr) {
 		return;
 	}
-	if (!IsInSimulation() || m_QuickDelete) {
-		DeleteConstraint(pConstraint);
-	} else {
+
+	if (!m_QuickDelete) {
+		IPhysicsObject *object = pConstraint->GetReferenceObject();
+		if (object != nullptr) {
+			object->Wake();
+		}
+		object = pConstraint->GetAttachedObject();
+		if (object != nullptr) {
+			object->Wake();
+		}
+	}
+
+	if (IsInSimulation()) {
 		pConstraint->Deactivate();
 		m_DeadConstraints.AddToTail(pConstraint);
+	} else {
+		DeleteConstraint(pConstraint);
 	}
 }
 
@@ -798,8 +841,8 @@ void CPhysicsEnvironment::DestroyFrictionSnapshot(IPhysicsFrictionSnapshot *snap
 }
 
 void CPhysicsEnvironment::CheckTriggerTouches() {
-	int numManifolds = m_Dispatcher->getNumManifolds();
-	for (int manifoldIndex = 0; manifoldIndex < numManifolds; ++manifoldIndex) {
+	int manifoldCount = m_Dispatcher->getNumManifolds();
+	for (int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex) {
 		const btPersistentManifold *manifold = m_Dispatcher->getManifoldByIndexInternal(manifoldIndex);
 		int contactCount = manifold->getNumContacts();
 		if (contactCount == 0) {
