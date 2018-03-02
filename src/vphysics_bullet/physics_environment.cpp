@@ -791,9 +791,23 @@ void CPhysicsEnvironment::RecheckObjectCollisionFilter(btCollisionObject *object
 		RecheckObjectCollisionFilterCallback(btCollisionObject *object, btOverlapFilterCallback *filter) :
 				m_Object(object), m_Filter(filter) {}
 		virtual bool processOverlap(btBroadphasePair &pair) {
-			if (reinterpret_cast<btCollisionObject *>(pair.m_pProxy0->m_clientObject) == m_Object ||
-					reinterpret_cast<btCollisionObject *>(pair.m_pProxy1->m_clientObject) == m_Object) {
-				return !m_Filter->needBroadphaseCollision(pair.m_pProxy0, pair.m_pProxy1);
+			btCollisionObject *otherObject;
+			if (reinterpret_cast<btCollisionObject *>(pair.m_pProxy0->m_clientObject) == m_Object) {
+				otherObject = reinterpret_cast<btCollisionObject *>(pair.m_pProxy1->m_clientObject);
+			} else if (reinterpret_cast<btCollisionObject *>(pair.m_pProxy1->m_clientObject) == m_Object) {
+				otherObject = reinterpret_cast<btCollisionObject *>(pair.m_pProxy0->m_clientObject);
+			} else {
+				return false;
+			}
+			if (!m_Filter->needBroadphaseCollision(pair.m_pProxy0, pair.m_pProxy1)) {
+				if (otherObject != nullptr) {
+					IPhysicsObject *otherPhysicsObject = reinterpret_cast<IPhysicsObject *>(
+							otherObject->getUserPointer());
+					if (otherPhysicsObject != nullptr && !otherPhysicsObject->IsTrigger()) {
+						otherPhysicsObject->Wake();
+					}
+				}
+				return true;
 			}
 			return false;
 		}
