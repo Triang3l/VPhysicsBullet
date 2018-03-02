@@ -651,8 +651,7 @@ void CPhysicsObject::SetPositionMatrix(const matrix3x4_t &matrix, bool isTelepor
 }
 
 void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
-	const btTransform &transform = ((IsStatic() || m_Environment->IsInSimulation()) ?
-			m_RigidBody->getWorldTransform() : m_InterPSIWorldTransform);
+	const btTransform &transform = GetInterPSIWorldTransform();
 	const btMatrix3x3 &basis = transform.getBasis();
 	if (worldPosition != nullptr) {
 		ConvertPositionToHL(transform.getOrigin() - (basis * GetBulletMassCenter()), *worldPosition);
@@ -663,8 +662,7 @@ void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
 }
 
 void CPhysicsObject::GetPositionMatrix(matrix3x4_t *positionMatrix) const {
-	const btTransform &transform = ((IsStatic() || m_Environment->IsInSimulation()) ?
-			m_RigidBody->getWorldTransform() : m_InterPSIWorldTransform);
+	const btTransform &transform = GetInterPSIWorldTransform();
 	const btMatrix3x3 &basis = transform.getBasis();
 	btVector3 origin = transform.getOrigin() - (basis * GetBulletMassCenter());
 	ConvertMatrixToHL(basis, origin, *positionMatrix);

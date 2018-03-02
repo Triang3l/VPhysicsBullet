@@ -90,6 +90,20 @@ private:
 	btHingeConstraint *m_Constraint;
 };
 
+class CPhysicsConstraint_Ballsocket : public CPhysicsConstraint {
+public:
+	CPhysicsConstraint_Ballsocket(
+			IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
+			const constraint_ballsocketparams_t &params);
+	virtual ~CPhysicsConstraint_Ballsocket();
+	virtual btTypedConstraint *GetBulletConstraint() const;
+	virtual void Release();
+protected:
+	virtual void DeleteBulletConstraint();
+private:
+	btPoint2PointConstraint *m_Constraint;
+};
+
 class CPhysicsConstraintGroup : public IPhysicsConstraintGroup {
 public:
 	/* DUMMY */ virtual void Activate() {}

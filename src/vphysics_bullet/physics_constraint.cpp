@@ -4,6 +4,8 @@
 #include "physics_constraint.h"
 #include "physics_object.h"
 
+// TODO: Breakability, mass ratio, etc.
+
 CPhysicsConstraint::CPhysicsConstraint(IPhysicsObject *objectReference, IPhysicsObject *objectAttached) :
 		m_ObjectReference(objectReference), m_ObjectAttached(objectAttached), m_GameData(nullptr) {}
 
@@ -61,16 +63,16 @@ CPhysicsConstraint_Hinge::CPhysicsConstraint_Hinge(
 		return;
 	}
 
-	btRigidBody *rigidBodyA = static_cast<CPhysicsObject *>(m_ObjectAttached)->GetRigidBody();
-	btRigidBody *rigidBodyB = static_cast<CPhysicsObject *>(m_ObjectReference)->GetRigidBody();
-	const btTransform &transformA = rigidBodyA->getWorldTransform();
-	const btTransform &transformB = rigidBodyB->getWorldTransform();
+	CPhysicsObject *objectA = static_cast<CPhysicsObject *>(m_ObjectAttached);
+	CPhysicsObject *objectB = static_cast<CPhysicsObject *>(m_ObjectReference);
+	const btTransform &transformA = objectA->GetInterPSIWorldTransform();
+	const btTransform &transformB = objectB->GetInterPSIWorldTransform();
 
 	btVector3 worldPosition, worldAxisDirection;
 	ConvertPositionToBullet(params.worldPosition, worldPosition);
 	ConvertDirectionToBullet(params.worldAxisDirection, worldAxisDirection);
 
-	m_Constraint = VPhysicsNew(btHingeConstraint, *rigidBodyA, *rigidBodyB,
+	m_Constraint = VPhysicsNew(btHingeConstraint, *objectA->GetRigidBody(), *objectB->GetRigidBody(),
 			transformA.invXform(worldPosition), transformB.invXform(worldPosition),
 			worldAxisDirection * transformA.getBasis(), worldAxisDirection * transformB.getBasis());
 	InitializeBulletConstraint(params.constraint);
@@ -94,5 +96,50 @@ void CPhysicsConstraint_Hinge::Release() {
 }
 
 CPhysicsConstraint_Hinge::~CPhysicsConstraint_Hinge() {
+	DeleteBulletConstraint();
+}
+
+/******************
+ * Ball and socket
+ ******************/
+
+CPhysicsConstraint_Ballsocket::CPhysicsConstraint_Ballsocket(
+		IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
+		const constraint_ballsocketparams_t &params) :
+		CPhysicsConstraint(objectReference, objectAttached) {
+	if (!AreObjectsValid()) {
+		m_Constraint = nullptr;
+		return;
+	}
+
+	CPhysicsObject *objectA = static_cast<CPhysicsObject *>(m_ObjectAttached);
+	CPhysicsObject *objectB = static_cast<CPhysicsObject *>(m_ObjectReference);
+	const btTransform &transformA = objectA->GetInterPSIWorldTransform();
+	const btTransform &transformB = objectB->GetInterPSIWorldTransform();
+
+	btVector3 objectLocalPositionA, objectLocalPositionB;
+	ConvertPositionToBullet(params.constraintPosition[1], objectLocalPositionA);
+	ConvertPositionToBullet(params.constraintPosition[0], objectLocalPositionB);
+
+	m_Constraint = VPhysicsNew(btPoint2PointConstraint, *objectA->GetRigidBody(), *objectB->GetRigidBody(),
+			objectLocalPositionA - (transformA.getBasis() * objectA->GetBulletMassCenter()),
+			objectLocalPositionB - (transformB.getBasis() * objectB->GetBulletMassCenter()));
+	InitializeBulletConstraint(params.constraint);
+}
+
+btTypedConstraint *CPhysicsConstraint_Ballsocket::GetBulletConstraint() const {
+	return m_Constraint;
+}
+
+void CPhysicsConstraint_Ballsocket::DeleteBulletConstraint() {
+	VPhysicsDelete(btPoint2PointConstraint, m_Constraint);
+	m_Constraint = nullptr;
+}
+
+void CPhysicsConstraint_Ballsocket::Release() {
+	VPhysicsDelete(CPhysicsConstraint_Ballsocket, this);
+}
+
+CPhysicsConstraint_Ballsocket::~CPhysicsConstraint_Ballsocket() {
 	DeleteBulletConstraint();
 }

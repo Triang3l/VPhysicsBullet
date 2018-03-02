@@ -450,8 +450,8 @@ IPhysicsConstraint *CPhysicsEnvironment::CreateHingeConstraint(IPhysicsObject *p
 	return constraint;
 }
 
-/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateBallsocketConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_ballsocketparams_t &ballsocket) {
-	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Dummy, pReferenceObject, pAttachedObject);
+IPhysicsConstraint *CPhysicsEnvironment::CreateBallsocketConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_ballsocketparams_t &ballsocket) {
+	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Ballsocket, pReferenceObject, pAttachedObject, ballsocket);
 	AddConstraint(constraint);
 	return constraint;
 }

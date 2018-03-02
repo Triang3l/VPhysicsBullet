@@ -240,6 +240,10 @@ public:
 	void UpdateAfterPSI(); // Only called for non-static objects.
 
 	void InterpolateBetweenPSIs();
+	inline const btTransform &GetInterPSIWorldTransform() const {
+		return ((IsStatic() || m_Environment->IsInSimulation()) ?
+				m_RigidBody->getWorldTransform() : m_InterPSIWorldTransform);
+	}
 
 	void NotifyTransferred(IPhysicsEnvironment *newEnvironment);
 
