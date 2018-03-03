@@ -733,20 +733,12 @@ void CPhysicsEnvironment::SetCollisionSolver(IPhysicsCollisionSolver *pSolver) {
 	// IVP VPhysics assumes this too.
 }
 
-bool CPhysicsEnvironment::NeedCollision(const btCollisionObject *collisionObject0,
-		const btCollisionObject *collisionObject1) {
-	if (collisionObject0 == nullptr || collisionObject1 == nullptr) {
-		// In case client objects in needBroadphaseCollision are null.
-		return false;
-	}
-
-	if (collisionObject0->isStaticObject() && collisionObject1->isStaticObject()) {
-		return false;
-	}
-
-	IPhysicsObject *object0 = reinterpret_cast<IPhysicsObject *>(collisionObject0->getUserPointer());
-	IPhysicsObject *object1 = reinterpret_cast<IPhysicsObject *>(collisionObject1->getUserPointer());
+bool CPhysicsEnvironment::NeedCollision(IPhysicsObject *object0, IPhysicsObject *object1) {
 	if (object0 == nullptr || object1 == nullptr) {
+		return false;
+	}
+
+	if (object0->IsStatic() && object1->IsStatic()) {
 		return false;
 	}
 
@@ -764,8 +756,7 @@ bool CPhysicsEnvironment::NeedCollision(const btCollisionObject *collisionObject
 		if ((callbackFlags1 & CALLBACK_ENABLING_COLLISION) && (callbackFlags0 & CALLBACK_MARKED_FOR_DELETE)) {
 			return false;
 		}
-		if (!m_CollisionSolver->ShouldCollide(object0, object1,
-				object0->GetGameData(), object1->GetGameData())) {
+		if (!m_CollisionSolver->ShouldCollide(object0, object1, object0->GetGameData(), object1->GetGameData())) {
 			return false;
 		}
 	}
@@ -775,9 +766,15 @@ bool CPhysicsEnvironment::NeedCollision(const btCollisionObject *collisionObject
 
 bool CPhysicsEnvironment::OverlapFilterCallback::needBroadphaseCollision(
 		btBroadphaseProxy *proxy0, btBroadphaseProxy *proxy1) const {
+	const btCollisionObject *collisionObject0 = reinterpret_cast<const btCollisionObject *>(proxy0->m_clientObject);
+	const btCollisionObject *collisionObject1 = reinterpret_cast<const btCollisionObject *>(proxy1->m_clientObject);
+	if (collisionObject0 == nullptr || collisionObject1 == nullptr) {
+		// In case client objects in needBroadphaseCollision are null.
+		return false;
+	}
 	return m_Environment->NeedCollision(
-			reinterpret_cast<const btCollisionObject *>(proxy0->m_clientObject),
-			reinterpret_cast<const btCollisionObject *>(proxy1->m_clientObject));
+			reinterpret_cast<IPhysicsObject *>(collisionObject0->getUserPointer()),
+			reinterpret_cast<IPhysicsObject *>(collisionObject1->getUserPointer()));
 }
 
 void CPhysicsEnvironment::SetCollisionEventHandler(IPhysicsCollisionEvent *pCollisionEvents) {
@@ -941,8 +938,7 @@ void CPhysicsEnvironment::NotifyTriggerRemoved(IPhysicsObject *trigger) {
 		}
 		if (touch.m_Trigger == trigger) {
 			static_cast<CPhysicsObject *>(touch.m_Object)->RemoveTriggerTouchReference();
-			// TODO: Trigger the leave event?
-			// Probably shouldn't be done because this usually happens when the trigger is removed.
+			// Not triggering the event since the trigger is removing.
 			m_TriggerTouches.RemoveAt(index);
 		}
 		index = next;

@@ -133,8 +133,7 @@ public:
 
 	FORCEINLINE btScalar GetTimeSinceLastPSI() const { return m_TimeSinceLastPSI; }
 
-	bool NeedCollision(const btCollisionObject *collisionObject0,
-			const btCollisionObject *collisionObject1);
+	bool NeedCollision(IPhysicsObject *object0, IPhysicsObject *object1);
 
 	void RecheckObjectCollisionFilter(btCollisionObject *object);
 	void RemoveObjectCollisionPairs(btCollisionObject *object);
