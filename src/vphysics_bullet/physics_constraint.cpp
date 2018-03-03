@@ -50,9 +50,10 @@ bool CPhysicsConstraint::AreObjectsValid() const {
 			m_ObjectReference != m_ObjectAttached && !m_ObjectAttached->IsStatic();
 }
 
-/********
+/******************
  * Hinge
- ********/
+ * A attached to B
+ ******************/
 
 CPhysicsConstraint_Hinge::CPhysicsConstraint_Hinge(
 		IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
@@ -74,13 +75,26 @@ CPhysicsConstraint_Hinge::CPhysicsConstraint_Hinge(
 	ConvertPositionToBullet(params.worldPosition, worldPosition);
 	ConvertDirectionToBullet(params.worldAxisDirection, worldAxisDirection);
 
-	// Constraints are created in game time, not at PSIs. Body A's transform will be used to construct frames.
-	btTransform psiTransformA = rigidBodyA->getWorldTransform();
-	rigidBodyA->setWorldTransform(transformA);
-	m_Constraint = VPhysicsNew(btHingeConstraint, *rigidBodyA, *rigidBodyB,
-			transformA.invXform(worldPosition), transformB.invXform(worldPosition),
-			worldAxisDirection * transformA.getBasis(), worldAxisDirection * transformB.getBasis());
-	rigidBodyA->setWorldTransform(psiTransformA);
+	// Revolving around Z in the frame.
+
+	btVector3 frameZ = worldAxisDirection * transformA.getBasis();
+	btVector3 frameX, frameY;
+	btPlaneSpace1(frameZ, frameX, frameY);
+	btTransform frameInA;
+	frameInA.getBasis().setValue(frameX.getX(), frameY.getX(), frameZ.getX(),
+			frameX.getY(), frameY.getY(), frameZ.getY(),
+			frameX.getZ(), frameY.getZ(), frameZ.getZ());
+	frameInA.setOrigin(transformA.invXform(worldPosition));
+
+	frameZ = worldAxisDirection * transformB.getBasis();
+	btPlaneSpace1(frameZ, frameX, frameY);
+	btTransform frameInB;
+	frameInB.getBasis().setValue(frameX.getX(), frameY.getX(), frameZ.getX(),
+			frameX.getY(), frameY.getY(), frameZ.getY(),
+			frameX.getZ(), frameY.getZ(), frameZ.getZ());
+	frameInB.setOrigin(transformB.invXform(worldPosition));
+
+	m_Constraint = VPhysicsNew(btHingeConstraint, *rigidBodyA, *rigidBodyB, frameInA, frameInB, false);
 	InitializeBulletConstraint(params.constraint);
 }
 
@@ -110,6 +124,7 @@ CPhysicsConstraint_Hinge::~CPhysicsConstraint_Hinge() {
 
 /******************
  * Ball and socket
+ * A attached to B
  ******************/
 
 CPhysicsConstraint_Ballsocket::CPhysicsConstraint_Ballsocket(
