@@ -529,6 +529,12 @@ void CPhysicsObject::UpdateMaterial() {
 		float friction, elasticity;
 		g_pPhysSurfaceProps->GetPhysicsProperties(materialIndex, nullptr, nullptr, &friction, &elasticity);
 		m_RigidBody->setFriction(friction);
+		if (friction > 0.0f) {
+			// Stability.
+			m_RigidBody->setCollisionFlags(m_RigidBody->getCollisionFlags() | btCollisionObject::CF_HAS_FRICTION_ANCHOR);
+		} else {
+			m_RigidBody->setCollisionFlags(m_RigidBody->getCollisionFlags() & ~btCollisionObject::CF_HAS_FRICTION_ANCHOR);
+		}
 		m_RigidBody->setRestitution(elasticity);
 	}
 }

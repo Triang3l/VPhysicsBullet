@@ -36,7 +36,8 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 	m_PerformanceSettings.Defaults();
 
 	m_CollisionConfiguration = VPhysicsNew(btDefaultCollisionConfiguration);
-	m_CollisionConfiguration->setConvexConvexMultipointIterations(); // Stability - very important.
+	// TODO: Do this per-overlap for small or fast-moving objects, has a huge post-load performance hit.
+	m_CollisionConfiguration->setConvexConvexMultipointIterations();
 	m_Dispatcher = VPhysicsNew(btCollisionDispatcher, m_CollisionConfiguration);
 	m_Broadphase = VPhysicsNew(btDbvtBroadphase);
 	m_Solver = VPhysicsNew(btSequentialImpulseConstraintSolver);
@@ -53,7 +54,6 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 	m_DynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = VPHYSICS_CONVEX_DISTANCE_MARGIN;
 	btContactSolverInfo &solverInfo = m_DynamicsWorld->getSolverInfo();
 	// Stability.
-	solverInfo.m_erp2 = 0.25f; // Slightly above the default 0.2, which has visible penetration, but not too high bounce.
 	solverInfo.m_splitImpulse = false;
 	solverInfo.m_solverMode |= SOLVER_RANDMIZE_ORDER | SOLVER_USE_2_FRICTION_DIRECTIONS;
 

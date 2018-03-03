@@ -11,8 +11,7 @@
 #include "tier1/byteswap.h"
 #include "tier1/utlvector.h"
 
-// A tiny bit bigger than in IVP VPhysics (0.25), hopefully won't affect corridors and visual quality.
-#define VPHYSICS_CONVEX_DISTANCE_MARGIN HL2BULLET(1.0f / 3.0f)
+#define VPHYSICS_CONVEX_DISTANCE_MARGIN HL2BULLET(0.25f)
 
 /***************************
  * Serialization structures
