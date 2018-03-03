@@ -89,7 +89,10 @@ btTypedConstraint *CPhysicsConstraint_Hinge::GetBulletConstraint() const {
 }
 
 void CPhysicsConstraint_Hinge::SetAngularMotor(float rotSpeed, float maxAngularImpulse) {
-	m_Constraint->enableAngularMotor(rotSpeed != 0.0f, DEG2RAD(rotSpeed), btFabs(DEG2RAD(maxAngularImpulse)));
+	if (m_Constraint != nullptr) {
+		m_Constraint->enableAngularMotor(rotSpeed != 0.0f,
+				DEG2RAD(rotSpeed), btFabs(DEG2RAD(maxAngularImpulse)));
+	}
 }
 
 void CPhysicsConstraint_Hinge::DeleteBulletConstraint() {
