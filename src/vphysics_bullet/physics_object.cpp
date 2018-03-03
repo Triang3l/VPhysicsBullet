@@ -22,7 +22,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_HingeHLAxis(-1),
 		m_MotionEnabled(true),
 		m_ShadowTempGravityDisable(false),
-		m_Damping(params->damping), m_RotDamping(params->rotdamping),
+		m_LinearDamping(params->damping), m_AngularDamping(params->rotdamping),
 		m_MaterialIndex(materialIndex), m_RealMaterialIndex(-1),
 		m_ContentsMask(CONTENTS_SOLID),
 		m_Shadow(nullptr), m_Player(nullptr),
@@ -83,16 +83,18 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 	m_RigidBody = VPhysicsNew(btRigidBody, constructionInfo);
 	m_RigidBody->setUserPointer(this);
 
+	m_RigidBody->setSleepingThresholds(0.1f, 0.2f);
+
 	if (!IsStatic()) {
 		m_GravityEnabled = true;
-		m_DragCoefficient = m_AngularDragCoefficient = params->dragCoefficient;
+		m_LinearDragCoefficient = m_AngularDragCoefficient = params->dragCoefficient;
 		ComputeDragBases();
-		m_DragEnabled = (m_DragCoefficient != 0.0f);
+		m_DragEnabled = (m_LinearDragCoefficient != 0.0f);
 	} else {
 		const btVector3 zero(0.0f, 0.0f, 0.0f);
 		m_GravityEnabled = false;
-		m_DragCoefficient = m_AngularDragCoefficient = 0.0f;
-		m_DragBasis.setZero();
+		m_LinearDragCoefficient = m_AngularDragCoefficient = 0.0f;
+		m_LinearDragBasis.setZero();
 		m_AngularDragBasis.setZero();
 		m_DragEnabled = false;
 	}
@@ -323,19 +325,19 @@ void CPhysicsObject::EnableGravity(bool enable) {
 
 void CPhysicsObject::SetDamping(const float *speed, const float *rot) {
 	if (speed != nullptr) {
-		m_Damping = *speed;
+		m_LinearDamping = *speed;
 	}
 	if (rot != nullptr) {
-		m_RotDamping = *rot;
+		m_AngularDamping = *rot;
 	}
 }
 
 void CPhysicsObject::GetDamping(float *speed, float *rot) const {
 	if (speed != nullptr) {
-		*speed = m_Damping;
+		*speed = m_LinearDamping;
 	}
 	if (rot != nullptr) {
-		*rot = m_RotDamping;
+		*rot = m_AngularDamping;
 	}
 }
 
@@ -354,31 +356,31 @@ void CPhysicsObject::ApplyDamping(btScalar timeStep) {
 	}
 
 	const btVector3 &linearVelocity = m_RigidBody->getLinearVelocity();
-	const btVector3 &angularVelocity = m_RigidBody->getAngularVelocity();
-
-	btScalar damping = m_Damping, rotDamping = m_RotDamping;
-	if (linearVelocity.length2() < (0.01f * 0.01f) &&
-			angularVelocity.length2() < (0.005f * 0.005f)) {
-		damping += 0.1f;
-		rotDamping += 0.1f;
+	btScalar linearDamping = m_LinearDamping * timeStep;
+	btScalar linearSleepingThreshold = m_RigidBody->getLinearSleepingThreshold();
+	if (linearVelocity.length2() < linearSleepingThreshold * linearSleepingThreshold) {
+		linearDamping += 0.1f;
 	}
-
-	damping *= timeStep;
-	if (damping < 0.25f) {
-		damping = btScalar(1.0f) - damping;
+	if (linearDamping < 0.25f) {
+		linearDamping = btScalar(1.0f) - linearDamping;
 	} else {
-		damping = btExp(-damping);
+		linearDamping = btExp(-linearDamping);
 	}
-	m_RigidBody->setLinearVelocity(linearVelocity * damping);
+	m_RigidBody->setLinearVelocity(linearVelocity * linearDamping);
 
 	if (m_Shadow == nullptr) {
-		rotDamping *= timeStep;
-		if (rotDamping < 0.4f) {
-			rotDamping = btScalar(1.0f) - rotDamping;
-		} else {
-			rotDamping = btExp(-rotDamping);
+		const btVector3 &angularVelocity = m_RigidBody->getAngularVelocity();
+		btScalar angularDamping = m_AngularDamping * timeStep;
+		btScalar angularSleepingThreshold = m_RigidBody->getAngularSleepingThreshold();
+		if (angularVelocity.length2() < angularSleepingThreshold * angularSleepingThreshold) {
+			angularDamping += 0.1f;
 		}
-		m_RigidBody->setAngularVelocity(angularVelocity * rotDamping);
+		if (angularDamping < 0.4f) {
+			angularDamping = btScalar(1.0f) - angularDamping;
+		} else {
+			angularDamping = btExp(-angularDamping);
+		}
+		m_RigidBody->setAngularVelocity(angularVelocity * angularDamping);
 	}
 }
 
@@ -405,11 +407,11 @@ void CPhysicsObject::ComputeDragBases() {
 	collide->GetShape()->getAabb(btTransform::getIdentity(), aabbMin, aabbMax);
 	btVector3 extents = aabbMax - aabbMin;
 	const btVector3 &areas = collide->GetOrthographicAreas();
-	m_DragBasis.setValue(
+	m_LinearDragBasis.setValue(
 			extents.getY() * extents.getZ(),
 			extents.getX() * extents.getZ(),
 			extents.getX() * extents.getY());
-	m_DragBasis *= areas;
+	m_LinearDragBasis *= areas;
 	extents *= 0.5f;
 	m_AngularDragBasis.setValue(
 			AngularDragIntegral(extents.getX(), extents.getY(), extents.getZ()) +
@@ -438,7 +440,7 @@ void CPhysicsObject::EnableDrag(bool enable) {
 
 void CPhysicsObject::SetDragCoefficient(float *pDrag, float *pAngularDrag) {
 	if (pDrag != nullptr) {
-		m_DragCoefficient = *pDrag;
+		m_LinearDragCoefficient = *pDrag;
 	}
 	if (pAngularDrag != nullptr) {
 		m_AngularDragCoefficient = *pAngularDrag;
@@ -446,8 +448,8 @@ void CPhysicsObject::SetDragCoefficient(float *pDrag, float *pAngularDrag) {
 }
 
 btScalar CPhysicsObject::CalculateLinearDrag(const btVector3 &velocity) const {
-	btVector3 drag = ((velocity * m_RigidBody->getWorldTransform().getBasis()) * m_DragBasis).absolute();
-	return m_DragCoefficient * m_RigidBody->getInvMass() * (drag.getX() + drag.getY() + drag.getZ());
+	btVector3 drag = ((velocity * m_RigidBody->getWorldTransform().getBasis()) * m_LinearDragBasis).absolute();
+	return m_LinearDragCoefficient * m_RigidBody->getInvMass() * (drag.getX() + drag.getY() + drag.getZ());
 }
 
 float CPhysicsObject::CalculateLinearDrag(const Vector &unitDirection) const {

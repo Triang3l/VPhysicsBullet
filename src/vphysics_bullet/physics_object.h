@@ -274,13 +274,13 @@ private:
 
 	bool m_GravityEnabled;
 	bool m_ShadowTempGravityDisable;
-	float m_Damping, m_RotDamping;
+	float m_LinearDamping, m_AngularDamping;
 
 	int m_MaterialIndex, m_RealMaterialIndex;
 	unsigned int m_ContentsMask;
 
-	btScalar m_DragCoefficient, m_AngularDragCoefficient;
-	btVector3 m_DragBasis, m_AngularDragBasis;
+	btScalar m_LinearDragCoefficient, m_AngularDragCoefficient;
+	btVector3 m_LinearDragBasis, m_AngularDragBasis;
 	bool m_DragEnabled;
 	static btScalar AngularDragIntegral(btScalar l, btScalar w, btScalar h);
 	void ComputeDragBases();
