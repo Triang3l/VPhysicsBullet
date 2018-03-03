@@ -65,6 +65,8 @@ CPhysicsConstraint_Hinge::CPhysicsConstraint_Hinge(
 
 	CPhysicsObject *objectA = static_cast<CPhysicsObject *>(m_ObjectAttached);
 	CPhysicsObject *objectB = static_cast<CPhysicsObject *>(m_ObjectReference);
+	btRigidBody *rigidBodyA = objectA->GetRigidBody();
+	btRigidBody *rigidBodyB = objectB->GetRigidBody();
 	const btTransform &transformA = objectA->GetInterPSIWorldTransform();
 	const btTransform &transformB = objectB->GetInterPSIWorldTransform();
 
@@ -72,9 +74,13 @@ CPhysicsConstraint_Hinge::CPhysicsConstraint_Hinge(
 	ConvertPositionToBullet(params.worldPosition, worldPosition);
 	ConvertDirectionToBullet(params.worldAxisDirection, worldAxisDirection);
 
-	m_Constraint = VPhysicsNew(btHingeConstraint, *objectA->GetRigidBody(), *objectB->GetRigidBody(),
+	// Constraints are created in game time, not at PSIs. Body A's transform will be used to construct frames.
+	btTransform psiTransformA = rigidBodyA->getWorldTransform();
+	rigidBodyA->setWorldTransform(transformA);
+	m_Constraint = VPhysicsNew(btHingeConstraint, *rigidBodyA, *rigidBodyB,
 			transformA.invXform(worldPosition), transformB.invXform(worldPosition),
 			worldAxisDirection * transformA.getBasis(), worldAxisDirection * transformB.getBasis());
+	rigidBodyA->setWorldTransform(psiTransformA);
 	InitializeBulletConstraint(params.constraint);
 }
 
