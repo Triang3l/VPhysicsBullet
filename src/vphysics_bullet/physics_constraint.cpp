@@ -58,7 +58,9 @@ bool CPhysicsConstraint::AreObjectsValid() const {
 CPhysicsConstraint_Hinge::CPhysicsConstraint_Hinge(
 		IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
 		const constraint_hingeparams_t &params) :
-		CPhysicsConstraint(objectReference, objectAttached) {
+		CPhysicsConstraint(objectReference, objectAttached),
+		m_TargetAngularVelocity(DEG2RAD(params.hingeAxis.angularVelocity)),
+		m_MaxAngularImpulse(btFabs(DEG2RAD(params.hingeAxis.torque))) {
 	if (!AreObjectsValid()) {
 		m_Constraint = nullptr;
 		return;
@@ -96,6 +98,10 @@ CPhysicsConstraint_Hinge::CPhysicsConstraint_Hinge(
 
 	m_Constraint = VPhysicsNew(btHingeConstraint, *rigidBodyA, *rigidBodyB, frameInA, frameInB, false);
 	InitializeBulletConstraint(params.constraint);
+
+	m_MaxAngularImpulse *= objectA->GetEnvironment()->GetSimulationTimestep();
+	m_Constraint->enableAngularMotor(m_MaxAngularImpulse != 0.0f,
+			m_TargetAngularVelocity, m_MaxAngularImpulse);
 }
 
 btTypedConstraint *CPhysicsConstraint_Hinge::GetBulletConstraint() const {
@@ -104,8 +110,13 @@ btTypedConstraint *CPhysicsConstraint_Hinge::GetBulletConstraint() const {
 
 void CPhysicsConstraint_Hinge::SetAngularMotor(float rotSpeed, float maxAngularImpulse) {
 	if (m_Constraint != nullptr) {
-		m_Constraint->enableAngularMotor(rotSpeed != 0.0f,
-				DEG2RAD(rotSpeed), btFabs(DEG2RAD(maxAngularImpulse)));
+		if (rotSpeed != 0.0f) {
+			m_Constraint->enableAngularMotor(rotSpeed != 0.0f,
+					DEG2RAD(rotSpeed), btFabs(DEG2RAD(maxAngularImpulse)));
+		} else {
+			m_Constraint->enableAngularMotor(m_MaxAngularImpulse != 0.0f,
+					m_TargetAngularVelocity, m_MaxAngularImpulse);
+		}
 	}
 }
 

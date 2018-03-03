@@ -88,6 +88,8 @@ protected:
 	virtual void DeleteBulletConstraint();
 private:
 	btHingeConstraint *m_Constraint;
+	btScalar m_TargetAngularVelocity;
+	btScalar m_MaxAngularImpulse;
 };
 
 class CPhysicsConstraint_Ballsocket : public CPhysicsConstraint {
