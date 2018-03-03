@@ -819,9 +819,9 @@ CPhysCollide_Compound *CPhysicsCollision::CreateBBox(const Vector &mins, const V
 				cacheCompound = nullptr;
 				break;
 			}
-			if (cacheCompound != nullptr) {
-				return cacheCompound;
-			}
+		}
+		if (cacheCompound != nullptr) {
+			return cacheCompound;
 		}
 	}
 
