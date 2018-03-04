@@ -66,40 +66,22 @@ CPhysicsConstraint_Hinge::CPhysicsConstraint_Hinge(
 		return;
 	}
 
-	CPhysicsObject *objectA = static_cast<CPhysicsObject *>(m_ObjectAttached);
-	CPhysicsObject *objectB = static_cast<CPhysicsObject *>(m_ObjectReference);
-	btRigidBody *rigidBodyA = objectA->GetRigidBody();
-	btRigidBody *rigidBodyB = objectB->GetRigidBody();
-	const btTransform &transformA = objectA->GetInterPSIWorldTransform();
-	const btTransform &transformB = objectB->GetInterPSIWorldTransform();
+	btRigidBody *rigidBodyA = static_cast<CPhysicsObject *>(m_ObjectAttached)->GetRigidBody();
+	btRigidBody *rigidBodyB = static_cast<CPhysicsObject *>(m_ObjectReference)->GetRigidBody();
+	const btTransform &transformA = rigidBodyA->getCenterOfMassTransform();
+	const btTransform &transformB = rigidBodyB->getCenterOfMassTransform();
 
 	btVector3 worldPosition, worldAxisDirection;
 	ConvertPositionToBullet(params.worldPosition, worldPosition);
 	ConvertDirectionToBullet(params.worldAxisDirection, worldAxisDirection);
 
-	// Revolving around Z in the frame.
-
-	btVector3 frameZ = worldAxisDirection * transformA.getBasis();
-	btVector3 frameX, frameY;
-	btPlaneSpace1(frameZ, frameX, frameY);
-	btTransform frameInA;
-	frameInA.getBasis().setValue(frameX.getX(), frameY.getX(), frameZ.getX(),
-			frameX.getY(), frameY.getY(), frameZ.getY(),
-			frameX.getZ(), frameY.getZ(), frameZ.getZ());
-	frameInA.setOrigin(transformA.invXform(worldPosition));
-
-	frameZ = worldAxisDirection * transformB.getBasis();
-	btPlaneSpace1(frameZ, frameX, frameY);
-	btTransform frameInB;
-	frameInB.getBasis().setValue(frameX.getX(), frameY.getX(), frameZ.getX(),
-			frameX.getY(), frameY.getY(), frameZ.getY(),
-			frameX.getZ(), frameY.getZ(), frameZ.getZ());
-	frameInB.setOrigin(transformB.invXform(worldPosition));
-
-	m_Constraint = VPhysicsNew(btHingeConstraint, *rigidBodyA, *rigidBodyB, frameInA, frameInB, false);
+	m_Constraint = VPhysicsNew(btHingeConstraint, *rigidBodyA, *rigidBodyB,
+			transformA.invXform(worldPosition), transformB.invXform(worldPosition),
+			worldAxisDirection * transformA.getBasis(), worldAxisDirection * transformB.getBasis());
 	InitializeBulletConstraint(params.constraint);
 
-	m_MaxAngularImpulse *= objectA->GetEnvironment()->GetSimulationTimestep();
+	m_MaxAngularImpulse *= static_cast<CPhysicsObject *>(
+			m_ObjectAttached)->GetEnvironment()->GetSimulationTimestep();
 	m_Constraint->enableAngularMotor(m_MaxAngularImpulse != 0.0f,
 			m_TargetAngularVelocity, m_MaxAngularImpulse);
 }
