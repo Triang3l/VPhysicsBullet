@@ -426,43 +426,59 @@ float CPhysicsEnvironment::GetAirDensity() const {
 	VPhysicsDelete(CPhysicsSpring, pSpring);
 }
 
-/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateRagdollConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_ragdollparams_t &ragdoll) {
+/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateRagdollConstraint(
+		IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject,
+		IPhysicsConstraintGroup *pGroup, const constraint_ragdollparams_t &ragdoll) {
 	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Dummy, pReferenceObject, pAttachedObject);
 	AddConstraint(constraint);
 	return constraint;
 }
 
-IPhysicsConstraint *CPhysicsEnvironment::CreateHingeConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_hingeparams_t &hinge) {
-	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Hinge, pReferenceObject, pAttachedObject, hinge);
+IPhysicsConstraint *CPhysicsEnvironment::CreateHingeConstraint(
+		IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject,
+		IPhysicsConstraintGroup *pGroup, const constraint_hingeparams_t &hinge) {
+	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Hinge,
+			pReferenceObject, pAttachedObject, hinge);
 	AddConstraint(constraint);
 	return constraint;
 }
 
-/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateFixedConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_fixedparams_t &fixed) {
+/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateFixedConstraint(
+		IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject,
+		IPhysicsConstraintGroup *pGroup, const constraint_fixedparams_t &fixed) {
 	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Dummy, pReferenceObject, pAttachedObject);
 	AddConstraint(constraint);
 	return constraint;
 }
 
-/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateSlidingConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_slidingparams_t &sliding) {
+/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateSlidingConstraint(
+		IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject,
+		IPhysicsConstraintGroup *pGroup, const constraint_slidingparams_t &sliding) {
 	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Dummy, pReferenceObject, pAttachedObject);
 	AddConstraint(constraint);
 	return constraint;
 }
 
-IPhysicsConstraint *CPhysicsEnvironment::CreateBallsocketConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_ballsocketparams_t &ballsocket) {
-	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Ballsocket, pReferenceObject, pAttachedObject, ballsocket);
+IPhysicsConstraint *CPhysicsEnvironment::CreateBallsocketConstraint(
+		IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject,
+		IPhysicsConstraintGroup *pGroup, const constraint_ballsocketparams_t &ballsocket) {
+	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Ballsocket,
+			pReferenceObject, pAttachedObject, ballsocket);
 	AddConstraint(constraint);
 	return constraint;
 }
 
-/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreatePulleyConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_pulleyparams_t &pulley) {
+/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreatePulleyConstraint(
+		IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject,
+		IPhysicsConstraintGroup *pGroup, const constraint_pulleyparams_t &pulley) {
 	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Dummy, pReferenceObject, pAttachedObject);
 	AddConstraint(constraint);
 	return constraint;
 }
 
-/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateLengthConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_lengthparams_t &length) {
+/* DUMMY */ IPhysicsConstraint *CPhysicsEnvironment::CreateLengthConstraint(
+		IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject,
+		IPhysicsConstraintGroup *pGroup, const constraint_lengthparams_t &length) {
 	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Dummy, pReferenceObject, pAttachedObject);
 	AddConstraint(constraint);
 	return constraint;
