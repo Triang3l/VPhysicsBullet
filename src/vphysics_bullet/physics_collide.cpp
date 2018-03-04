@@ -1696,7 +1696,7 @@ CPhysCollide_Sphere *CPhysicsCollision::CreateCachedSphereCollide(btScalar radiu
 	const btScalar radiusThreshold = HL2BULLET(0.1f);
 	CPhysCollide_Sphere *collide = nullptr, *freeCollide = nullptr;
 	for (int cacheIndex = m_SphereCache.Count() - 1; cacheIndex >= 0; --cacheIndex) {
-		CPhysCollide_Sphere *cacheCollide = static_cast<CPhysCollide_Sphere *>(m_SphereCache[cacheIndex]);
+		CPhysCollide_Sphere *cacheCollide = m_SphereCache[cacheIndex];
 		if (btFabs(cacheCollide->GetRadius() - radius) < radiusThreshold) {
 			collide = cacheCollide;
 			break;
