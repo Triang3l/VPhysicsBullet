@@ -144,9 +144,6 @@ public:
 
 	void NotifyTriggerRemoved(IPhysicsObject *trigger);
 
-	void AddConstraint(IPhysicsConstraint *constraint);
-	void DeleteConstraint(IPhysicsConstraint *constraint, bool removeFromList = true);
-
 	FORCEINLINE btScalar GetMaxSpeed() const {
 		return HL2BULLET(m_PerformanceSettings.maxVelocity);
 	}
@@ -251,6 +248,8 @@ private:
 	CUtlRBTree<TriggerTouch_t> m_TriggerTouches;
 	void CheckTriggerTouches();
 
+	void AddConstraint(IPhysicsConstraint *constraint);
+	void DeleteConstraint(IPhysicsConstraint *constraint, bool removeFromList = true);
 	CUtlVector<IPhysicsConstraint *> m_ConstraintObjects; // Both valid and invalid.
 	CUtlVector<IPhysicsConstraint *> m_DeadConstraints;
 
