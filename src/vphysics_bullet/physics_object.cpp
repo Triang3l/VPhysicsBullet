@@ -8,6 +8,7 @@
 #include "physics_material.h"
 #include "physics_motioncontroller.h"
 #include "physics_shadow.h"
+#include "physics_vehicle.h"
 #include "bspflags.h"
 #include "tier0/dbg.h"
 
@@ -25,7 +26,7 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_LinearDamping(params->damping), m_AngularDamping(params->rotdamping),
 		m_MaterialIndex(materialIndex), m_RealMaterialIndex(-1),
 		m_ContentsMask(CONTENTS_SOLID),
-		m_Shadow(nullptr), m_Player(nullptr),
+		m_Shadow(nullptr), m_Player(nullptr), m_Vehicle(nullptr),
 		m_CollisionEnabled(params->enableCollisions),
 		m_ConstraintObjectCount(0), m_ValidConstraintCount(0),
 		m_GameData(params->pGameData), m_GameFlags(0), m_GameIndex(0),
@@ -118,6 +119,13 @@ CPhysicsObject::~CPhysicsObject() {
 	VPhysicsDelete(btRigidBody, m_RigidBody);
 }
 
+void CPhysicsObject::NotifyQueuedForRemoval() {
+	if (m_Vehicle != nullptr) {
+		static_cast<CPhysicsVehicleController *>(m_Vehicle)->SetBodyObject(nullptr);
+		Assert(m_Vehicle == nullptr);
+	}
+}
+
 void CPhysicsObject::Release() {
 	// Prevent callbacks to the game code and unlink from this object.
 	m_Callbacks = 0;
@@ -126,6 +134,8 @@ void CPhysicsObject::Release() {
 	RemovePlayerController();
 	RemoveShadowController();
 	DetachFromMotionControllers();
+	// Really, REALLY bad if still a vehicle - constraints queued for removal won't be removed correctly.
+	Assert(m_Vehicle == nullptr);
 
 	static_cast<CPhysicsEnvironment *>(m_Environment)->NotifyObjectRemoving(this);
 
@@ -669,6 +679,17 @@ void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
 	}
 }
 
+void CPhysicsObject::GetPositionAtPSI(Vector *worldPosition, QAngle *angles) const {
+	const btTransform &transform = m_RigidBody->getWorldTransform();
+	const btMatrix3x3 &basis = transform.getBasis();
+	if (worldPosition != nullptr) {
+		ConvertPositionToHL(transform.getOrigin() - (basis * GetBulletMassCenter()), *worldPosition);
+	}
+	if (angles != nullptr) {
+		ConvertRotationToHL(basis, *angles);
+	}
+}
+
 void CPhysicsObject::GetPositionMatrix(matrix3x4_t *positionMatrix) const {
 	const btTransform &transform = GetInterPSIWorldTransform();
 	const btMatrix3x3 &basis = transform.getBasis();
@@ -1169,6 +1190,10 @@ void CPhysicsObject::SimulateShadowAndPlayer(btScalar timeStep) {
 	if (m_Shadow != nullptr) {
 		static_cast<CPhysicsShadowController *>(m_Shadow)->Simulate(timeStep);
 	}
+}
+
+void CPhysicsObject::NotifyAttachedToVehicleController(IPhysicsVehicleController *vehicle) {
+	m_Vehicle = vehicle;
 }
 
 /************

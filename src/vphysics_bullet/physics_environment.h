@@ -158,6 +158,10 @@ public:
 
 	void NotifyTriggerRemoved(IPhysicsObject *trigger);
 
+	IPhysicsConstraint *CreateSuspensionConstraint(
+			IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
+			IPhysicsConstraintGroup *group, const Vector &wheelPositionInReference);
+
 	FORCEINLINE btScalar GetMaxSpeed() const {
 		return HL2BULLET(m_PerformanceSettings.maxVelocity);
 	}

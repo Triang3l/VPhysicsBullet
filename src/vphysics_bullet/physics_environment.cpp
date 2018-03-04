@@ -91,7 +91,9 @@ void CPhysicsEnvironment::Release() {
 
 	int objectCount = m_Objects.Count();
 	for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex) {
-		static_cast<CPhysicsObject *>(m_Objects[objectIndex])->Release();
+		CPhysicsObject *object = static_cast<CPhysicsObject *>(m_Objects[objectIndex]);
+		object->NotifyQueuedForRemoval();
+		object->Release();
 	}
 
 	VPhysicsDelete(CPhysicsEnvironment, this);
@@ -299,6 +301,8 @@ void CPhysicsEnvironment::DestroyObject(IPhysicsObject *pObject) {
 		WakeContactingObjects(pObject);
 	}
 
+	static_cast<CPhysicsObject *>(pObject)->NotifyQueuedForRemoval();
+
 	m_Objects.FindAndFastRemove(pObject);
 	if (IsInSimulation() || m_QueueDeleteObject) {
 		pObject->SetCallbackFlags(pObject->GetCallbackFlags() | CALLBACK_MARKED_FOR_DELETE);
@@ -484,6 +488,15 @@ IPhysicsConstraint *CPhysicsEnvironment::CreateBallsocketConstraint(
 	return constraint;
 }
 
+IPhysicsConstraint *CPhysicsEnvironment::CreateSuspensionConstraint(
+		IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
+		IPhysicsConstraintGroup *group, const Vector &wheelPositionInReference) {
+	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Suspension,
+			objectReference, objectAttached, wheelPositionInReference);
+	AddConstraint(constraint);
+	return constraint;
+}
+
 void CPhysicsEnvironment::DestroyConstraint(IPhysicsConstraint *pConstraint) {
 	if (pConstraint == nullptr) {
 		return;
@@ -610,11 +623,13 @@ void CPhysicsEnvironment::DestroyMotionController(IPhysicsMotionController *pCon
 
 /* DUMMY */ IPhysicsVehicleController *CPhysicsEnvironment::CreateVehicleController(IPhysicsObject *pVehicleBodyObject,
 		const vehicleparams_t &params, unsigned int nVehicleType, IPhysicsGameTrace *pGameTrace) {
-	return VPhysicsNew(CPhysicsVehicleController, params);
+	return VPhysicsNew(CPhysicsVehicleController, pVehicleBodyObject, params, pGameTrace);
 }
 
 /* DUMMY */ void CPhysicsEnvironment::DestroyVehicleController(IPhysicsVehicleController *pController) {
-	VPhysicsDelete(CPhysicsVehicleController, pController);
+	if (pController != nullptr) {
+		static_cast<CPhysicsVehicleController *>(pController)->Release();
+	}
 }
 
 /*******************

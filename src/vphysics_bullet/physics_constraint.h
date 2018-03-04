@@ -54,7 +54,7 @@ public:
 	virtual void Release() = 0;
 
 protected:
-	void InitializeBulletConstraint(const constraint_breakableparams_t &params);
+	void InitializeBulletConstraint(const constraint_breakableparams_t *params = nullptr);
 
 	IPhysicsObject *m_ObjectReference, *m_ObjectAttached;
 	virtual bool AreObjectsValid() const;
@@ -104,6 +104,21 @@ protected:
 	virtual void DeleteBulletConstraint();
 private:
 	btPoint2PointConstraint *m_Constraint;
+};
+
+// Y axis suspension for car wheels.
+class CPhysicsConstraint_Suspension : public CPhysicsConstraint {
+public:
+	CPhysicsConstraint_Suspension(
+			IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
+			const Vector &wheelPositionInReference);
+	virtual ~CPhysicsConstraint_Suspension();
+	virtual btTypedConstraint *GetBulletConstraint() const;
+	virtual void Release();
+protected:
+	virtual void DeleteBulletConstraint();
+private:
+	btGeneric6DofSpring2Constraint *m_Constraint;
 };
 
 class CPhysicsConstraintGroup : public IPhysicsConstraintGroup {

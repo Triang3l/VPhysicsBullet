@@ -140,9 +140,11 @@ public:
 	// Internal methods.
 
 	FORCEINLINE btRigidBody *GetRigidBody() const { return m_RigidBody; }
-	const btVector3 &GetBulletMassCenter() const;
 
 	FORCEINLINE IPhysicsEnvironment *GetEnvironment() const { return m_Environment; }
+
+	void GetPositionAtPSI(Vector *worldPosition, QAngle *angles) const;
+	const btVector3 &GetBulletMassCenter() const;
 
 	inline bool WasAsleep() const { return m_WasAsleep; }
 	inline bool UpdateEventSleepState() {
@@ -201,6 +203,8 @@ public:
 	void SimulateShadowAndPlayer(btScalar timeStep);
 	void RemovePlayerController();
 
+	void NotifyAttachedToVehicleController(IPhysicsVehicleController *vehicle);
+
 	FORCEINLINE CPhysicsObject *GetNextCollideObject() const {
 		return m_CollideObjectNext;
 	}
@@ -247,7 +251,11 @@ public:
 
 	void NotifyTransferred(IPhysicsEnvironment *newEnvironment);
 
+	// Safe removal of child objects.
+	void NotifyQueuedForRemoval();
+
 	// Destruction permitting calling back through virtual functions.
+	// NotifyQueuedForRemoval must be called before a call to Release happens!!!
 	void Release();
 
 private:
@@ -290,6 +298,7 @@ private:
 
 	IPhysicsShadowController *m_Shadow;
 	IPhysicsPlayerController *m_Player;
+	IPhysicsVehicleController *m_Vehicle;
 
 	bool m_CollisionEnabled;
 

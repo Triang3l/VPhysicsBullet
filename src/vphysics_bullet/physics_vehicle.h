@@ -9,15 +9,18 @@
 
 class CPhysicsVehicleController : public IPhysicsVehicleController {
 public:
-	CPhysicsVehicleController(const vehicleparams_t &params);
+	CPhysicsVehicleController(IPhysicsObject *bodyObject,
+			const vehicleparams_t &params, IPhysicsGameTrace *gameTrace);
+
+	// IPhysicsVehicleController methods.
 
 	/* DUMMY */ virtual void Update(float dt, vehicle_controlparams_t &controls) {}
 	virtual const vehicle_operatingparams_t &GetOperatingParams();
 	virtual const vehicleparams_t &GetVehicleParams();
 	virtual vehicleparams_t &GetVehicleParamsForChange();
 	/* DUMMY */ virtual float UpdateBooster(float dt) { return 0.0f; }
-	/* DUMMY */ virtual int GetWheelCount() { return 0; }
-	/* DUMMY */ virtual IPhysicsObject *GetWheel(int index) { return nullptr; }
+	virtual int GetWheelCount();
+	virtual IPhysicsObject *GetWheel(int index);
 	/* DUMMY */ virtual bool GetWheelContactPoint(int index, Vector *pContactPoint, int *pSurfaceProps);
 	/* DUMMY */ virtual void SetSpringLength(int wheelIndex, float length) {}
 	/* DUMMY */ virtual void SetWheelFriction(int wheelIndex, float friction) {}
@@ -30,9 +33,28 @@ public:
 	}
 	/* DUMMY */ virtual void VehicleDataReload() {}
 
-private:
+	// Internal objects.
+
+	void SetBodyObject(IPhysicsObject *bodyObject);
+
+	virtual void Release();
+
+protected:
+	IPhysicsObject *m_BodyObject;
+
 	vehicleparams_t m_VehicleParameters;
+
+	struct Wheel {
+		IPhysicsObject *m_Object;
+		class CPhysicsConstraint_Suspension *m_Constraint;
+	};
+	Wheel m_Wheels[VEHICLE_MAX_WHEEL_COUNT];
+
 	vehicle_operatingparams_t m_OperatingParameters;
+
+private:
+	void CreateWheels();
+	void DestroyWheels();
 };
 
 #endif

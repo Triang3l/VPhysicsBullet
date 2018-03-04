@@ -39,10 +39,12 @@ IPhysicsObject *CPhysicsConstraint::GetAttachedObject() const {
 	return m_ObjectAttached;
 }
 
-void CPhysicsConstraint::InitializeBulletConstraint(const constraint_breakableparams_t &params) {
+void CPhysicsConstraint::InitializeBulletConstraint(const constraint_breakableparams_t *params) {
 	btTypedConstraint *constraint = GetBulletConstraint();
 	constraint->setUserConstraintPtr(static_cast<IPhysicsConstraint *>(this));
-	constraint->setEnabled(params.isActive);
+	if (params != nullptr) {
+		constraint->setEnabled(params->isActive); // Active by default in both params and Bullet.
+	}
 }
 
 bool CPhysicsConstraint::AreObjectsValid() const {
@@ -78,7 +80,7 @@ CPhysicsConstraint_Hinge::CPhysicsConstraint_Hinge(
 	m_Constraint = VPhysicsNew(btHingeConstraint, *rigidBodyA, *rigidBodyB,
 			transformA.invXform(worldPosition), transformB.invXform(worldPosition),
 			worldAxisDirection * transformA.getBasis(), worldAxisDirection * transformB.getBasis());
-	InitializeBulletConstraint(params.constraint);
+	InitializeBulletConstraint(&params.constraint);
 
 	m_MaxAngularImpulse *= static_cast<CPhysicsObject *>(
 			m_ObjectAttached)->GetEnvironment()->GetSimulationTimestep();
@@ -141,7 +143,7 @@ CPhysicsConstraint_Ballsocket::CPhysicsConstraint_Ballsocket(
 	m_Constraint = VPhysicsNew(btPoint2PointConstraint, *objectA->GetRigidBody(), *objectB->GetRigidBody(),
 			objectLocalPositionA - (transformA.getBasis() * objectA->GetBulletMassCenter()),
 			objectLocalPositionB - (transformB.getBasis() * objectB->GetBulletMassCenter()));
-	InitializeBulletConstraint(params.constraint);
+	InitializeBulletConstraint(&params.constraint);
 }
 
 btTypedConstraint *CPhysicsConstraint_Ballsocket::GetBulletConstraint() const {
@@ -158,5 +160,62 @@ void CPhysicsConstraint_Ballsocket::Release() {
 }
 
 CPhysicsConstraint_Ballsocket::~CPhysicsConstraint_Ballsocket() {
+	DeleteBulletConstraint();
+}
+
+/*******************
+ * Wheel suspension
+ * B attached to A
+ *******************/
+
+CPhysicsConstraint_Suspension::CPhysicsConstraint_Suspension(
+		IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
+		const Vector &wheelPositionInReference) :
+		CPhysicsConstraint(objectReference, objectAttached) {
+	if (!AreObjectsValid()) {
+		m_Constraint = nullptr;
+		return;
+	}
+
+	CPhysicsObject *objectA = static_cast<CPhysicsObject *>(m_ObjectReference);
+	CPhysicsObject *objectB = static_cast<CPhysicsObject *>(m_ObjectAttached);
+	btRigidBody *rigidBodyA = objectA->GetRigidBody();
+	btRigidBody *rigidBodyB = objectB->GetRigidBody();
+	// Input vectors are relative, so using PSI transforms.
+	const btTransform &transformA = rigidBodyA->getCenterOfMassTransform();
+	const btTransform &transformB = rigidBodyB->getCenterOfMassTransform();
+
+	btTransform frameInA;
+	frameInA.getBasis().setIdentity();
+	ConvertPositionToBullet(wheelPositionInReference, frameInA.getOrigin());
+	frameInA.getOrigin() -= objectA->GetBulletMassCenter();
+	// Force the body's coordinate system for wheels.
+	btTransform frameInB(btMatrix3x3::getIdentity(),
+			frameInA.getOrigin() + transformA.getOrigin() - transformB.getOrigin());
+
+	m_Constraint = VPhysicsNew(btGeneric6DofSpring2Constraint,
+			*rigidBodyA, *rigidBodyB, frameInA, frameInB, RO_YZX /* Naming is in reverse */);
+	InitializeBulletConstraint();
+
+	m_Constraint->setLimit(0, 0.0f, 0.0f);
+	m_Constraint->setLimit(1, 0.0f, 0.0f); // TODO: Spring length.
+	m_Constraint->setLimit(2, 0.0f, 0.0f);
+	m_Constraint->setLimit(5, 0.0f, 0.0f);
+}
+
+btTypedConstraint *CPhysicsConstraint_Suspension::GetBulletConstraint() const {
+	return m_Constraint;
+}
+
+void CPhysicsConstraint_Suspension::DeleteBulletConstraint() {
+	VPhysicsDelete(btGeneric6DofSpring2Constraint, m_Constraint);
+	m_Constraint = nullptr;
+}
+
+void CPhysicsConstraint_Suspension::Release() {
+	VPhysicsDelete(CPhysicsConstraint_Suspension, this);
+}
+
+CPhysicsConstraint_Suspension::~CPhysicsConstraint_Suspension() {
 	DeleteBulletConstraint();
 }
