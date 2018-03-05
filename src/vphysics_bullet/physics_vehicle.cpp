@@ -68,16 +68,18 @@ void CPhysicsVehicleController::CreateWheels() {
 	CPhysicsObject *bodyObject = static_cast<CPhysicsObject *>(m_BodyObject);
 	CPhysicsEnvironment *environment = static_cast<CPhysicsEnvironment *>(bodyObject->GetEnvironment());
 
+	bodyObject->Wake();
+
 	Vector bodyPosition;
 	QAngle bodyAngles;
+	matrix3x4_t bodyTransform;
 	bodyObject->GetPositionAtPSI(&bodyPosition, &bodyAngles);
+	AngleMatrix(bodyAngles, bodyPosition, bodyTransform);
 
 	objectparams_t wheelObjectParams;
 	memset(&wheelObjectParams, 0, sizeof(wheelObjectParams));
 	wheelObjectParams.pName = "VehicleWheel";
 	wheelObjectParams.pGameData = bodyObject->GetGameData();
-
-	bool wake = !bodyObject->IsAsleep();
 
 	int wheelIndex = 0;
 	for (int axleIndex = 0; axleIndex < m_VehicleParameters.axleCount; ++axleIndex) {
@@ -99,13 +101,14 @@ void CPhysicsVehicleController::CreateWheels() {
 				continue;
 			}
 			Vector wheelOffset = axle.offset + ((axleWheelIndex & 1 ? 1.0f : -1.0f) * axle.wheelOffset);
+			Vector wheelPosition;
+			VectorTransform(wheelOffset, bodyTransform, wheelPosition);
 			wheel.m_Object = environment->CreateSphereObject(axle.wheels.radius, axle.wheels.materialIndex,
-					bodyPosition + wheelOffset, bodyAngles, &wheelObjectParams, false);
+					wheelPosition, bodyAngles, &wheelObjectParams, false);
+			wheel.m_Object->SetCallbackFlags(wheel.m_Object->GetCallbackFlags() | CALLBACK_IS_VEHICLE_WHEEL);
 			wheel.m_Constraint = static_cast<CPhysicsConstraint_Suspension *>(
 					environment->CreateSuspensionConstraint(bodyObject, wheel.m_Object, nullptr, wheelOffset));
-			if (wake) {
-				wheel.m_Object->Wake();
-			}
+			wheel.m_Object->Wake();
 		}
 	}
 }

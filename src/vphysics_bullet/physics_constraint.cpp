@@ -181,7 +181,6 @@ CPhysicsConstraint_Suspension::CPhysicsConstraint_Suspension(
 	CPhysicsObject *objectB = static_cast<CPhysicsObject *>(m_ObjectAttached);
 	btRigidBody *rigidBodyA = objectA->GetRigidBody();
 	btRigidBody *rigidBodyB = objectB->GetRigidBody();
-	// Input vectors are relative, so using PSI transforms.
 	const btTransform &transformA = rigidBodyA->getCenterOfMassTransform();
 	const btTransform &transformB = rigidBodyB->getCenterOfMassTransform();
 
