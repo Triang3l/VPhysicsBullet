@@ -179,27 +179,23 @@ CPhysicsConstraint_Suspension::CPhysicsConstraint_Suspension(
 
 	CPhysicsObject *objectA = static_cast<CPhysicsObject *>(m_ObjectReference);
 	CPhysicsObject *objectB = static_cast<CPhysicsObject *>(m_ObjectAttached);
-	btRigidBody *rigidBodyA = objectA->GetRigidBody();
-	btRigidBody *rigidBodyB = objectB->GetRigidBody();
-	const btTransform &transformA = rigidBodyA->getCenterOfMassTransform();
-	const btTransform &transformB = rigidBodyB->getCenterOfMassTransform();
 
 	btTransform frameInA;
 	frameInA.getBasis().setIdentity();
 	ConvertPositionToBullet(wheelPositionInReference, frameInA.getOrigin());
 	frameInA.getOrigin() -= objectA->GetBulletMassCenter();
-	// Force the body's coordinate system for wheels.
-	btTransform frameInB(btMatrix3x3::getIdentity(),
-			frameInA.getOrigin() + transformA.getOrigin() - transformB.getOrigin());
+	// Force the body's coordinate system for wheels, so frame in B is identity.
+	// Assume that the wheel is rotated the same as the body when creating.
 
 	m_Constraint = VPhysicsNew(btGeneric6DofSpring2Constraint,
-			*rigidBodyA, *rigidBodyB, frameInA, frameInB, RO_YZX /* Naming is in reverse */);
+			*objectA->GetRigidBody(), *objectB->GetRigidBody(),
+			frameInA, btTransform::getIdentity(), RO_YZX /* Naming is in reverse */);
 	InitializeBulletConstraint();
 
-	m_Constraint->setLimit(0, 0.0f, 0.0f);
-	m_Constraint->setLimit(1, 0.0f, 0.0f); // TODO: Spring length.
-	m_Constraint->setLimit(2, 0.0f, 0.0f);
-	m_Constraint->setLimit(5, 0.0f, 0.0f);
+	m_Constraint->setLinearLowerLimit(btVector3(0.0f, -0.5f, 0.0f));
+	m_Constraint->setLinearUpperLimit(btVector3(0.0f, 0.5f, 0.0f));
+	m_Constraint->setAngularLowerLimit(btVector3(1.0f, 1.0f, 0.0f));
+	m_Constraint->setAngularUpperLimit(btVector3(-1.0f, -1.0f, 0.0f));
 }
 
 btTypedConstraint *CPhysicsConstraint_Suspension::GetBulletConstraint() const {
