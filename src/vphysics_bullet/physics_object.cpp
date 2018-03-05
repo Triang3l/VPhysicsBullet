@@ -616,29 +616,39 @@ Vector CPhysicsObject::GetMassCenterLocalSpace() const {
 	return massCenter;
 }
 
+void CPhysicsObject::ProceedToTransform(const btTransform &transform) {
+	btTransform oldTransform = m_RigidBody->getWorldTransform();
+	m_RigidBody->proceedToTransform(transform);
+
+	if (!IsStatic()) {
+		m_RigidBody->setAngularVelocity(transform.getBasis() *
+				(m_RigidBody->getAngularVelocity() * oldTransform.getBasis()));
+
+		// TODO: Properly handle interpolation values of the rigid body.
+
+		if (!m_Environment->IsInSimulation()) {
+			m_InterPSIAngularVelocity = transform.getBasis() *
+					(m_InterPSIAngularVelocity * oldTransform.getBasis());
+			InterpolateBetweenPSIs();
+		}
+	}
+
+	if (m_Vehicle != nullptr) {
+		static_cast<CPhysicsVehicleController *>(m_Vehicle)->ShiftWheelTransforms(
+				oldTransform.inverseTimes(transform));
+	}
+}
+
 void CPhysicsObject::SetPosition(const Vector &worldPosition, const QAngle &angles, bool isTeleport) {
 	if (m_Shadow != nullptr) {
 		UpdateShadow(worldPosition, angles, false, 0.0f);
 	}
-
-	btMatrix3x3 oldBasis = m_RigidBody->getWorldTransform().getBasis();
-	btVector3 localAngularVelocity = m_RigidBody->getAngularVelocity() * oldBasis;
-
 	matrix3x4_t matrix;
 	AngleMatrix(angles, worldPosition, matrix);
 	btTransform transform;
 	ConvertMatrixToBullet(matrix, transform);
 	transform.getOrigin() += transform.getBasis() * GetBulletMassCenter();
-	m_RigidBody->proceedToTransform(transform);
-
-	if (!IsStatic()) {
-		m_RigidBody->setAngularVelocity(transform.getBasis() * localAngularVelocity);
-		if (!m_Environment->IsInSimulation()) {
-			m_InterPSIAngularVelocity = transform.getBasis() *
-					(m_InterPSIAngularVelocity * oldBasis);
-			InterpolateBetweenPSIs();
-		}
-	}
+	ProceedToTransform(transform);
 }
 
 void CPhysicsObject::SetPositionMatrix(const matrix3x4_t &matrix, bool isTeleport) {
@@ -649,23 +659,10 @@ void CPhysicsObject::SetPositionMatrix(const matrix3x4_t &matrix, bool isTelepor
 		MatrixAngles(matrix, angles);
 		UpdateShadow(worldPosition, angles, false, 0.0f);
 	}
-
-	btMatrix3x3 oldBasis = m_RigidBody->getWorldTransform().getBasis();
-	btVector3 localAngularVelocity = m_RigidBody->getAngularVelocity() * oldBasis;
-
 	btTransform transform;
 	ConvertMatrixToBullet(matrix, transform);
 	transform.getOrigin() += transform.getBasis() * GetBulletMassCenter();
-	m_RigidBody->proceedToTransform(transform);
-
-	if (!IsStatic()) {
-		m_RigidBody->setAngularVelocity(transform.getBasis() * localAngularVelocity);
-		if (!m_Environment->IsInSimulation()) {
-			m_InterPSIAngularVelocity = transform.getBasis() *
-					(m_InterPSIAngularVelocity * oldBasis);
-			InterpolateBetweenPSIs();
-		}
-	}
+	ProceedToTransform(transform);
 }
 
 void CPhysicsObject::GetPosition(Vector *worldPosition, QAngle *angles) const {
@@ -1110,19 +1107,6 @@ void CPhysicsObject::NotifyAttachedToPlayerController(
 	}
 }
 
-void CPhysicsObject::StepUp(btScalar height) {
-	btTransform transform = m_RigidBody->getWorldTransform();
-	transform.getOrigin()[1] += height;
-	m_RigidBody->setWorldTransform(transform);
-	transform = m_RigidBody->getInterpolationWorldTransform();
-	transform.getOrigin()[1] += height;
-	m_RigidBody->setInterpolationWorldTransform(transform);
-	// In case this is called outside a PSI.
-	if (!IsStatic() && m_Environment->IsInSimulation()) {
-		m_InterPSIWorldTransform.getOrigin()[1] += height;
-	}
-}
-
 btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameters_t &params,
 		btScalar secondsToArrival, btScalar timeStep) {
 	Assert(m_Environment->IsInSimulation()); // Not going to touch interpolated values here.
@@ -1139,7 +1123,7 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 	}
 	fraction *= 1.0f / timeStep;
 
-	// Not a reference because it may be modified by proceedToTransform.
+	// Not a reference because it may be modified by ProceedToTransform.
 	const btTransform &worldTransform = m_RigidBody->getWorldTransform();
 	const btVector3 &massCenter = GetBulletMassCenter();
 	btVector3 objectPosition = worldTransform.getOrigin() - (worldTransform.getBasis() * massCenter);
@@ -1158,7 +1142,7 @@ btScalar CPhysicsObject::ComputeBulletShadowControl(ShadowControlBulletParameter
 		}
 		if (dist2 > params.m_TeleportDistance * params.m_TeleportDistance) {
 			const btMatrix3x3 &targetBasis = params.m_TargetObjectTransform.getBasis();
-			m_RigidBody->proceedToTransform(btTransform(targetBasis,
+			ProceedToTransform(btTransform(targetBasis,
 					params.m_TargetObjectTransform.getOrigin() + (targetBasis * massCenter)));
 			deltaPosition.setZero();
 		}

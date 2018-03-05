@@ -143,15 +143,16 @@ public:
 
 	FORCEINLINE IPhysicsEnvironment *GetEnvironment() const { return m_Environment; }
 
-	void GetPositionAtPSI(Vector *worldPosition, QAngle *angles) const;
-	const btVector3 &GetBulletMassCenter() const;
-
 	inline bool WasAsleep() const { return m_WasAsleep; }
 	inline bool UpdateEventSleepState() {
 		bool wasAsleep = m_WasAsleep;
 		m_WasAsleep = IsAsleep();
 		return wasAsleep;
 	}
+
+	const btVector3 &GetBulletMassCenter() const;
+	void GetPositionAtPSI(Vector *worldPosition, QAngle *angles) const;
+	void ProceedToTransform(const btTransform &transform);
 
 	// Bullet doesn't allow damping factors over 1, so it has to be done manually.
 	// Also applies damping in a way more similar to how IVP VPhysics does it.
@@ -197,7 +198,6 @@ public:
 	void NotifyAttachedToShadowController(IPhysicsShadowController *shadow);
 	void NotifyAttachedToPlayerController(
 			IPhysicsPlayerController *player, bool notifyEnvironment);
-	void StepUp(btScalar height); // May be called outside PSIs.
 	btScalar ComputeBulletShadowControl(struct ShadowControlBulletParameters_t &params,
 			btScalar secondsToArrival, btScalar timeStep);
 	void SimulateShadowAndPlayer(btScalar timeStep);

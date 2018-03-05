@@ -49,7 +49,10 @@ void CPhysicsShadowController::MaxSpeed(float maxSpeed, float maxAngularSpeed) {
 }
 
 void CPhysicsShadowController::StepUp(float height) {
-	static_cast<CPhysicsObject *>(m_Object)->StepUp(HL2BULLET(height));
+	CPhysicsObject *object = static_cast<CPhysicsObject *>(m_Object);
+	btTransform transform = object->GetRigidBody()->getWorldTransform();
+	transform.getOrigin()[1] += HL2BULLET(height);
+	object->ProceedToTransform(transform);
 }
 
 void CPhysicsShadowController::SetTeleportDistance(float teleportDistance) {
@@ -283,7 +286,10 @@ int CPhysicsPlayerController::GetShadowPosition(Vector *position, QAngle *angles
 }
 
 void CPhysicsPlayerController::StepUp(float height) {
-	static_cast<CPhysicsObject *>(m_Object)->StepUp(HL2BULLET(height));
+	CPhysicsObject *object = static_cast<CPhysicsObject *>(m_Object);
+	btTransform transform = object->GetRigidBody()->getWorldTransform();
+	transform.getOrigin()[1] += HL2BULLET(height);
+	object->ProceedToTransform(transform);
 }
 
 void CPhysicsPlayerController::Jump() {
@@ -385,7 +391,7 @@ void CPhysicsPlayerController::Simulate(btScalar timeStep) {
 			}
 		}
 		if (teleport) {
-			rigidBody->proceedToTransform(btTransform(worldTransform.getBasis(),
+			object->ProceedToTransform(btTransform(worldTransform.getBasis(),
 					m_TargetObjectPosition + massCenterOffset));
 			return;
 		}

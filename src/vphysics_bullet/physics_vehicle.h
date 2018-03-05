@@ -33,9 +33,11 @@ public:
 	}
 	/* DUMMY */ virtual void VehicleDataReload() {}
 
-	// Internal objects.
+	// Internal methods.
 
 	void SetBodyObject(IPhysicsObject *bodyObject);
+
+	void ShiftWheelTransforms(const btTransform &offset);
 
 	virtual void Release();
 

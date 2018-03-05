@@ -113,6 +113,18 @@ void CPhysicsVehicleController::CreateWheels() {
 	}
 }
 
+void CPhysicsVehicleController::ShiftWheelTransforms(const btTransform &offset) {
+	int wheelCount = GetWheelCount();
+	for (int wheelIndex = 0; wheelIndex < wheelCount; ++wheelIndex) {
+		IPhysicsObject *wheelObject = m_Wheels[wheelIndex].m_Object;
+		if (wheelObject == nullptr) {
+			continue;
+		}
+		CPhysicsObject *wheelPhysicsObject = static_cast<CPhysicsObject *>(wheelObject);
+		wheelPhysicsObject->ProceedToTransform(offset * wheelPhysicsObject->GetRigidBody()->getWorldTransform());
+	}
+}
+
 void CPhysicsVehicleController::DestroyWheels() {
 	IPhysicsEnvironment *environment = static_cast<CPhysicsObject *>(m_BodyObject)->GetEnvironment();
 	Assert(environment != nullptr);
