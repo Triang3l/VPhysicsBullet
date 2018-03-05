@@ -634,6 +634,7 @@ void CPhysicsObject::ProceedToTransform(const btTransform &transform) {
 	}
 
 	if (m_Vehicle != nullptr) {
+		// TODO: This multiplication is TOTALLY UNTESTED!
 		static_cast<CPhysicsVehicleController *>(m_Vehicle)->ShiftWheelTransforms(
 				oldTransform.inverseTimes(transform));
 	}
