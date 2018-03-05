@@ -26,7 +26,8 @@ CPhysicsObject::CPhysicsObject(IPhysicsEnvironment *environment,
 		m_LinearDamping(params->damping), m_AngularDamping(params->rotdamping),
 		m_MaterialIndex(materialIndex), m_RealMaterialIndex(-1),
 		m_ContentsMask(CONTENTS_SOLID),
-		m_Shadow(nullptr), m_Player(nullptr), m_Vehicle(nullptr),
+		m_Shadow(nullptr), m_Player(nullptr),
+		m_BodyOfVehicle(nullptr), m_WheelOfVehicle(nullptr),
 		m_CollisionEnabled(params->enableCollisions),
 		m_ConstraintObjectCount(0), m_ValidConstraintCount(0),
 		m_GameData(params->pGameData), m_GameFlags(0), m_GameIndex(0),
@@ -120,9 +121,9 @@ CPhysicsObject::~CPhysicsObject() {
 }
 
 void CPhysicsObject::NotifyQueuedForRemoval() {
-	if (m_Vehicle != nullptr) {
-		static_cast<CPhysicsVehicleController *>(m_Vehicle)->SetBodyObject(nullptr);
-		Assert(m_Vehicle == nullptr);
+	if (m_BodyOfVehicle != nullptr) {
+		static_cast<CPhysicsVehicleController *>(m_BodyOfVehicle)->SetBodyObject(nullptr);
+		Assert(m_BodyOfVehicle == nullptr);
 	}
 }
 
@@ -135,7 +136,7 @@ void CPhysicsObject::Release() {
 	RemoveShadowController();
 	DetachFromMotionControllers();
 	// Really, REALLY bad if still a vehicle - constraints queued for removal won't be removed correctly.
-	Assert(m_Vehicle == nullptr);
+	Assert(m_BodyOfVehicle == nullptr);
 
 	static_cast<CPhysicsEnvironment *>(m_Environment)->NotifyObjectRemoving(this);
 
@@ -633,9 +634,9 @@ void CPhysicsObject::ProceedToTransform(const btTransform &transform) {
 		}
 	}
 
-	if (m_Vehicle != nullptr) {
+	if (m_BodyOfVehicle != nullptr) {
 		// TODO: This multiplication is TOTALLY UNTESTED!
-		static_cast<CPhysicsVehicleController *>(m_Vehicle)->ShiftWheelTransforms(
+		static_cast<CPhysicsVehicleController *>(m_BodyOfVehicle)->ShiftWheelTransforms(
 				oldTransform.inverseTimes(transform));
 	}
 }
@@ -1177,8 +1178,26 @@ void CPhysicsObject::SimulateShadowAndPlayer(btScalar timeStep) {
 	}
 }
 
-void CPhysicsObject::NotifyAttachedToVehicleController(IPhysicsVehicleController *vehicle) {
-	m_Vehicle = vehicle;
+void CPhysicsObject::NotifyAttachedToVehicleController(IPhysicsVehicleController *vehicle, bool isWheel) {
+	if (isWheel) {
+		m_WheelOfVehicle = vehicle;
+	} else {
+		m_BodyOfVehicle = vehicle;
+	}
+}
+
+bool CPhysicsObject::IsPartOfSameVehicle(const IPhysicsObject *otherObject) const {
+	const CPhysicsObject *otherPhysicsObject = static_cast<const CPhysicsObject *>(otherObject);
+	bool same = false;
+	if (m_BodyOfVehicle != nullptr) {
+		same = (m_BodyOfVehicle == otherPhysicsObject->m_WheelOfVehicle) ||
+				(m_BodyOfVehicle == otherPhysicsObject->m_BodyOfVehicle);
+	}
+	if (!same && m_WheelOfVehicle != nullptr) {
+		same = (m_WheelOfVehicle == otherPhysicsObject->m_WheelOfVehicle) ||
+				(m_WheelOfVehicle == otherPhysicsObject->m_BodyOfVehicle);
+	}
+	return same;
 }
 
 /************

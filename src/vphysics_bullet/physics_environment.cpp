@@ -778,6 +778,10 @@ bool CPhysicsEnvironment::NeedCollision(IPhysicsObject *object0, IPhysicsObject 
 		return false;
 	}
 
+	if (static_cast<CPhysicsObject *>(object0)->IsPartOfSameVehicle(object1)) {
+		return false;
+	}
+
 	if (m_CollisionSolver != nullptr) {
 		unsigned int callbackFlags0 = object0->GetCallbackFlags();
 		unsigned int callbackFlags1 = object1->GetCallbackFlags();

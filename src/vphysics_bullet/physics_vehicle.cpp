@@ -54,13 +54,13 @@ IPhysicsObject *CPhysicsVehicleController::GetWheel(int index) {
 
 void CPhysicsVehicleController::SetBodyObject(IPhysicsObject *bodyObject) {
 	if (m_BodyObject != nullptr) {
-		static_cast<CPhysicsObject *>(m_BodyObject)->NotifyAttachedToVehicleController(nullptr);
+		static_cast<CPhysicsObject *>(m_BodyObject)->NotifyAttachedToVehicleController(nullptr, false);
 		DestroyWheels();
 	}
 	m_BodyObject = bodyObject;
 	if (bodyObject != nullptr) {
 		CreateWheels();
-		static_cast<CPhysicsObject *>(bodyObject)->NotifyAttachedToVehicleController(this);
+		static_cast<CPhysicsObject *>(bodyObject)->NotifyAttachedToVehicleController(this, false);
 	}
 }
 
@@ -80,6 +80,7 @@ void CPhysicsVehicleController::CreateWheels() {
 	memset(&wheelObjectParams, 0, sizeof(wheelObjectParams));
 	wheelObjectParams.pName = "VehicleWheel";
 	wheelObjectParams.pGameData = bodyObject->GetGameData();
+	wheelObjectParams.enableCollisions = true;
 
 	int wheelIndex = 0;
 	for (int axleIndex = 0; axleIndex < m_VehicleParameters.axleCount; ++axleIndex) {
@@ -103,12 +104,15 @@ void CPhysicsVehicleController::CreateWheels() {
 			Vector wheelOffset = axle.offset + ((axleWheelIndex & 1 ? 1.0f : -1.0f) * axle.wheelOffset);
 			Vector wheelPosition;
 			VectorTransform(wheelOffset, bodyTransform, wheelPosition);
-			wheel.m_Object = environment->CreateSphereObject(axle.wheels.radius, axle.wheels.materialIndex,
-					wheelPosition, bodyAngles, &wheelObjectParams, false);
-			wheel.m_Object->SetCallbackFlags(wheel.m_Object->GetCallbackFlags() | CALLBACK_IS_VEHICLE_WHEEL);
+			CPhysicsObject *wheelObject = static_cast<CPhysicsObject *>(environment->CreateSphereObject(
+					axle.wheels.radius, axle.wheels.materialIndex, wheelPosition, bodyAngles,
+					&wheelObjectParams, false));
+			wheel.m_Object = wheelObject;
+			wheelObject->NotifyAttachedToVehicleController(this, true);
+			wheelObject->SetCallbackFlags(wheelObject->GetCallbackFlags() | CALLBACK_IS_VEHICLE_WHEEL);
 			wheel.m_Constraint = static_cast<CPhysicsConstraint_Suspension *>(
-					environment->CreateSuspensionConstraint(bodyObject, wheel.m_Object, nullptr, wheelOffset));
-			wheel.m_Object->Wake();
+					environment->CreateSuspensionConstraint(bodyObject, wheelObject, nullptr, wheelOffset));
+			wheelObject->Wake();
 		}
 	}
 }

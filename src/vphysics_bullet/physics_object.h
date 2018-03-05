@@ -203,7 +203,8 @@ public:
 	void SimulateShadowAndPlayer(btScalar timeStep);
 	void RemovePlayerController();
 
-	void NotifyAttachedToVehicleController(IPhysicsVehicleController *vehicle);
+	void NotifyAttachedToVehicleController(IPhysicsVehicleController *vehicle, bool isWheel);
+	bool IsPartOfSameVehicle(const IPhysicsObject *otherObject) const;
 
 	FORCEINLINE CPhysicsObject *GetNextCollideObject() const {
 		return m_CollideObjectNext;
@@ -298,7 +299,9 @@ private:
 
 	IPhysicsShadowController *m_Shadow;
 	IPhysicsPlayerController *m_Player;
-	IPhysicsVehicleController *m_Vehicle;
+
+	IPhysicsVehicleController *m_BodyOfVehicle;
+	IPhysicsVehicleController *m_WheelOfVehicle;
 
 	bool m_CollisionEnabled;
 
