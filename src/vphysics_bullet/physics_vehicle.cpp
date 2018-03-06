@@ -6,8 +6,8 @@
 #include "physics_environment.h"
 #include "physics_object.h"
 
-CPhysicsVehicleController::CPhysicsVehicleController(IPhysicsObject *bodyObject,
-		const vehicleparams_t &params, IPhysicsGameTrace *gameTrace) :
+CPhysicsVehicleController::CPhysicsVehicleController(
+		IPhysicsObject *bodyObject, const vehicleparams_t &params) :
 		m_BodyObject(nullptr), m_VehicleParameters(params) {
 	btSetMin(m_VehicleParameters.axleCount, VEHICLE_MAX_AXLE_COUNT);
 	btSetMin(m_VehicleParameters.wheelsPerAxle, VEHICLE_MAX_WHEEL_COUNT / VEHICLE_MAX_AXLE_COUNT);
@@ -148,8 +148,38 @@ void CPhysicsVehicleController::DestroyWheels() {
 	}
 }
 
-// TODO: Move this to sub-classes.
-void CPhysicsVehicleController::Release() {
+void CPhysicsVehicleController::ModifyGravity(btVector3 &gravity) {
+	gravity += m_VehicleParameters.body.addGravity * gravity;
+}
+
+/***************************
+ * Car with physical wheels
+ ***************************/
+
+CPhysicsVehicleController_WheeledCar::CPhysicsVehicleController_WheeledCar(
+		IPhysicsObject *bodyObject, const vehicleparams_t &params) :
+		CPhysicsVehicleController(bodyObject, params) {}
+
+void CPhysicsVehicleController_WheeledCar::Release() {
 	SetBodyObject(nullptr);
-	VPhysicsDelete(CPhysicsVehicleController, this);
+	VPhysicsDelete(CPhysicsVehicleController_WheeledCar, this);
+}
+
+/******************
+ * Raycast airboat
+ ******************/
+
+CPhysicsVehicleController_Airboat::CPhysicsVehicleController_Airboat(
+		IPhysicsObject *bodyObject, const vehicleparams_t &params,
+		IPhysicsGameTrace *gameTrace) :
+		CPhysicsVehicleController(bodyObject, params),
+		m_GameTrace(gameTrace) {}
+
+void CPhysicsVehicleController_Airboat::ModifyGravity(btVector3 &gravity) {
+	gravity.setValue(0.0f, gravity.getY() <= 0.0f ? -9.81f : 9.81f, 0.0f);
+}
+
+void CPhysicsVehicleController_Airboat::Release() {
+	SetBodyObject(nullptr);
+	VPhysicsDelete(CPhysicsVehicleController_Airboat, this);
 }

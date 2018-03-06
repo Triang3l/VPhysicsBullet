@@ -78,9 +78,9 @@ public:
 	virtual void DestroyPlayerController(IPhysicsPlayerController *pController);
 	virtual IPhysicsMotionController *CreateMotionController(IMotionEvent *pHandler);
 	virtual void DestroyMotionController(IPhysicsMotionController *pController);
-	/* DUMMY */ virtual IPhysicsVehicleController *CreateVehicleController(IPhysicsObject *pVehicleBodyObject,
+	virtual IPhysicsVehicleController *CreateVehicleController(IPhysicsObject *pVehicleBodyObject,
 			const vehicleparams_t &params, unsigned int nVehicleType, IPhysicsGameTrace *pGameTrace);
-	/* DUMMY */ virtual void DestroyVehicleController(IPhysicsVehicleController *pController);
+	virtual void DestroyVehicleController(IPhysicsVehicleController *pController);
 
 	virtual void SetCollisionSolver(IPhysicsCollisionSolver *pSolver);
 

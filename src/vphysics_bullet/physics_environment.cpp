@@ -622,12 +622,18 @@ void CPhysicsEnvironment::DestroyMotionController(IPhysicsMotionController *pCon
 	VPhysicsDelete(CPhysicsMotionController, pController);
 }
 
-/* DUMMY */ IPhysicsVehicleController *CPhysicsEnvironment::CreateVehicleController(IPhysicsObject *pVehicleBodyObject,
+IPhysicsVehicleController *CPhysicsEnvironment::CreateVehicleController(IPhysicsObject *pVehicleBodyObject,
 		const vehicleparams_t &params, unsigned int nVehicleType, IPhysicsGameTrace *pGameTrace) {
-	return VPhysicsNew(CPhysicsVehicleController, pVehicleBodyObject, params, pGameTrace);
+	if (nVehicleType == VEHICLE_TYPE_CAR_WHEELS) {
+		return VPhysicsNew(CPhysicsVehicleController_WheeledCar, pVehicleBodyObject, params);
+	}
+	if (nVehicleType == VEHICLE_TYPE_AIRBOAT_RAYCAST) {
+		return VPhysicsNew(CPhysicsVehicleController_Airboat, pVehicleBodyObject, params, pGameTrace);
+	}
+	return nullptr;
 }
 
-/* DUMMY */ void CPhysicsEnvironment::DestroyVehicleController(IPhysicsVehicleController *pController) {
+void CPhysicsEnvironment::DestroyVehicleController(IPhysicsVehicleController *pController) {
 	if (pController != nullptr) {
 		static_cast<CPhysicsVehicleController *>(pController)->Release();
 	}

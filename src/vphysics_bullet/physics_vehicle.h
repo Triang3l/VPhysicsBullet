@@ -9,9 +9,6 @@
 
 class CPhysicsVehicleController : public IPhysicsVehicleController {
 public:
-	CPhysicsVehicleController(IPhysicsObject *bodyObject,
-			const vehicleparams_t &params, IPhysicsGameTrace *gameTrace);
-
 	// IPhysicsVehicleController methods.
 
 	/* DUMMY */ virtual void Update(float dt, vehicle_controlparams_t &controls) {}
@@ -39,9 +36,13 @@ public:
 
 	void ShiftWheelTransforms(const btTransform &offset);
 
-	virtual void Release();
+	virtual void ModifyGravity(btVector3 &gravity);
+
+	virtual void Release() = 0; // Subclasses must call SetBodyObject(nullptr)!
 
 protected:
+	CPhysicsVehicleController(IPhysicsObject *bodyObject, const vehicleparams_t &params);
+
 	IPhysicsObject *m_BodyObject;
 
 	vehicleparams_t m_VehicleParameters;
@@ -57,6 +58,27 @@ protected:
 private:
 	void CreateWheels();
 	void DestroyWheels();
+};
+
+class CPhysicsVehicleController_WheeledCar : public CPhysicsVehicleController {
+public:
+	CPhysicsVehicleController_WheeledCar(IPhysicsObject *bodyObject,
+			const vehicleparams_t &params);
+
+	virtual void Release();
+};
+
+class CPhysicsVehicleController_Airboat : public CPhysicsVehicleController {
+public:
+	CPhysicsVehicleController_Airboat(IPhysicsObject *bodyObject,
+			const vehicleparams_t &params, IPhysicsGameTrace *gameTrace);
+
+	virtual void ModifyGravity(btVector3 &gravity);
+
+	virtual void Release();
+
+private:
+	IPhysicsGameTrace *m_GameTrace;
 };
 
 #endif

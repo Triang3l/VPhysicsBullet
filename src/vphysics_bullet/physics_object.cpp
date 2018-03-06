@@ -399,8 +399,11 @@ void CPhysicsObject::ApplyGravity(btScalar timeStep) {
 	if (!IsMoveable() || IsAsleep() || !IsGravityEnabled()) {
 		return;
 	}
-	m_RigidBody->setLinearVelocity(m_RigidBody->getLinearVelocity() +
-			static_cast<const CPhysicsEnvironment *>(m_Environment)->GetBulletGravity() * timeStep);
+	btVector3 gravity = static_cast<const CPhysicsEnvironment *>(m_Environment)->GetBulletGravity();
+	if (m_BodyOfVehicle != nullptr) {
+		static_cast<CPhysicsVehicleController *>(m_BodyOfVehicle)->ModifyGravity(gravity);
+	}
+	m_RigidBody->setLinearVelocity(m_RigidBody->getLinearVelocity() + gravity * timeStep);
 }
 
 /*******
