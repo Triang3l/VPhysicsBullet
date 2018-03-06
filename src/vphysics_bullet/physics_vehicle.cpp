@@ -59,8 +59,13 @@ void CPhysicsVehicleController::SetBodyObject(IPhysicsObject *bodyObject) {
 	}
 	m_BodyObject = bodyObject;
 	if (bodyObject != nullptr) {
-		CreateWheels();
-		static_cast<CPhysicsObject *>(bodyObject)->NotifyAttachedToVehicleController(this, false);
+		Assert(!bodyObject->IsStatic());
+		if (!bodyObject->IsStatic()) {
+			CreateWheels();
+			static_cast<CPhysicsObject *>(bodyObject)->NotifyAttachedToVehicleController(this, false);
+		} else {
+			m_BodyObject = nullptr;
+		}
 	}
 }
 
@@ -85,6 +90,10 @@ void CPhysicsVehicleController::CreateWheels() {
 	int wheelIndex = 0;
 	for (int axleIndex = 0; axleIndex < m_VehicleParameters.axleCount; ++axleIndex) {
 		const vehicle_axleparams_t &axle = m_VehicleParameters.axles[axleIndex];
+		Assert(axle.wheels.mass > 0.0f);
+		if (axle.wheels.mass <= 0.0f) {
+			continue;
+		}
 
 		wheelObjectParams.mass = axle.wheels.mass;
 		wheelObjectParams.inertia = axle.wheels.inertia;
