@@ -168,9 +168,12 @@ CPhysicsConstraint_Ballsocket::~CPhysicsConstraint_Ballsocket() {
  * B attached to A
  *******************/
 
+// TODO: Modify the 6DoF spring since two damping coefficients are needed.
+// Maybe also simplify it, get rid of motor stuff if it's not needed.
+
 CPhysicsConstraint_Suspension::CPhysicsConstraint_Suspension(
 		IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
-		const Vector &wheelPositionInReference) :
+		const Vector &wheelPositionInReference, const vehicle_suspensionparams_t &params) :
 		CPhysicsConstraint(objectReference, objectAttached) {
 	if (!AreObjectsValid()) {
 		m_Constraint = nullptr;
@@ -192,8 +195,12 @@ CPhysicsConstraint_Suspension::CPhysicsConstraint_Suspension(
 			frameInA, btTransform::getIdentity(), RO_YZX /* Naming is in reverse */);
 	InitializeBulletConstraint();
 
-	m_Constraint->setLinearLowerLimit(btVector3(0.0f, -0.5f, 0.0f));
-	m_Constraint->setLinearUpperLimit(btVector3(0.0f, 0.5f, 0.0f));
+	btScalar bodyMass = objectA->GetMass();
+	m_Constraint->setLinearLowerLimit(btVector3(0.0f, 1.0f, 0.0f));
+	m_Constraint->setLinearUpperLimit(btVector3(0.0f, -1.0f, 0.0f));
+	m_Constraint->enableSpring(1, true);
+	m_Constraint->setStiffness(1, params.springConstant * bodyMass);
+	m_Constraint->setDamping(1, params.springDampingCompression * bodyMass);
 	m_Constraint->setAngularLowerLimit(btVector3(1.0f, 1.0f, 0.0f));
 	m_Constraint->setAngularUpperLimit(btVector3(-1.0f, -1.0f, 0.0f));
 }

@@ -111,7 +111,8 @@ void CPhysicsVehicleController::CreateWheels() {
 			wheelObject->NotifyAttachedToVehicleController(this, true);
 			wheelObject->SetCallbackFlags(wheelObject->GetCallbackFlags() | CALLBACK_IS_VEHICLE_WHEEL);
 			wheel.m_Constraint = static_cast<CPhysicsConstraint_Suspension *>(
-					environment->CreateSuspensionConstraint(bodyObject, wheelObject, nullptr, wheelOffset));
+					environment->CreateSuspensionConstraint(bodyObject, wheelObject,
+					nullptr, wheelOffset, axle.suspension));
 			wheelObject->Wake();
 		}
 	}

@@ -7,6 +7,7 @@
 #include "physics_internal.h"
 #include "vphysics/friction.h"
 #include "vphysics/performance.h"
+#include "vphysics/vehicles.h"
 #include "tier1/utlrbtree.h"
 #include "tier1/utlvector.h"
 
@@ -160,7 +161,8 @@ public:
 
 	IPhysicsConstraint *CreateSuspensionConstraint(
 			IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
-			IPhysicsConstraintGroup *group, const Vector &wheelPositionInReference);
+			IPhysicsConstraintGroup *group, const Vector &wheelPositionInReference,
+			const vehicle_suspensionparams_t &params);
 
 	FORCEINLINE btScalar GetMaxSpeed() const {
 		return HL2BULLET(m_PerformanceSettings.maxVelocity);

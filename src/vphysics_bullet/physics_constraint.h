@@ -6,6 +6,7 @@
 
 #include "physics_internal.h"
 #include "vphysics/constraints.h"
+#include "vphysics/vehicles.h"
 
 class CPhysicsConstraint : public IPhysicsConstraint {
 public:
@@ -111,7 +112,7 @@ class CPhysicsConstraint_Suspension : public CPhysicsConstraint {
 public:
 	CPhysicsConstraint_Suspension(
 			IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
-			const Vector &wheelPositionInReference);
+			const Vector &wheelPositionInReference, const vehicle_suspensionparams_t &params);
 	virtual ~CPhysicsConstraint_Suspension();
 	virtual btTypedConstraint *GetBulletConstraint() const;
 	virtual void Release();

@@ -490,9 +490,10 @@ IPhysicsConstraint *CPhysicsEnvironment::CreateBallsocketConstraint(
 
 IPhysicsConstraint *CPhysicsEnvironment::CreateSuspensionConstraint(
 		IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
-		IPhysicsConstraintGroup *group, const Vector &wheelPositionInReference) {
+		IPhysicsConstraintGroup *group, const Vector &wheelPositionInReference,
+		const vehicle_suspensionparams_t &params) {
 	IPhysicsConstraint *constraint = VPhysicsNew(CPhysicsConstraint_Suspension,
-			objectReference, objectAttached, wheelPositionInReference);
+			objectReference, objectAttached, wheelPositionInReference, params);
 	AddConstraint(constraint);
 	return constraint;
 }
