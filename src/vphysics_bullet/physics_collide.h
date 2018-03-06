@@ -13,9 +13,10 @@
 
 #define VPHYSICS_CONVEX_DISTANCE_MARGIN HL2BULLET(0.25f)
 
-/***************************
+/*************************************************************************
  * Serialization structures
- ***************************/
+ * IVP structures (C) Ipion Software GmbH 1999-2000. All rights reserved.
+ *************************************************************************/
 
 struct VCollide_SurfaceHeader {
 	DECLARE_BYTESWAP_DATADESC()
