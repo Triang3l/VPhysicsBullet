@@ -37,6 +37,7 @@ public:
 	void ShiftWheelTransforms(const btTransform &offset);
 
 	virtual void ModifyGravity(btVector3 &gravity);
+	virtual void Simulate(btScalar timeStep) = 0;
 
 	virtual void Release() = 0; // Subclasses must call SetBodyObject(nullptr)!
 
@@ -65,6 +66,8 @@ public:
 	CPhysicsVehicleController_WheeledCar(IPhysicsObject *bodyObject,
 			const vehicleparams_t &params);
 
+	virtual void Simulate(btScalar timeStep);
+
 	virtual void Release();
 };
 
@@ -74,6 +77,7 @@ public:
 			const vehicleparams_t &params, IPhysicsGameTrace *gameTrace);
 
 	virtual void ModifyGravity(btVector3 &gravity);
+	virtual void Simulate(btScalar timeStep);
 
 	virtual void Release();
 

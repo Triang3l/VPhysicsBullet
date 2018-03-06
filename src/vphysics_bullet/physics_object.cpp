@@ -1203,6 +1203,12 @@ bool CPhysicsObject::IsPartOfSameVehicle(const IPhysicsObject *otherObject) cons
 	return same;
 }
 
+void CPhysicsObject::SimulateVehicle(btScalar timeStep) {
+	if (m_BodyOfVehicle != nullptr) {
+		static_cast<CPhysicsVehicleController *>(m_BodyOfVehicle)->Simulate(timeStep);
+	}
+}
+
 /************
  * Collision
  ************/

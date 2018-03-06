@@ -735,7 +735,8 @@ void CPhysicsEnvironment::PreTickCallback(btDynamicsWorld *world, btScalar timeS
 		object->ApplyDrag(timeStep);
 		object->SimulateMotionControllers(IPhysicsMotionController::MEDIUM_PRIORITY, timeStep);
 
-		// Vehicles.
+		// Vehicle.
+		object->SimulateVehicle(timeStep);
 
 		object->CheckAndClearBulletForces();
 	}

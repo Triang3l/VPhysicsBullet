@@ -205,6 +205,7 @@ public:
 
 	void NotifyAttachedToVehicleController(IPhysicsVehicleController *vehicle, bool isWheel);
 	bool IsPartOfSameVehicle(const IPhysicsObject *otherObject) const;
+	void SimulateVehicle(btScalar timeStep);
 
 	FORCEINLINE CPhysicsObject *GetNextCollideObject() const {
 		return m_CollideObjectNext;

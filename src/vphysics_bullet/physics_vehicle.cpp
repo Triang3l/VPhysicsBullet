@@ -160,6 +160,9 @@ CPhysicsVehicleController_WheeledCar::CPhysicsVehicleController_WheeledCar(
 		IPhysicsObject *bodyObject, const vehicleparams_t &params) :
 		CPhysicsVehicleController(bodyObject, params) {}
 
+void CPhysicsVehicleController_WheeledCar::Simulate(btScalar timeStep) {
+}
+
 void CPhysicsVehicleController_WheeledCar::Release() {
 	SetBodyObject(nullptr);
 	VPhysicsDelete(CPhysicsVehicleController_WheeledCar, this);
@@ -177,6 +180,9 @@ CPhysicsVehicleController_Airboat::CPhysicsVehicleController_Airboat(
 
 void CPhysicsVehicleController_Airboat::ModifyGravity(btVector3 &gravity) {
 	gravity.setValue(0.0f, gravity.getY() <= 0.0f ? -9.81f : 9.81f, 0.0f);
+}
+
+void CPhysicsVehicleController_Airboat::Simulate(btScalar timeStep) {
 }
 
 void CPhysicsVehicleController_Airboat::Release() {
