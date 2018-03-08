@@ -119,7 +119,19 @@ public:
 protected:
 	virtual void DeleteBulletConstraint();
 private:
-	btGeneric6DofSpring2Constraint *m_Constraint;
+	class SpringConstraint : public btGeneric6DofSpring2Constraint {
+	public:
+		SpringConstraint(btRigidBody &rbA, btRigidBody &rbB,
+				const btTransform &frameInA, const btTransform &frameInB, RotateOrder rotOrder);
+		virtual void getInfo2(btConstraintInfo2 *info);
+		FORCEINLINE void SetYDamping(btScalar extension, btScalar compression) {
+			m_YDampingExtension = extension;
+			m_YDampingCompression = compression;
+		}
+	private:
+		btScalar m_YDampingExtension, m_YDampingCompression;
+	};
+	SpringConstraint *m_Constraint;
 };
 
 class CPhysicsConstraintGroup : public IPhysicsConstraintGroup {

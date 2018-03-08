@@ -168,9 +168,6 @@ CPhysicsConstraint_Ballsocket::~CPhysicsConstraint_Ballsocket() {
  * B attached to A
  *******************/
 
-// TODO: Modify the 6DoF spring since two damping coefficients are needed.
-// Maybe also simplify it, get rid of motor stuff if it's not needed.
-
 CPhysicsConstraint_Suspension::CPhysicsConstraint_Suspension(
 		IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
 		const Vector &wheelPositionInReference, const vehicle_suspensionparams_t &params) :
@@ -190,7 +187,7 @@ CPhysicsConstraint_Suspension::CPhysicsConstraint_Suspension(
 	// Force the body's coordinate system for wheels, so frame in B is identity.
 	// Assume that the wheel is rotated the same as the body when creating.
 
-	m_Constraint = VPhysicsNew(btGeneric6DofSpring2Constraint,
+	m_Constraint = VPhysicsNew(SpringConstraint,
 			*objectA->GetRigidBody(), *objectB->GetRigidBody(),
 			frameInA, btTransform::getIdentity(), RO_YZX /* Naming is in reverse */);
 	InitializeBulletConstraint();
@@ -200,7 +197,8 @@ CPhysicsConstraint_Suspension::CPhysicsConstraint_Suspension(
 	m_Constraint->setLinearUpperLimit(btVector3(0.0f, -1.0f, 0.0f));
 	m_Constraint->enableSpring(1, true);
 	m_Constraint->setStiffness(1, params.springConstant * bodyMass);
-	m_Constraint->setDamping(1, params.springDampingCompression * bodyMass);
+	m_Constraint->SetYDamping(params.springDamping * bodyMass,
+			params.springDampingCompression * bodyMass);
 	m_Constraint->setAngularLowerLimit(btVector3(1.0f, 1.0f, 0.0f));
 	m_Constraint->setAngularUpperLimit(btVector3(-1.0f, -1.0f, 0.0f));
 }
@@ -210,7 +208,7 @@ btTypedConstraint *CPhysicsConstraint_Suspension::GetBulletConstraint() const {
 }
 
 void CPhysicsConstraint_Suspension::DeleteBulletConstraint() {
-	VPhysicsDelete(btGeneric6DofSpring2Constraint, m_Constraint);
+	VPhysicsDelete(SpringConstraint, m_Constraint);
 	m_Constraint = nullptr;
 }
 
@@ -220,4 +218,16 @@ void CPhysicsConstraint_Suspension::Release() {
 
 CPhysicsConstraint_Suspension::~CPhysicsConstraint_Suspension() {
 	DeleteBulletConstraint();
+}
+
+CPhysicsConstraint_Suspension::SpringConstraint::SpringConstraint(btRigidBody &rbA, btRigidBody &rbB,
+		const btTransform &frameInA, const btTransform &frameInB, RotateOrder rotOrder) :
+		btGeneric6DofSpring2Constraint(rbA, rbB, frameInA, frameInB, rotOrder),
+		m_YDampingExtension(0.0f), m_YDampingCompression(0.0f) {}
+
+void CPhysicsConstraint_Suspension::SpringConstraint::getInfo2(btConstraintInfo2 *info) {
+	const btVector3 &yAxis = m_calculatedTransformA.getBasis().getColumn(1);
+	setDamping(1, m_rbA.getLinearVelocity().dot(yAxis) < m_rbB.getLinearVelocity().dot(yAxis) ?
+			m_YDampingExtension : m_YDampingCompression);
+	btGeneric6DofSpring2Constraint::getInfo2(info);
 }
