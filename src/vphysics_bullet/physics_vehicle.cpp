@@ -8,7 +8,7 @@
 
 CPhysicsVehicleController::CPhysicsVehicleController(
 		IPhysicsObject *bodyObject, const vehicleparams_t &params) :
-		m_BodyObject(nullptr), m_VehicleParameters(params) {
+		m_BodyObject(nullptr), m_VehicleParameters(params), m_Occupied(false) {
 	btSetMin(m_VehicleParameters.axleCount, VEHICLE_MAX_AXLE_COUNT);
 	btSetMin(m_VehicleParameters.wheelsPerAxle, VEHICLE_MAX_WHEEL_COUNT / VEHICLE_MAX_AXLE_COUNT);
 
@@ -50,6 +50,14 @@ IPhysicsObject *CPhysicsVehicleController::GetWheel(int index) {
 		*pSurfaceProps = 0;
 	}
 	return false;
+}
+
+void CPhysicsVehicleController::OnVehicleEnter() {
+	m_Occupied = true;
+}
+
+void CPhysicsVehicleController::OnVehicleExit() {
+	m_Occupied = false;
 }
 
 void CPhysicsVehicleController::SetBodyObject(IPhysicsObject *bodyObject) {

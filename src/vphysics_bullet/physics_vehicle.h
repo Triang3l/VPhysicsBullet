@@ -21,8 +21,8 @@ public:
 	/* DUMMY */ virtual bool GetWheelContactPoint(int index, Vector *pContactPoint, int *pSurfaceProps);
 	/* DUMMY */ virtual void SetSpringLength(int wheelIndex, float length) {}
 	/* DUMMY */ virtual void SetWheelFriction(int wheelIndex, float friction) {}
-	/* DUMMY */ virtual void OnVehicleEnter() {}
-	/* DUMMY */ virtual void OnVehicleExit() {}
+	virtual void OnVehicleEnter();
+	virtual void OnVehicleExit();
 	/* DUMMY */ virtual void SetEngineDisabled(bool bDisable) {}
 	/* DUMMY */ virtual bool IsEngineDisabled() { return false; }
 	/* DUMMY */ virtual void GetCarSystemDebugData(vehicle_debugcarsystem_t &debugCarSystem) {
@@ -54,6 +54,7 @@ protected:
 	};
 	Wheel m_Wheels[VEHICLE_MAX_WHEEL_COUNT];
 
+	bool m_Occupied;
 	vehicle_operatingparams_t m_OperatingParameters;
 
 private:

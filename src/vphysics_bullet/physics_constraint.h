@@ -116,9 +116,7 @@ public:
 	virtual ~CPhysicsConstraint_Suspension();
 	virtual btTypedConstraint *GetBulletConstraint() const;
 	virtual void Release();
-protected:
-	virtual void DeleteBulletConstraint();
-private:
+
 	class SpringConstraint : public btGeneric6DofSpring2Constraint {
 	public:
 		SpringConstraint(btRigidBody &rbA, btRigidBody &rbB,
@@ -131,6 +129,11 @@ private:
 	private:
 		btScalar m_YDampingExtension, m_YDampingCompression;
 	};
+
+protected:
+	virtual void DeleteBulletConstraint();
+
+private:
 	SpringConstraint *m_Constraint;
 };
 
