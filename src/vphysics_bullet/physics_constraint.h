@@ -84,6 +84,9 @@ public:
 	virtual ~CPhysicsConstraint_Hinge();
 	virtual void SetAngularMotor(float rotSpeed, float maxAngularImpulse);
 	virtual btTypedConstraint *GetBulletConstraint() const;
+	FORCEINLINE btHingeConstraint *GetBulletHingeConstraint() const {
+		return m_Constraint;
+	}
 	virtual void Release();
 protected:
 	virtual void DeleteBulletConstraint();
@@ -100,6 +103,9 @@ public:
 			const constraint_ballsocketparams_t &params);
 	virtual ~CPhysicsConstraint_Ballsocket();
 	virtual btTypedConstraint *GetBulletConstraint() const;
+	FORCEINLINE btPoint2PointConstraint *GetBulletPoint2PointConstraint() const {
+		return m_Constraint;
+	}
 	virtual void Release();
 protected:
 	virtual void DeleteBulletConstraint();
@@ -110,13 +116,6 @@ private:
 // Y axis suspension for car wheels.
 class CPhysicsConstraint_Suspension : public CPhysicsConstraint {
 public:
-	CPhysicsConstraint_Suspension(
-			IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
-			const Vector &wheelPositionInReference, const vehicle_suspensionparams_t &params);
-	virtual ~CPhysicsConstraint_Suspension();
-	virtual btTypedConstraint *GetBulletConstraint() const;
-	virtual void Release();
-
 	class SpringConstraint : public btGeneric6DofSpring2Constraint {
 	public:
 		SpringConstraint(btRigidBody &rbA, btRigidBody &rbB,
@@ -129,6 +128,16 @@ public:
 	private:
 		btScalar m_YDampingExtension, m_YDampingCompression;
 	};
+
+	CPhysicsConstraint_Suspension(
+			IPhysicsObject *objectReference, IPhysicsObject *objectAttached,
+			const Vector &wheelPositionInReference, const vehicle_suspensionparams_t &params);
+	virtual ~CPhysicsConstraint_Suspension();
+	virtual btTypedConstraint *GetBulletConstraint() const;
+	FORCEINLINE SpringConstraint *GetBulletSpring2Constraint() const {
+		return m_Constraint;
+	}
+	virtual void Release();
 
 protected:
 	virtual void DeleteBulletConstraint();
