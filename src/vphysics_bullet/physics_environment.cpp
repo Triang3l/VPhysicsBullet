@@ -53,6 +53,8 @@ CPhysicsEnvironment::CPhysicsEnvironment() :
 
 	m_DynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = VPHYSICS_CONVEX_DISTANCE_MARGIN;
 	btContactSolverInfo &solverInfo = m_DynamicsWorld->getSolverInfo();
+	// Performance.
+	solverInfo.m_numIterations = 4;
 	// Stability.
 	solverInfo.m_splitImpulse = false;
 	solverInfo.m_solverMode |= SOLVER_RANDMIZE_ORDER | SOLVER_USE_2_FRICTION_DIRECTIONS;
